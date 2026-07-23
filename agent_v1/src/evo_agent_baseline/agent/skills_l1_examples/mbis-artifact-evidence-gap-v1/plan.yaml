@@ -1,0 +1,44 @@
+plan_id: artifact_evidence_gap
+version: 1
+description: >
+  Retrieval macro plan for the artifact_evidence_gap skill.
+  Each step appends candidates without removing existing ones, preserving the
+  verifier candidate universe floor.
+steps:
+  - step_id: inspect_open_obligation
+    action: call_tool
+    tool: inspect_obligation
+    input:
+      obligation_id: "{{open_obligation.obligation_id}}"
+    save_as: obligation_detail
+
+  - step_id: retrieve_sidecar_artifact_entries
+    action: call_tool
+    tool: retrieve_building_facts
+    input:
+      filters:
+        carrier_type: sidecar_entry
+        artifact_keys: "{{obligation_detail.artifact_keys}}"
+        semantic_slots: "{{obligation_detail.slot_ids}}"
+    append_candidates: true
+
+  - step_id: retrieve_neighbor_rule_cards
+    action: call_tool
+    tool: retrieve_applicable_rules
+    input:
+      rule_families: "{{obligation_detail.source_family_id}}"
+      neighbor_expansion: true
+    append_candidates: true
+
+fallback:
+  on_guard_fail: disable_skill_for_run
+  on_tool_error: return_to_core_workflow
+
+limits:
+  max_tool_calls_added: 3
+  max_candidates_added: 50
+
+authority:
+  can_modify_verifier_inputs: false
+  can_remove_candidates: false
+  can_set_allow_stop: false

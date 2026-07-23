@@ -1,0 +1,33 @@
+# evo-agent 依赖清单
+#
+# 分三档：核心（当前主线必需）/ 分析绘图（可选）/ 旧 MVP·对照基线（主线不需要）。
+# 新人只跑主线：装"核心"即可；想跑 analyze_paired_results / scaling 图再加"分析"。
+# 最后一档是早期 MVP（app.py / knowledge_base / domain_tools）和 research_kg 对照基线
+# 用的，保留是为了不断旧测试；当前主线 evo_agent_baseline + workflow_engine 用不到。
+
+# === 核心：当前主线 evo_agent_baseline + workflow_engine 必需 ===
+neo4j
+pydantic
+pandas
+numpy
+pyarrow
+scipy
+PyYAML
+openai
+
+# === 分析 / 绘图（可选：analyze_paired_results.py、scaling 数据图）===
+matplotlib
+
+# === 旧 MVP / research_kg 对照基线（主线不需要；保留以免断旧测试）===
+langgraph
+langchain-core
+langchain-openai
+llama-index
+llama-index-graph-stores-neo4j
+llama-index-llms-openai
+llama-index-embeddings-huggingface
+pydantic-ai
+python-dotenv
+PyMuPDF
+streamlit
+sentence-transformers

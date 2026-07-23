@@ -1,0 +1,27 @@
+# evo-agent baseline —— Neo4j 知识图配置
+# 来源：spec v0.4 附录 B（neo4j 段）+ §3.7（约束 / 索引）
+# spec→code 单向：本文件按 spec 配置，不自创键。
+
+neo4j:
+  # spec D-001：agent KG 与 evaluator truth store 物理隔离，两库独立
+  agent_database: evo_agent_baseline
+  # ⚠️ 注意：scripts/run_*.py 是 dev 工具，直接走 EVO_AGENT_NEO4J_* 环境变量
+  # （默认 db=neo4j / user=neo4j），**不读本文件**；本文件是 spec D-001 的生产 /
+  # Neo4jClient.from_config 目标。两者不一致是有意的——改这里不会改脚本连的库。
+  eval_database: evo_eval_truth
+  uri: bolt://localhost:7687
+  # 三套独立 credential：agent runtime / ingest / evaluator
+  agent_user: evo_agent_runtime
+  ingest_user: evo_agent_ingest
+  eval_user: evo_eval_runner
+
+# spec §3.7.4：baseline 不依赖 vector index；没有 embedding 时不得降级为读 W2。
+# 若后续实现 embedding RAG，可启用以下可选向量索引配置。
+vector_index:
+  enabled: false
+  rule_card_embedding:
+    index_name: rule_card_embedding_idx
+    label: RuleCard
+    property: embedding
+    dimensions: 1536
+    similarity_function: cosine

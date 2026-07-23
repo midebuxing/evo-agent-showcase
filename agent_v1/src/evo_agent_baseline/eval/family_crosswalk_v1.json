@@ -1,0 +1,220 @@
+{
+  "schema_version": "family_crosswalk_v1",
+  "source_note": "W2法规映射层全量实现级设计规格包/_rule_card_v2现状注解.md §4 完整对照表（法规卡团队 2026-05-13 两次回复合并）；canonical fine family_id 取自 agent_v1/regulations/rulecard_v2/mbis_cop_2023/family_index.json",
+  "description": "W2 16 coarse family → rule_card 43 fine family 的 1:N 对照表。coarse_family_id 与 W2 truth（projections.projection_family / matched_families.family_id）一致；fine_family_ids 是 canonical family_index.json 的 family_id。fine_family_ids 列出该 coarse 的全部 fine family 成员（含主归属与次归属）；每个 fine family 的唯一 primary 归属另见 fine_family_assignments。",
+  "stats": {
+    "coarse_family_count": 16,
+    "fine_family_count": 43,
+    "carded_fine_family_count": 41,
+    "zero_card_fine_family_count": 2
+  },
+  "mappings": [
+    {
+      "coarse_index": 1,
+      "coarse_family_id": "mbis.scope.coverage_and_preinspection",
+      "fine_family_ids": [
+        "mbis.scope.building.ri.coverage",
+        "mbis.preinspection.background.ri.review"
+      ],
+      "notes": "§4 #1。两个 fine family 主归本 coarse。scope.building.ri.coverage 另在 #3 部分出现（§3.3.2(G)(b) 内部 curtain wall 段，次归 #3）。"
+    },
+    {
+      "coarse_index": 2,
+      "coarse_family_id": "mbis.procedure.ri_notifications_and_submissions",
+      "fine_family_ids": [
+        "mbis.reporting.inspection_report.ri.submit",
+        "mbis.reporting.ri_procedural_notifications.ri.submit",
+        "mbis.repair.prescribed_repair_inputs.ri.deliver"
+      ],
+      "notes": "§4 #2。三个 fine family 主归本 coarse。ri_procedural_notifications.ri.submit 另在 #8 部分出现（§2.1.3(n) 段，次归 #8）。"
+    },
+    {
+      "coarse_index": 3,
+      "coarse_family_id": "mbis.inspection.external_components",
+      "fine_family_ids": [
+        "mbis.inspection.covered_external_wall.ri.coverage",
+        "mbis.inspection.external_components.ri.record",
+        "mbis.inspection.external_defects.ri.identify",
+        "mbis.inspection.external_defects.ri.follow_up",
+        "mbis.scope.building.ri.coverage"
+      ],
+      "notes": "§4 #3。前 4 个 fine family 主归本 coarse。scope.building.ri.coverage 次归（§3.3.2(G)(b) 内部 curtain wall 部分，primary 在 #1）。"
+    },
+    {
+      "coarse_index": 4,
+      "coarse_family_id": "mbis.inspection.structural_components",
+      "fine_family_ids": [
+        "mbis.inspection.structural_components.ri.coverage",
+        "mbis.inspection.structural_defects.ri.identify",
+        "mbis.inspection.structural_defects.ri.follow_up"
+      ],
+      "notes": "§4 #4。三个 fine family 全部主归本 coarse。"
+    },
+    {
+      "coarse_index": 5,
+      "coarse_family_id": "mbis.inspection.fire_safety",
+      "fine_family_ids": [
+        "mbis.inspection.fire_safety_components.ri.coverage",
+        "mbis.inspection.fire_safety_components.ri.identify",
+        "mbis.inspection.fire_safety_components.ri.follow_up"
+      ],
+      "notes": "§4 #5（coverage + identify + follow_up，§3.5）。三个 fine family 全部主归本 coarse。"
+    },
+    {
+      "coarse_index": 6,
+      "coarse_family_id": "mbis.inspection.drainage",
+      "fine_family_ids": [
+        "mbis.inspection.drainage.ri.coverage",
+        "mbis.inspection.drainage.ri.identify",
+        "mbis.inspection.drainage.ri.follow_up",
+        "mbis.investigation.drainage.ri.trigger",
+        "mbis.investigation.drainage.ri.method",
+        "mbis.investigation.drainage.ri.follow_up",
+        "mbis.repair.drainage.ri.repair",
+        "mbis.repair.drainage.ri.validate"
+      ],
+      "notes": "§4 #6（含 §3.6 / §4.4 / §5.6 全段，51 卡）。八个 fine family 全部主归本 coarse。repair.drainage.ri.repair / validate 另在 #12 部分出现（§5.6 drainage 段，次归 #12，§4 表标'已计入 #6'）。"
+    },
+    {
+      "coarse_index": 7,
+      "coarse_family_id": "mbis.inspection.ubw",
+      "fine_family_ids": [
+        "mbis.inspection.ubw_and_related_scope.ri.coverage",
+        "mbis.inspection.ubw_and_related_scope.ri.identify",
+        "mbis.inspection.ubw_and_related_scope.ri.follow_up"
+      ],
+      "notes": "§4 #7（coverage + identify + follow_up，§3.7）。三个 fine family 全部主归本 coarse。"
+    },
+    {
+      "coarse_index": 8,
+      "coarse_family_id": "mbis.investigation.gate_and_proposal",
+      "fine_family_ids": [
+        "mbis.investigation.detailed_investigation.ri.trigger",
+        "mbis.investigation.detailed_investigation.ri.gate",
+        "mbis.investigation.detailed_investigation.ri.proposal",
+        "mbis.investigation.detailed_investigation.ri.notice",
+        "mbis.reporting.ri_procedural_notifications.ri.submit"
+      ],
+      "notes": "§4 #8（trigger + gate + proposal + ri_procedural_notifications.ri.submit 部分，§4.1 / §4.2）。trigger / gate / proposal 主归本 coarse。detailed_investigation.ri.notice 是 0 卡 fine family，§4 表未列；按 phase=investigation / subject=detailed_investigation 语义锚 + W2 spec 06 §2 #8 sidecar 含 artifact.notice.investigation_intention，主归本 coarse。ri_procedural_notifications.ri.submit 次归（primary 在 #2）。gate / trigger 另在 #9 部分出现（§4.3 相关，次归 #9）。"
+    },
+    {
+      "coarse_index": 9,
+      "coarse_family_id": "mbis.investigation.structural_assessment_fsp",
+      "fine_family_ids": [
+        "mbis.investigation.detailed_investigation.ri.gate",
+        "mbis.investigation.detailed_investigation.ri.trigger"
+      ],
+      "notes": "§4 #9（detailed_investigation.ri.gate + trigger，§4.3 相关，17 卡）。本 coarse 无自有 primary fine family——gate / trigger 的 primary 均在 #8；二者在本 coarse 为次归属（§4 表 #9 行将 §4.3 相关卡数 17 归本 coarse）。fine_family_ids 仍列出以满足 spec §8.3.2 hard requirement（all mappings 的 fine_family_ids 非空）。"
+    },
+    {
+      "coarse_index": 10,
+      "coarse_family_id": "mbis.repair.general_selection_and_classification",
+      "fine_family_ids": [
+        "mbis.repair.general_selection_and_classification.ri.select"
+      ],
+      "notes": "§4 #10（§5.1 / §5.2，2026-05-13 batch_08 补齐 20 卡）。单 fine family 主归本 coarse。"
+    },
+    {
+      "coarse_index": 11,
+      "coarse_family_id": "mbis.repair.external_structural_validation",
+      "fine_family_ids": [
+        "mbis.repair.external_structural_validation.ri.verify",
+        "mbis.repair.external_structural_validation.ri.follow_up",
+        "mbis.repair.tile_pull_test.ri.validate",
+        "mbis.repair.external_finish.ri.repair"
+      ],
+      "notes": "§4 #11（verify + follow_up + tile_pull_test.ri.validate，§5.3 / §5.4 / App4 / App5）。前 3 个 fine family 主归本 coarse。external_finish.ri.repair 是 0 卡 fine family，§4 表未列；按 phase=repair / subject=external_finish 语义锚 + W2 spec 06 §2 #11 锚 §5.3 外饰面修葺验证段，主归本 coarse。"
+    },
+    {
+      "coarse_index": 12,
+      "coarse_family_id": "mbis.repair.fire_safety_and_drainage",
+      "fine_family_ids": [
+        "mbis.repair.fire_safety_components.ri.repair",
+        "mbis.repair.drainage.ri.repair",
+        "mbis.repair.drainage.ri.validate"
+      ],
+      "notes": "§4 #12（#12a §5.6 drainage 段 + #12b §5.5 fire 段）。fire_safety_components.ri.repair 主归本 coarse（2026-05-13 batch_08 新建 fine family，22 卡）。drainage.ri.repair / validate 次归本 coarse（§4 #12a 标'已计入 #6'，primary 在 #6）。"
+    },
+    {
+      "coarse_index": 13,
+      "coarse_family_id": "mbis.supervision.ri_minimum_and_site_controls",
+      "fine_family_ids": [
+        "mbis.supervision.ri_minimum_and_site_controls.ri.control",
+        "mbis.supervision.ri_minimum_and_site_controls.ri.submit",
+        "mbis.supervision.site_records.ri_team.keep",
+        "mbis.supervision.site_visit_frequency.ri_team.minimum"
+      ],
+      "notes": "§4 #13（control + submit + site_records.ri_team.keep + site_visit_frequency.ri_team.minimum，§6.1-§6.4 / App6）。四个 fine family 全部主归本 coarse。"
+    },
+    {
+      "coarse_index": 14,
+      "coarse_family_id": "mbis.supervision.rc_controls",
+      "fine_family_ids": [
+        "mbis.supervision.rc_controls.rc.control"
+      ],
+      "notes": "§4 #14（§6.5，2026-05-13 batch_08 新建 fine family，2 卡）。单 fine family 主归本 coarse。"
+    },
+    {
+      "coarse_index": 15,
+      "coarse_family_id": "mbis.reporting.inspection_report",
+      "fine_family_ids": [
+        "mbis.reporting.inspection_report.ri.schema"
+      ],
+      "notes": "§4 #15（inspection_report.ri.schema，§7.2 / App7）。单 fine family 主归本 coarse。注意与 #2 的 inspection_report.ri.submit 是不同 fine family（schema vs submit）。"
+    },
+    {
+      "coarse_index": 16,
+      "coarse_family_id": "mbis.reporting.completion_report",
+      "fine_family_ids": [
+        "mbis.reporting.completion_report.ri.schema"
+      ],
+      "notes": "§4 #16（completion_report.ri.schema，§7.3 / App8）。单 fine family 主归本 coarse。"
+    }
+  ],
+  "fine_family_assignments": [
+    {"fine_family_id": "mbis.reporting.inspection_report.ri.submit", "primary_coarse_family_id": "mbis.procedure.ri_notifications_and_submissions", "secondary_coarse_family_ids": [], "card_count": 1},
+    {"fine_family_id": "mbis.reporting.inspection_report.ri.schema", "primary_coarse_family_id": "mbis.reporting.inspection_report", "secondary_coarse_family_ids": [], "card_count": 24},
+    {"fine_family_id": "mbis.inspection.covered_external_wall.ri.coverage", "primary_coarse_family_id": "mbis.inspection.external_components", "secondary_coarse_family_ids": [], "card_count": 6},
+    {"fine_family_id": "mbis.inspection.external_defects.ri.identify", "primary_coarse_family_id": "mbis.inspection.external_components", "secondary_coarse_family_ids": [], "card_count": 7},
+    {"fine_family_id": "mbis.investigation.detailed_investigation.ri.gate", "primary_coarse_family_id": "mbis.investigation.gate_and_proposal", "secondary_coarse_family_ids": ["mbis.investigation.structural_assessment_fsp"], "card_count": null},
+    {"fine_family_id": "mbis.investigation.detailed_investigation.ri.notice", "primary_coarse_family_id": "mbis.investigation.gate_and_proposal", "secondary_coarse_family_ids": [], "card_count": 0},
+    {"fine_family_id": "mbis.repair.tile_pull_test.ri.validate", "primary_coarse_family_id": "mbis.repair.external_structural_validation", "secondary_coarse_family_ids": [], "card_count": 1},
+    {"fine_family_id": "mbis.repair.external_finish.ri.repair", "primary_coarse_family_id": "mbis.repair.external_structural_validation", "secondary_coarse_family_ids": [], "card_count": 0},
+    {"fine_family_id": "mbis.supervision.site_visit_frequency.ri_team.minimum", "primary_coarse_family_id": "mbis.supervision.ri_minimum_and_site_controls", "secondary_coarse_family_ids": [], "card_count": 1},
+    {"fine_family_id": "mbis.supervision.site_records.ri_team.keep", "primary_coarse_family_id": "mbis.supervision.ri_minimum_and_site_controls", "secondary_coarse_family_ids": [], "card_count": 2},
+    {"fine_family_id": "mbis.scope.building.ri.coverage", "primary_coarse_family_id": "mbis.scope.coverage_and_preinspection", "secondary_coarse_family_ids": ["mbis.inspection.external_components"], "card_count": 25},
+    {"fine_family_id": "mbis.preinspection.background.ri.review", "primary_coarse_family_id": "mbis.scope.coverage_and_preinspection", "secondary_coarse_family_ids": [], "card_count": 23},
+    {"fine_family_id": "mbis.reporting.ri_procedural_notifications.ri.submit", "primary_coarse_family_id": "mbis.procedure.ri_notifications_and_submissions", "secondary_coarse_family_ids": ["mbis.investigation.gate_and_proposal"], "card_count": 22},
+    {"fine_family_id": "mbis.repair.prescribed_repair_inputs.ri.deliver", "primary_coarse_family_id": "mbis.procedure.ri_notifications_and_submissions", "secondary_coarse_family_ids": [], "card_count": 2},
+    {"fine_family_id": "mbis.inspection.external_components.ri.record", "primary_coarse_family_id": "mbis.inspection.external_components", "secondary_coarse_family_ids": [], "card_count": 2},
+    {"fine_family_id": "mbis.inspection.structural_components.ri.coverage", "primary_coarse_family_id": "mbis.inspection.structural_components", "secondary_coarse_family_ids": [], "card_count": 23},
+    {"fine_family_id": "mbis.inspection.external_defects.ri.follow_up", "primary_coarse_family_id": "mbis.inspection.external_components", "secondary_coarse_family_ids": [], "card_count": 2},
+    {"fine_family_id": "mbis.inspection.structural_defects.ri.identify", "primary_coarse_family_id": "mbis.inspection.structural_components", "secondary_coarse_family_ids": [], "card_count": 10},
+    {"fine_family_id": "mbis.inspection.structural_defects.ri.follow_up", "primary_coarse_family_id": "mbis.inspection.structural_components", "secondary_coarse_family_ids": [], "card_count": 2},
+    {"fine_family_id": "mbis.investigation.detailed_investigation.ri.trigger", "primary_coarse_family_id": "mbis.investigation.gate_and_proposal", "secondary_coarse_family_ids": ["mbis.investigation.structural_assessment_fsp"], "card_count": 2},
+    {"fine_family_id": "mbis.investigation.detailed_investigation.ri.proposal", "primary_coarse_family_id": "mbis.investigation.gate_and_proposal", "secondary_coarse_family_ids": [], "card_count": 6},
+    {"fine_family_id": "mbis.repair.external_structural_validation.ri.verify", "primary_coarse_family_id": "mbis.repair.external_structural_validation", "secondary_coarse_family_ids": [], "card_count": 35},
+    {"fine_family_id": "mbis.repair.external_structural_validation.ri.follow_up", "primary_coarse_family_id": "mbis.repair.external_structural_validation", "secondary_coarse_family_ids": [], "card_count": 3},
+    {"fine_family_id": "mbis.supervision.ri_minimum_and_site_controls.ri.submit", "primary_coarse_family_id": "mbis.supervision.ri_minimum_and_site_controls", "secondary_coarse_family_ids": [], "card_count": 2},
+    {"fine_family_id": "mbis.supervision.ri_minimum_and_site_controls.ri.control", "primary_coarse_family_id": "mbis.supervision.ri_minimum_and_site_controls", "secondary_coarse_family_ids": [], "card_count": 21},
+    {"fine_family_id": "mbis.reporting.completion_report.ri.schema", "primary_coarse_family_id": "mbis.reporting.completion_report", "secondary_coarse_family_ids": [], "card_count": 11},
+    {"fine_family_id": "mbis.inspection.drainage.ri.coverage", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": [], "card_count": 7},
+    {"fine_family_id": "mbis.inspection.drainage.ri.identify", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": [], "card_count": 9},
+    {"fine_family_id": "mbis.inspection.drainage.ri.follow_up", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": [], "card_count": 7},
+    {"fine_family_id": "mbis.investigation.drainage.ri.trigger", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": [], "card_count": 5},
+    {"fine_family_id": "mbis.investigation.drainage.ri.method", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": [], "card_count": 4},
+    {"fine_family_id": "mbis.investigation.drainage.ri.follow_up", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": [], "card_count": 1},
+    {"fine_family_id": "mbis.repair.drainage.ri.repair", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": ["mbis.repair.fire_safety_and_drainage"], "card_count": 11},
+    {"fine_family_id": "mbis.repair.drainage.ri.validate", "primary_coarse_family_id": "mbis.inspection.drainage", "secondary_coarse_family_ids": ["mbis.repair.fire_safety_and_drainage"], "card_count": 7},
+    {"fine_family_id": "mbis.inspection.fire_safety_components.ri.coverage", "primary_coarse_family_id": "mbis.inspection.fire_safety", "secondary_coarse_family_ids": [], "card_count": null},
+    {"fine_family_id": "mbis.inspection.fire_safety_components.ri.identify", "primary_coarse_family_id": "mbis.inspection.fire_safety", "secondary_coarse_family_ids": [], "card_count": null},
+    {"fine_family_id": "mbis.inspection.fire_safety_components.ri.follow_up", "primary_coarse_family_id": "mbis.inspection.fire_safety", "secondary_coarse_family_ids": [], "card_count": null},
+    {"fine_family_id": "mbis.inspection.ubw_and_related_scope.ri.coverage", "primary_coarse_family_id": "mbis.inspection.ubw", "secondary_coarse_family_ids": [], "card_count": null},
+    {"fine_family_id": "mbis.inspection.ubw_and_related_scope.ri.identify", "primary_coarse_family_id": "mbis.inspection.ubw", "secondary_coarse_family_ids": [], "card_count": null},
+    {"fine_family_id": "mbis.inspection.ubw_and_related_scope.ri.follow_up", "primary_coarse_family_id": "mbis.inspection.ubw", "secondary_coarse_family_ids": [], "card_count": null},
+    {"fine_family_id": "mbis.repair.general_selection_and_classification.ri.select", "primary_coarse_family_id": "mbis.repair.general_selection_and_classification", "secondary_coarse_family_ids": [], "card_count": 20},
+    {"fine_family_id": "mbis.repair.fire_safety_components.ri.repair", "primary_coarse_family_id": "mbis.repair.fire_safety_and_drainage", "secondary_coarse_family_ids": [], "card_count": 22},
+    {"fine_family_id": "mbis.supervision.rc_controls.rc.control", "primary_coarse_family_id": "mbis.supervision.rc_controls", "secondary_coarse_family_ids": [], "card_count": 2}
+  ],
+  "card_count_notes": "card_count 取自 §4 表的卡数明细；§4 #5/#7 只给合计 25/18 未拆分到 3 个 fine family，相关 fine family card_count 标 null。fine_family_assignments 共 43 条，与 family_index.json 的 43 个 canonical family_id 一一对应。"
+}

@@ -1,0 +1,79 @@
+# evo-agent baseline —— 守卫配置（灌库白名单/黑名单 + 闭包验证器 + agent 控制）
+# 来源：spec v0.4 附录 B（ingestion / closure / agent 段）+ §2.2（边界隔离）
+# spec→code 单向：本文件按 spec 配置，不自创键。
+
+# --- 灌库守卫（spec §2.2.1 / §2.2.2 / §2.2.3）---
+ingestion:
+  # spec §2.2.1：agent fact loader 允许读取的 worldgen / sidecar parquet（12 表）
+  allow_agent_tables:
+    - worldgen_world_bundles_meta.parquet
+    - buildings.parquet
+    - fragments.parquet
+    - components.parquet
+    - locations.parquet
+    - coverage_relations.parquet
+    - fragment_states.parquet
+    - specialized_states.parquet
+    - measurements.parquet
+    - sidecar_runtime_meta.parquet
+    - sidecar_records.parquet
+    - sidecar_entries.parquet
+  # spec §2.2.2：agent fact loader 禁止读取的 W2 法规映射层 parquet
+  # 输入目录含这些文件不报错（记 audit warning 并跳过）；显式传入则 hard fail。
+  deny_agent_tables:
+    - normative_projection_meta.parquet
+    - projections.parquet
+    - matched_families.parquet
+    - threshold_evaluations.parquet
+    - coverage_control_metadata.parquet
+    - basis_items.parquet
+  # spec §2.2.3：agent KG 任何节点 / 关系禁止出现的属性名（blind 第二道防线）
+  forbidden_agent_properties:
+    - expected_verdict
+    - selected_family
+    - projection_status
+    - basis_items
+    - unknown_reason_code
+    - regime_tag
+    - pass_bool
+    - projection_id
+    - required_world_core_slots
+    - required_measurement_slots
+    - required_qualifier_slots
+    - required_sidecar_interfaces
+    - matched_component_refs
+    - matched_measurement_ids
+    - coverage_status
+    - raw_projection_ref_hash
+    - projection_registry_id
+    - projection_family
+    - projection_version
+    - projection_ref_hash
+
+# --- 闭包验证器配置（spec §6 + 附录 B closure 段）---
+closure:
+  verifier_version: baseline_closure_v0.3
+  # spec §6.3.5：formula handler 白名单；只有白名单内公式 handler 可用
+  allow_formula_handlers: true
+  formula_handler_allowlist:
+    - pull_test_additional_after_failure_n2_minus_2n_plus_3
+  numeric_tolerance: 1.0e-9
+  # spec §6.5.1：allow_stop 要求无 open、无 blocked
+  allow_stop_requires_no_open: true
+  allow_stop_requires_no_blocked: true
+
+# --- agent 控制配置（spec §7 + 附录 B agent 段）---
+agent:
+  report_language: zh
+  # spec §6.5.3：allow_report_generation = allow_stop
+  allow_full_report_only_when_allow_stop: true
+  skills_enabled: true
+  # spec D-005：baseline 加载 4 个手工 seed Skill，不带 skill 自进化
+  manual_skill_seed_enabled: true
+  # spec §7.2.0 [v0.4-E-2]：从 skill.mbis.<snake_case> 切到 Anthropic Skills
+  # 协议命名 mbis-<kebab-case>（小写连字符，≤64 字符）。
+  required_seed_skill_ids:
+    - mbis-building-assessment-workflow
+    - mbis-fact-kg-retrieval
+    - mbis-rule-obligation-derivation
+    - mbis-auxiliary-report-writer

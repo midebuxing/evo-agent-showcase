@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0.0",
+  "skill_id": "skill.mbis.retrieval_macro.artifact_evidence_gap",
+  "skill_version_id": "skill.mbis.retrieval_macro.artifact_evidence_gap.v1",
+  "name": "artifact evidence gap retrieval macro",
+  "kind": "retrieval_macro",
+  "layer": "L1_operational",
+  "description": "Expand artifact and sidecar evidence lookup when reporting or evidence obligations remain open due to missing artifact evidence. Targets MBIS reporting families where artifact or report-field obligations are not satisfied.",
+  "status": "active",
+  "origin": "evo_induced",
+  "version": "1.0.0",
+  "parent_skill_version_id": null,
+  "supersedes": [],
+  "scope": {
+    "rule_families": ["mbis.reporting.submission", "mbis.reporting.completion"],
+    "rule_cards": [],
+    "semantic_slots": ["reporting.artifact.submitted", "reporting.artifact.present"],
+    "measure_keys": [],
+    "artifact_keys": ["report.inspection", "form.mbi3_or_mbi3a"],
+    "obligation_kinds": ["artifact", "evidence", "report_field"]
+  },
+  "trigger_predicate": {
+    "all": [
+      {"field": "open_reason_code", "op": "in", "value": ["missing_artifact_evidence", "missing_sidecar_entry"]},
+      {"field": "obligation_kind", "op": "in", "value": ["artifact", "evidence", "report_field"]}
+    ]
+  },
+  "action_plan_ref": "plan.yaml#artifact_evidence_gap",
+  "allowed_tools": [
+    "query_open_obligations",
+    "inspect_obligation",
+    "retrieve_building_facts",
+    "retrieve_applicable_rules"
+  ],
+  "forbidden_actions": [
+    "override_verifier",
+    "force_allow_stop",
+    "emit_final_verdict",
+    "read_evaluator_truth",
+    "suppress_rule_candidate"
+  ],
+  "guardrails": {
+    "non_authority": true,
+    "blind": true,
+    "fallback_to_core_on_guard_fail": true
+  },
+  "source_trace_hashes": [
+    "sha256:aaa1111111111111111111111111111111111111111111111111111111111111",
+    "sha256:bbb2222222222222222222222222222222222222222222222222222222222222",
+    "sha256:ccc3333333333333333333333333333333333333333333333333333333333333",
+    "sha256:ddd4444444444444444444444444444444444444444444444444444444444444",
+    "sha256:eee5555555555555555555555555555555555555555555555555555555555555"
+  ],
+  "support_counts": {
+    "trace_count": 5,
+    "building_count": 3,
+    "world_family_count": 2
+  },
+  "validation_summary": {
+    "gate0_static": "passed",
+    "gate1_schema_provenance": "passed",
+    "gate2_replay_ab": "passed",
+    "gate3_stability": "passed",
+    "gate4_holdout_counterfactual": "passed",
+    "leakage_audit_passed": true,
+    "closure_non_regression_passed": true
+  },
+  "activation_stats": {
+    "eligible_count": 0,
+    "activation_count": 0,
+    "fallback_count": 0,
+    "median_benefit": null,
+    "guard_fail_count": 0
+  },
+  "kg_snapshot_id": "KGS-v1-20260523",
+  "rulecard_bundle_id": "rulecard_v2.mbis_cop_2023",
+  "expires_on_revision": {
+    "rulecard_bundle_change": true,
+    "verifier_major_change": true
+  },
+  "created_by": "evo_trainer",
+  "created_at": "2026-05-23T22:30:00Z",
+  "non_authority_statement": "This skill is non-authoritative. It only changes retrieval order and expands evidence lookup. It does not modify allow_stop, closure_status, or satisfaction_status; it does not decide final compliance; it never overrides the closure verifier."
+}

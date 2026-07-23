@@ -1,0 +1,26 @@
+# evo-agent baseline —— evaluator 配置（evaluator-only）
+# 来源：spec v0.4 附录 B（evaluator 段）+ §2.3 / §8
+# 重要：本配置属 evaluator-only；agent runtime 不得读取（readable_by_agent: false）。
+# spec→code 单向：本文件按 spec 配置，不自创键。
+
+evaluator:
+  # spec §2.1 / §8.6：evaluator 读 W2 参考真值独立阅卷，agent 不可见
+  readable_by_agent: false
+  # spec §8.4.5：任何答案泄漏即该 run 评测作废，标 invalid_due_to_answer_leakage
+  fail_on_leakage: true
+  # spec §8.3.2：fine family → W2 coarse family 的 crosswalk 表
+  # 实际位置：evo_agent_baseline/eval/family_crosswalk_v1.json（与 mapper 同包）
+  family_crosswalk_path: eval/family_crosswalk_v1.json
+
+# spec §2.3：evaluator-only truth store 配置；agent runtime credential 不得拥有访问权
+eval_truth_store:
+  mode: duckdb_or_separate_neo4j
+  input_tables:
+    - normative_projection_meta.parquet
+    - projections.parquet
+    - matched_families.parquet
+    - threshold_evaluations.parquet
+    - coverage_control_metadata.parquet
+    - basis_items.parquet
+  readable_by_agent: false
+  readable_by_evaluator: true
