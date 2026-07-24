@@ -499,6 +499,7 @@ def enrich_qualifiers_from_structure(
             frag_info[f["fragment_id"]] = (
                 comp_type.get(f.get("component_id")),
                 loc_class.get(f.get("location_id")),
+                f.get("component_id"),  # P1-1:身份来源证明(原始 Fragment→Component 的 component_id)
             )
     # 载体→fragment 反查：condition/driver/mechanism/repair_assessment/measurement/
     # 旗标载体的事实（qualifiers 无 fragment_id）经节点自身的 fragment_id 属性归属。
@@ -528,7 +529,7 @@ def enrich_qualifiers_from_structure(
         # 统一盖 qualifiers.fragment_id，闭包按它做 fragment 作用域过滤。
         if "fragment_id" not in atom.qualifiers and isinstance(frag_id, str) and frag_id:
             atom.qualifiers["fragment_id"] = frag_id
-        raw_ct, raw_lc = info
+        raw_ct, raw_lc = info[0], info[1]
         if "component_type_key" not in atom.qualifiers and isinstance(raw_ct, str):
             canon = ct_alias.get(raw_ct)
             if isinstance(canon, str) and canon:
@@ -549,6 +550,45 @@ def enrich_qualifiers_from_structure(
                 canon = amap.get(cur)
                 if isinstance(canon, str) and canon:
                     atom.qualifiers[qkey] = canon
+
+    # P1-1(§3.0 专用身份通道):从原始 Fragment→Component 关系(frag_info)生成专用
+    # w0_component_identity 原子,每 fragment 一个(count==1 天然——frag_info 每 fragment 单
+    # component_id)。validator 只认此通道判组件身份(不扫一般事实 qualifier、不 set 折叠多来源),
+    # 消除复审 P1-1 的伪造/多来源折叠红线。真实数据有效:frag_info 来自 raw.fragments。
+    if atoms:
+        _wid, _bid = atoms[0].world_id, atoms[0].building_id
+        for _frag_id, _finfo in frag_info.items():
+            _raw_ct = _finfo[0]
+            if not isinstance(_raw_ct, str):
+                continue
+            _canon = ct_alias.get(_raw_ct)
+            if not (isinstance(_canon, str) and _canon):
+                continue
+            atoms.append(FactAtom(
+                fact_id=f"w0id::{_frag_id}",
+                world_id=_wid,
+                building_id=_bid,
+                carrier_type="fragment",
+                carrier_id=_frag_id,
+                target_ref=None,
+                slot_id="w0_component_identity",
+                measure_key=None,
+                value_json=json.dumps(_canon),
+                value_type="string",
+                unit=None,
+                qualifiers={
+                    "fragment_id": _frag_id,
+                    "component_id": _finfo[2] if len(_finfo) > 2 else None,
+                    "canonical_component_type": _canon,
+                },
+                confidence_index=None,
+                source_path="fragment_component_projection",
+                source_node_id=f"w0id::{_frag_id}",
+                provenance={
+                    "channel": "w0_component_identity",
+                    "derivation": "fragment_component_projection",
+                },
+            ))
     return atoms
 
 

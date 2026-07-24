@@ -361,6 +361,9 @@ def evaluate_trigger(
     known_component_types: Optional[set] = None,
     scope_location_classes: Optional[set] = None,
     known_location_classes: Optional[set] = None,
+    auth_target: Optional[str] = None,
+    w0_identity: Optional[str] = None,
+    lattice_disjoint: Optional[set] = None,
 ) -> Obligation:
     """评估一个 trigger condition item（spec §6.3.3）。
 
@@ -462,11 +465,15 @@ def evaluate_trigger(
         # fragment——location 范畴不符=卡不适用该 fragment，同 component 空真。
         req_ct = qualifiers.get("component_type_key")
         req_lc = qualifiers.get("location_class_key")
+        # DEBT-065 §3.2:触发器级同卡级判据——触发器组件限定须恒等于该卡授权目标叶型
+        # (§3.2-④),与 fragment 单值身份显式登记排斥才 NA;楼级(身份 None)自然不早退
+        # (组件维楼级结构 NA 废止)。缺省拒绝:未授权/身份未知/非恒等/未登记排斥 → 不 NA。
         ct_incompat = (
-            scope_component_types is not None
-            and isinstance(req_ct, str) and req_ct
-            and req_ct not in scope_component_types
-            and (known_component_types is None or req_ct in known_component_types)
+            auth_target is not None
+            and isinstance(req_ct, str) and req_ct == auth_target
+            and w0_identity is not None and w0_identity != auth_target
+            and lattice_disjoint is not None
+            and frozenset((auth_target, w0_identity)) in lattice_disjoint
         )
         lc_incompat = (
             scope_location_classes is not None

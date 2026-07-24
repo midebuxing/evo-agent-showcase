@@ -215,3 +215,64 @@ def test_retrieve_rule_slice_excludes_zero_score() -> None:
     )
     assert rule_slice.candidate_rule_cards == []
     assert rule_slice.retrieval_policy["verifier_candidate_count"] == 0
+
+
+# ===========================================================================
+# P1-2 版本冻结:retriever 三方 bundle 同源校验(DEBT-065 复审补测)
+# ===========================================================================
+def _responses_with_assets(lattice_bundle: str, auth_bundle: str) -> Dict[str, List[Dict[str, Any]]]:
+    expansion_row = {
+        "rule_card": {
+            "rule_card_id": "rc.1", "source_document_id": "MBIS_CoP_2023",
+            "normalized_rule_text": "t", "family_id": "fam.1",
+            "primary_actor": "ri", "primary_action": "submit",
+            "method_keys_allowed": [], "neighbor_families": [],
+            "version_authoring_revision": "1.0.0",
+            "version_interpretation_revision": 1, "provenance_json": "{}",
+        },
+        "applicabilities": [], "trigger_conditions": [], "slot_refs": [],
+        "thresholds": [], "measures": [], "time_anchors": [],
+        "evidence_requirements": [], "obligation_nodes": [], "obligation_edges": [],
+        "workflow_artifacts": [], "workflow_deadlines": [], "workflow_recipients": [],
+        "source_quotes": [], "artifacts": [],
+    }
+    return {
+        queries.RULE_SLOT_DRIVEN_CARDS: [{"rule_card_id": "rc.1", "slot_hits": 1}],
+        queries.RULE_APPLICABILITY_BUILDING_SCOPE: [],
+        queries.RULE_GRAPH_EXPANSION: [expansion_row],
+        queries.RULE_FAMILIES_BY_ID: [
+            {"rule_family": {"family_id": "fam.1", "family_name": "Fam One"}},
+        ],
+        queries.RULE_COMPONENT_TYPE_LATTICE: [
+            {"version": "v1", "lattice_json": "{}", "rulecard_bundle_id": lattice_bundle},
+        ],
+        queries.RULE_EXACT_FRAGMENT_TARGET_AUTHORIZATIONS: [
+            {"version": "v1", "authorized_targets_json": "{}", "rulecard_bundle_id": auth_bundle},
+        ],
+    }
+
+
+def _pack_for_assets() -> FactPack:
+    return FactPack(
+        run_id="RUN-1", world_id="WB-1", building_id="BLD-1", facts=[],
+        slot_index={"procedure.x": ["F1"]}, measure_index={},
+        carrier_index={}, source_tables=[],
+    )
+
+
+def test_p1_2_bundle_match_keeps_lattice() -> None:
+    """P1-2:lattice/授权表/当前卡包 bundle 三方一致 → 组件类型格+授权表进 policy。"""
+    client = FakeNeo4jClient(_responses_with_assets("bundle-1", "bundle-1"))
+    rs = rule_retriever.retrieve_rule_slice(client, "RUN-1", _pack_for_assets(), "bundle-1", regime="mbis")
+    assert "component_type_lattice" in rs.retrieval_policy
+    assert "exact_fragment_target_authorizations" in rs.retrieval_policy
+    assert "component_structure_bundle_mismatch" not in rs.retrieval_policy
+
+
+def test_p1_2_bundle_mismatch_drops_lattice() -> None:
+    """P1-2:lattice bundle 与当前卡包不一致 → 组件类型格+授权表不进 policy(保守关闭)。"""
+    client = FakeNeo4jClient(_responses_with_assets("bundle-OTHER", "bundle-1"))
+    rs = rule_retriever.retrieve_rule_slice(client, "RUN-1", _pack_for_assets(), "bundle-1", regime="mbis")
+    assert "component_type_lattice" not in rs.retrieval_policy
+    assert "exact_fragment_target_authorizations" not in rs.retrieval_policy
+    assert "component_structure_bundle_mismatch" in rs.retrieval_policy

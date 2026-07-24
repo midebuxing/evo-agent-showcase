@@ -1,0 +1,1211 @@
+{
+  "version": "card_applicability_manifest.v1",
+  "rulecard_bundle_id": "rulecard_v2.mbis_cop_2023",
+  "leaf_types": [
+    "cantilevered_canopy",
+    "drainage_component",
+    "external_wall",
+    "fire_safety_component",
+    "wall_tiles"
+  ],
+  "cards": {
+    "rc.mbis.inspection.covered_external_wall.ri.coverage.s3_3_2_j_b.c01": {
+      "authorized_target_leaf": "external_wall"
+    },
+    "rc.mbis.inspection.covered_external_wall.ri.coverage.s3_3_2_j_b_defect_signs_more_portion.c01": {
+      "authorized_target_leaf": "external_wall"
+    },
+    "rc.mbis.inspection.covered_external_wall.ri.coverage.s3_3_2_j_b_signboard_over_40sqm.c01": {
+      "authorized_target_leaf": "external_wall"
+    },
+    "rc.mbis.inspection.covered_external_wall.ri.coverage.s3_3_2_j_c.c01": {
+      "authorized_target_leaf": "external_wall"
+    },
+    "rc.mbis.inspection.covered_external_wall.ri.coverage.s3_3_2_j_c_min_30pct_external_wall_area_when_components_covered.c01": {
+      "authorized_target_leaf": "external_wall"
+    },
+    "rc.mbis.inspection.drainage.ri.coverage.s3_6_2_a_a_visual_or_other_appropriate_inspection.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.coverage.s3_6_2_a_b_to_c_private_premises_sampling_or_feasible_alternative.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_common_pipe_misconnection.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_grating_and_mica_flap_condition.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_manhole_and_septic_condition.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_metal_pipe_clips_condition.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_open_channel_gully_and_drain_well_condition.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_pipe_corrosion.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_pipe_deformation_or_displacement.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_e_pipe_water_leak.c01": {
+      "authorized_target_leaf": "drainage_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.coverage.s3_5_2_a_a_inspect_against_original_or_upgraded_fire_safety_standard.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_b_a_defective_or_missing_exit_signs.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_b_b_inadequate_lighting.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_b_c_defective_balustrades_and_handrails.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_b_d_to_e_door_swing_or_obstructed_escape.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_b_f_defective_treads.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_c_a_to_b_blocked_access_to_building_or_firemans_lift_lobby.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_c_c_to_d_dilapidated_emergency_vehicular_access_or_firemans_lift_lobby_integrity.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_d_a_to_b_inadequate_fire_resisting_materials_or_breached_compartmentation.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_d_c_to_f_fire_doors_and_fire_resisting_glazing_defects.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_d_g_to_h_unprotected_services_or_damaged_staircase_enclosure.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.identify.s3_5_2_d_i_to_j_obstructed_fire_dampers_or_blocked_staircase_top_vents.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_a_beam_slab_cantilevered_30pct.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_a_high_risk_projecting_structures_inspected.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_a_pure_cantilevered_slab_100pct.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_d_i_open_up_root_cover.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_d_ii_coring_for_concrete_properties.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_d_iii_measure_bar_diameter_and_spacing.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_d_iii_measure_cover_screeding_waterproofing.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_d_iii_measure_reinforcement_layout.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_d_iv_measure_span_and_features.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_e.c01": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_e.c02": {
+      "authorized_target_leaf": "cantilevered_canopy"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_1_a_replace_defective_or_missing_exit_signs.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_1_b_correct_inadequate_lighting.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_1_c_repair_defective_balustrades_handrails_and_treads.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_1_d_correct_doors_obstructing_escape_route.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_1_e_remove_obstructions_from_escape_routes.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_1_f_correct_non_complying_door_locks.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_2_a_remove_obstructions_from_building_access_or_passages.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_2_b_repair_dilapidated_emergency_vehicular_access.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_2_c_restore_firemans_lift_lobby_integrity.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_a_repair_replace_or_restore_inadequate_fire_resisting_materials.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_b_provide_fire_dampers_for_ducts_through_compartments.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_c_repair_replace_or_restore_defective_fire_doors.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_d_replace_inadequate_fire_doors_or_glazing.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_e_provide_fire_protection_for_non_emergency_services.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_f_restore_damaged_staircase_and_lobby_enclosures.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_g_replace_or_restore_defective_fire_stopping_or_sealing.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_3_h_repair_or_correct_blocked_staircase_top_vents.c01": {
+      "authorized_target_leaf": "fire_safety_component"
+    },
+    "rc.mbis.inspection.covered_external_wall.ri.coverage.s3_3_2_j_a_representative_assessment_of_covered_external_components.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.coverage.s3_6_1_a_external_wall_drainage.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.coverage.s3_6_1_b_common_part_drainage.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.coverage.s3_6_1_c_common_pipe_duct_drainage.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.coverage.s3_6_1_d_underground_and_surface_common_drainage.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.coverage.s3_6_1_e_other_hygiene_affecting_common_drainage.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.follow_up.s3_6_2_b_a_report_wrong_connection_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.follow_up.s3_6_2_b_b_report_untreated_industrial_discharge_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.follow_up.s3_6_3_a_assess_hazard_sanitation_and_illegal_alterations.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.follow_up.s3_6_3_b_public_health_emergency_notify_ba_owner_residents.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.follow_up.s3_6_3_c_public_danger_urgent_action_or_ba_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.follow_up.s3_6_3_c_public_health_threat_urgent_action_or_ba_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.follow_up.s3_6_3_e_recommend_drainage_rectification_in_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.drainage.ri.identify.s3_6_2_a_d_keep_and_submit_inspection_log.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_components.ri.record.s3_3_2_a_c.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_components.ri.record.s3_3_2_a_c.c02": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.follow_up.s3_3_3_a.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.follow_up.s3_3_3_b.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.identify.s3_3_2_b_crack.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.identify.s3_3_2_b_delamination.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.identify.s3_3_2_b_spalling.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.identify.s3_3_2_b_to_c_abnormal_separation.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.identify.s3_3_2_b_to_i_corrosion.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.identify.s3_3_2_c_displacement.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.external_defects.ri.identify.s3_3_2_g_water_leak.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.coverage.s3_5_1_common_parts_fire_safety_provisions.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.coverage.s3_5_1_external_wall_fire_safety_provisions.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.coverage.s3_5_1_fire_resisting_construction.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.coverage.s3_5_1_means_of_access_for_fire_fighting_and_rescue.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.coverage.s3_5_1_means_of_escape.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_2_a_b_highlight_incomplete_fire_safety_upgrading_in_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_2_a_c_keep_and_submit_daily_fire_safety_inspection_records.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_2_e_report_fire_safety_unauthorized_alterations_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_2_f_report_unsuitable_change_in_use_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_3_a_recommend_fire_safety_follow_up_and_repair_in_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_3_b_record_defective_flat_entrance_door_for_ba_attention.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_3_c_emergency_notify_ba_and_alert_owners_and_occupants.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.fire_safety_components.ri.follow_up.s3_5_3_d_consider_in_depth_investigation_where_fire_resistance_uncertain.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_a_inspect_100pct_concealed_pure_cantilevered_slab_type_structures.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_a_inspect_at_least_30pct_concealed_beam_slab_type_cantilevered_structures.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_c_canopy_check_ponding_drains_seepage_and_ubw_on_soffit.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_c_look_out_defective_drains.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_c_look_out_water_ponding.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_c_look_out_water_seepage.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_d_open_up_and_core_cantilevered_slab_canopy_over_street.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_b_e_select_sufficient_open_up_and_coring_locations_for_canopy.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_c_a.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_c_a_min_30pct_covered_transfer_structures.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_d_expose_concealed_elements_for_representative_assessment.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_components.ri.coverage.s3_4_2_d_expose_sufficient_other_concealed_structural_elements_for_representative_assessment.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.follow_up.s3_4_3_a.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.follow_up.s3_4_3_b.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_abnormal_separation.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_corrosion.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_crack.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_dampness.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_deformation_or_displacement.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_delamination.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_exposed_rebar.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_honeycombing_or_void.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_spalling.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.structural_defects.ri.identify.s3_4_2_a_structural_damage_sign.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_a_identify_ubw_in_common_parts_exterior_and_street.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_b_i_structures_in_common_parts_rooftop_flat_roof_yard_lane_or_street.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_b_ii_projections_and_signboards_on_exterior.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_b_iii_alterations_or_additions_affecting_fire_safety.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_b_iv_to_vi_structural_drainage_external_wall_or_parapet_alterations.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_b_vii_removal_or_alteration_of_barrier_free_access_provisions.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_b_viii_alterations_or_additions_to_balconies_canopies_or_other_approved_projections.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.coverage.s3_7_1_c_look_for_signs_of_suspected_subdivision_of_flats.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.follow_up.s3_7_1_d_keep_and_submit_daily_ubw_inspection_records.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.follow_up.s3_7_3_a_record_all_ubw_in_inspection_report_for_submission_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.follow_up.s3_7_3_b_indicate_ubw_obstructing_inspection_or_repair.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.follow_up.s3_7_3_c_assess_section_39c_ubw_safety_and_make_follow_up_proposals.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.follow_up.s3_7_3_d_emergency_notify_ba_and_alert_owners_and_occupants.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.follow_up.s3_7_3_e_advise_owners_to_remove_all_identified_ubw.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.identify.s3_7_2_a_a_visual_inspection_to_identify_and_record_all_ubw.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.identify.s3_7_2_a_b_make_all_efforts_using_high_level_and_vantage_points.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.identify.s3_7_2_b_assess_obvious_hazard_imminent_danger_or_under_construction_ubw.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.inspection.ubw_and_related_scope.ri.identify.s3_7_2_c_identify_and_inspect_section_39c_validated_ubw_and_defects.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_1_2_professional_judgment_required.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_1_4_apply_findings_personally.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_1_4_engage_suitable_specialist.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_1_4_seek_specialist_input.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_1_4_supervise_specialist.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_2_3.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_2_3_endorsed_before_start.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_2_3_inform_person_of_refusal.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_2_3_proceed_after_refusal_if_person_decides.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_3_2_b_concrete_condition_methods.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_3_2_c_reinforcement_condition_methods.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_3_3_a_assess_safety_level_and_follow_up.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_3_3_b_use_prevailing_standards.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.gate.s4_3_3_c_determine_fsp.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.proposal.s4_2_2_a_purpose.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.proposal.s4_2_2_b_methods_and_particulars.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.proposal.s4_2_2_b_scope.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.proposal.s4_2_2_c_method_justification.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.proposal.s4_2_2_photo.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.proposal.s4_2_2_plan.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_1_1_cause_or_extent_uncertain.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_1_1_range_uncertain.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_a_serious_flexural_cracks_on_beams_or_slabs.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_b_diagonal_cracks_near_beam_supports.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_c_helical_cracks_on_beam_faces.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_d_cracks_at_tension_zone_of_cantilevered_structures.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_e_cracking_or_crushing_of_columns.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_f_tensile_cracks_at_hanging_structures.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_g_serious_structural_cracks_otherwise.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_h_excessive_deformation_of_structural_members.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_i_global_movement_of_building.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_j_extensive_spalling.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_j_serious_corrosion_of_reinforcement_or_structural_steel.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.detailed_investigation.ri.trigger.s4_3_1_k_serious_corrosion_at_canopy_root.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.follow_up.s4_4_3_arrange_urgent_action_or_report_ba_if_unable.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.method.s4_4_2_a_cctv_survey.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.method.s4_4_2_b_smoke_test.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.method.s4_4_2_b_water_test.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.method.s4_4_2_choose_appropriate_manner_and_scale.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.trigger.s4_4_1_a_misconnection_trigger.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.trigger.s4_4_1_b_defective_underground_drain_trigger.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.trigger.s4_4_1_c_leak_source_trigger.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.trigger.s4_4_1_d_hidden_pipe_or_pipe_duct_trigger.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.investigation.drainage.ri.trigger.s4_4_1_e_pipe_clip_trigger.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_1_approved_plans.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_1_identify_unusual_construction_and_attention_items.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_1_minor_works_plans_and_details.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_1_s39c_plans_and_documents.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_1_understand_overall_building_design_and_construction.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_2_design_standards.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_2_fire_safety_upgrade_standard_after_fs_ordinances.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_3_op_date_if_no_approved_plans.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_4_fire_safety_directions.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_5_outstanding_orders.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_6.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.s3_2_6_prepare_inspection_method_statement.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_a_occupation_permit_issue_date.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_b_building_use.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_c_approved_plans.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_d_minor_works_plans_and_details.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_e_s39c_plans_and_documents.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_f_fire_safety_direction_status.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_f_fire_safety_ordinance_applicability.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_g_outstanding_statutory_investigation_orders.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_g_outstanding_statutory_repair_orders.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_s1_maintenance_manual.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.preinspection.background.ri.review.sapp2_s1_previous_inspection_repair_records.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_1_a_replace_defective_common_drain_parts_and_correct_misconnection.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_1_b_material_requirements_for_plastic_pipes_and_fittings.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_1_c_to_d_corrosion_protection_for_cast_iron_and_fittings.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_1_e_to_f_secure_fixing_and_penetration_protection.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_2_a_repair_or_replace_underground_drain_and_correct_misconnection.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_2_b_material_resistance_and_flexible_joints.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_2_c_to_d_clear_small_blockage_or_replace_entire_drain.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_3_a_to_b_strength_compatible_repair_or_recast.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_3_c_realign_and_relevel_after_movement.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_4_list_periodic_maintenance_components.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.repair.s5_6_general_follow_applicable_regulations_and_guidance.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.validate.s5_6_5_a_ball_test.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.validate.s5_6_5_b_air_test.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.validate.s5_6_5_c_water_test.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.validate.s5_6_5_d_smoke_test.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.validate.s5_6_5_e_cctv_survey_with_recording.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.validate.s5_6_5_f_exposed_vertical_drain_inspection_may_replace_validation_test.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.drainage.ri.validate.s5_6_5_general_perform_or_direct_appropriate_validation.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.follow_up.sapp4_s2_3_failed_pull_off_further_tests.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.follow_up.sapp4_s2_4_defective_external_repair_made_good.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.follow_up.sapp5_s1_1_f_failed_patch_pull_off_further_tests.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp4_s1_1_remove_debonded_finish_to_sound_substrate.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp4_s1_3_each_layer_max_10mm.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp4_s1_3_rendering_total_thickness.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp4_s2_1_integrity_check_repaired_area_and_surrounding.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp4_s2_2_pull_off_rate_per_25sqm.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp4_s2_2_pull_off_stress_0_5.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_a_ii_patch_repair_not_for_critical_or_major_cases.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_a_patch_depth_less_than_75mm.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_b_7day_tests_if_no_coc.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_b_mortar_strength_not_inferior.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_b_test_results_or_coc_in_completion_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_b_two_specimens_each_property.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_b_vii_new_rebar_grade_and_size_not_inferior.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_c_remove_spalled_concrete_and_roughen_substrate.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_d_apply_primer_to_cleaned_rebar.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_d_clean_exposed_rebar_by_wire_brush.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_d_replace_severely_corroded_rebar_with_sufficient_lap.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_e_i_apply_bonding_layer_to_substrate.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_f_integrity_test_after_patch_repair.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_f_patch_pull_off_rate_per_25sqm.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_1_f_patch_pull_off_stress_0_5.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_a_ii_formwork_and_support_until_sufficient_strength.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_b_i_new_concrete_strength_not_inferior.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_c_remove_spalled_concrete_and_roughen_surface.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_concrete_cube_reports_in_completion_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_d_clean_and_replace_damaged_rebar_for_recasting.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_e_proper_compaction_of_recast_concrete.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_mill_certificates_in_completion_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_rebound_hammer_or_other_proof_tests.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s1_2_recasting_required_for_severe_conditions.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s2_1_select_crack_repair_method_by_location_width_and_extent.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s2_2_clean_and_dry_cracks_before_repair.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s2_2_remove_loose_debris_from_cracks.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s2_3_epoxy_resin_strength_compatible_with_substrate.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.external_structural_validation.ri.verify.sapp5_s2_3_follow_manufacturer_instructions_for_epoxy_resin_repair.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_4_a_notify_owner_keep_fire_doors_not_held_open.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_4_b_notify_owner_fire_door_self_closers_operate.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_4_c_notify_owner_clear_escape_route_and_staircase_obstructions.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_4_d_notify_owner_prohibit_fire_safety_adverse_ubw.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.fire_safety_components.ri.repair.s5_5_general_restore_defective_fire_safety_facilities_to_required_standard.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_1_ensure_repair_complies_with_bo_standards.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_1_select_suitable_repair_method_and_validation.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_2_formulate_repair_proposals_for_all_defects.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_3_repair_effect_not_inferior_to_applicable_standard.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_4_repair_follow_approved_or_submitted_plans.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_5_minor_or_exempted_works_no_prior_approval_required.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_6_advise_owner_to_appoint_ap_rse_rge_and_rc_as_required.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_6_other_repair_requires_ba_approval_and_consent.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_6_ri_coordinate_mbis_repair_requirements.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_7_note_maintenance_components_in_report_and_notify_owner.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_1_7_repair_keeps_building_safe_until_next_cycle.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_a_intended_use_and_design_life.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_b_exposure_severity.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_c_existing_condition.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_d_defect_cause.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_e_impact_on_occupants_and_public.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_f_impact_on_building_and_environment.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_g_required_performance_and_durability.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_h_material_and_method_compatibility.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.general_selection_and_classification.ri.select.s5_2_i_other_safety_and_health_matters.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.prescribed_repair_inputs.ri.deliver.s2_1_3_q.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.prescribed_repair_inputs.ri.deliver.s2_1_3_q_revised_proposal_to_rc_same_day.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.repair.tile_pull_test.ri.validate.sapp4_2_2_to_2_3.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.s7_3_4_previous_submission_statement_case_refs.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_2_e_include_certificates_and_reports_of_materials_used_including_fire_doors.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_3_record_voluntary_removal_of_ubw_with_annotated_photos_and_marked_up_plans.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_a_repair_work_summary.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_b_completed_work_demarcation_plans.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_c_post_repair_elevation_photos.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_d_proof_test_method_and_results.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_e_material_certificates_and_reports.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_f_supervision_team_summary.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_g_outstanding_orders_completion_statement.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.completion_report.ri.schema.sapp8_s2_h_repair_proposal_revision_account.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.s7_2_3_sign.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.s7_2_6_mbis_repair_separation.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_6_1_f_record_defective_flat_entrance_door_with_adverse_fire_effect.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_6_1_g_results_of_all_tests_carried_out_during_inspection_stage.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_6_1_h_statement_if_fire_safety_upgrading_not_completed.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_6_1_j_record_all_ubw_identified_including_those_obstructing_repair.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_6_1_k_report_on_signs_of_suspected_subdivision_of_flats.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_8_2_distinguish_mbis_repair_works_from_additional_fire_safety_upgrading_works.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s1_cover_page.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s2_summary.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s3_building_information.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s4_reference_documents.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s5_inspection_method_statement.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_1_a_daily_inspection_records.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_1_b_representative_particulars.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_1_c_elevation_photos.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_1_d_defect_summary_table.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_1_e_defects_extending_into_flats_record.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_1_g_inspection_stage_test_results.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_inspection_results.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s6_outstanding_order_scope.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s7_2_regular_maintenance_highlights.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s7_assessment.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.schema.sapp7_s8_repair_proposal.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.inspection_report.ri.submit.s2_1_3_o.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_i.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_j.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_k_nomination_cessation_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_l_ri_cessation_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_m_representative_intended_appointment_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_n_investigation_intention_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_n_investigation_proposal_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_o_documents_to_person_within_7d.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_o_mbi3_or_mbi3a_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_o_mbi3_to_supervising_ri_before_repair.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_o_mbi3_to_supervising_ri_within_2m.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_o_report_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_o_report_to_supervising_ri_before_repair.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_o_report_to_supervising_ri_within_2m.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_p.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_p_revised_proposal_to_person_same_day.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_r.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_r_completion_report_to_person_same_day.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_r_mbi4_to_person_same_day.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_s_mbi5_to_ba.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_t_full_approval_procedures_also_comply.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit.s2_1_3_t_minor_works_procedures_also_comply.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1.c02": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1_common_drain_in_noncommon_part.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1_common_parts_within_private_premises_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1_envelope_or_lot_boundary.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1_external_walls_whether_or_not_common_parts_included.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1_projection.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_1_signboard.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_2_drainage_system.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_2_external_elements.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_2_fire_safety_elements.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_2_structural_elements.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_2_ubw_elements.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_buried_embedded_elements_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_buried_water_supply_facilities_in_slopes_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_electrical_wiring_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_fire_service_installations_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_foundations_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_gas_and_water_installations_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_independent_retaining_structures_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_lifts_escalators_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_slopes_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_1_3_ventilation_and_air_conditioning_systems_excluded.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_3_2_g_b_corresponding_internal_common_part_of_defective_curtain_wall_included.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.scope.building.ri.coverage.s3_3_2_g_b_corresponding_internal_private_premises_of_defective_curtain_wall_included.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.rc_controls.rc.control.s6_5_1_rc_continuous_supervision_for_repair_and_scaffolding.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.rc_controls.rc.control.s6_5_2_rc_give_ri_sufficient_prior_notice_for_inspection.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.s6_4_1_check_and_supervise_all_rectification_and_repair_works.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.s6_4_1_frequency_and_scope_not_less_than_appendix6.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.s6_4_2_reported_and_new_defects_must_be_repaired_or_corrected.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.s6_4_2_supervise_preparatory_works_to_minimum_standard.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.s6_4_2_supervise_rectification_and_repair_to_minimum_standard.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.s6_4_2_supervision_team_must_be_qualified_and_experienced.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.s6_4_8_overall_final_inspection_before_completion_submission.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p1_ensure_repairs_follow_repair_proposal.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p2_assign_level1_representative.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p2_assign_level2_representative.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p6_compile_checklists_for_representatives.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p6_record_nonconformities_in_annex_c_report.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p6_register_all_inspected_items_as_inspection_records.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p7_record_material_checks.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_p7_record_witnessed_validation_tests.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_tbl1_level1_representative_t1_equivalent.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_tbl1_level2_representative_t3_equivalent.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_tbl1_level2_representative_topup_course_5_years.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_tbl2_level1_weekly.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_tbl2_level2_fortnightly.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.control.sapp6_tbl2_ri_first_inspection_and_level2_proof_tests.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.submit.s6_4_4_supervision_proposal_within_7d.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.ri_minimum_and_site_controls.ri.submit.s6_4_6_team_change_within_7d.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.site_records.ri_team.keep.sapp6_p8_complete_records_contemporaneously.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.site_records.ri_team.keep.sapp6_p8_retain_checklists_and_records_for_ba_inspection.c01": {
+      "authorized_target_leaf": null
+    },
+    "rc.mbis.supervision.site_visit_frequency.ri_team.minimum.sapp6_tbl2.c01": {
+      "authorized_target_leaf": null
+    }
+  },
+  "canonical_hash_algorithm": "sha256(utf8(json.dumps(obj,sort_keys=True,separators=(',',':'),ensure_ascii=False)))",
+  "provenance": {
+    "spec": "spec草案_DEBT065_v3_单bundle编译式判据",
+    "adjudication_source": "法规卡专员逐卡裁定(高置信集);生成时强校验卡唯一组件值==授权目标",
+    "note": "runtime 只消费本 manifest 的规范叶 ID,不接触 authoring 标签/别名/法律属性词表值"
+  },
+  "content_sha256": "db475318a37246a79ead6e1f2280c26deee7d157892a95af165f4f67cb5e3dbe"
+}

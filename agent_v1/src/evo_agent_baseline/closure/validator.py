@@ -1067,10 +1067,40 @@ def validate_building_closure(
     _mapping_policy = (rule_slice.retrieval_policy or {}).get(
         "projection_runtime_mapping_v1"
     ) or {}
+    # DEBT-065 第一波:组件类型格 + 精确目标授权(loader ingest 已验证并产出
+    # {rule_card_id: target},闭包侧只按 id 查,绕开 KG 重建 DTO 与 card_fingerprint 口径分歧)。
+    # 无资产 → _auth_targets 空 → 组件结构早退判据恒 False(runtime 保守关闭)。
+    _lattice_policy = (rule_slice.retrieval_policy or {}).get("component_type_lattice") or {}
+    _lattice_leaf_types: set = set(_lattice_policy.get("leaf_types") or [])
+    _lattice_disjoint: set = {
+        frozenset(p) for p in (_lattice_policy.get("disjoint_pairs") or []) if len(set(p)) == 2
+    }
+    _auth_targets_raw: Dict[str, Any] = (
+        (rule_slice.retrieval_policy or {}).get("exact_fragment_target_authorizations") or {}
+    )
+    # P1-2:授权运输新形态 {rule_card_id: {"target": ..., "card_content_sha256": ...}};
+    # 兼容旧形态 {rule_card_id: str_target}(测试/历史 policy 可能仍为纯字符串)。
+    _auth_targets: Dict[str, str] = {}
+    for _atk, _atv in _auth_targets_raw.items():
+        if isinstance(_atv, dict):
+            _auth_targets[_atk] = _atv.get("target", "")
+        elif isinstance(_atv, str):
+            _auth_targets[_atk] = _atv
     _subject_crosswalk = _mapping_policy.get("subject_component_crosswalk") or {}
     _ct_value_alias = (
         _mapping_policy.get("qualifier_value_aliases") or {}
     ).get("component_type_key") or {}
+    # P1-2:运行时同源校验——lattice 的 alias 快照须与当前 mapping alias 一致(防 KG 内
+    # lattice 与 mapping 版本错配,旧授权作用于已变卡);不一致 → 整体关闭组件结构早退
+    # (判据恒 False)。缺席亦整体关闭(_lattice_leaf_types/_auth_targets 缺省空)。
+    # TODO(多版本):v2.2 §2.4 精确版本键冻结(run 级冻结三资产版本,禁 ORDER BY DESC 字典序
+    # v9>v10);v1 单版本下 ORDER BY DESC LIMIT 1 取唯一版本 + loader ingest 校验 + 本同源校验兜底。
+    from .component_lattice import canonical_hash as _ct_lattice_hash
+    _lattice_alias_snap = _lattice_policy.get("alias_mapping_snapshot_sha256")
+    if _lattice_alias_snap and _ct_lattice_hash(_ct_value_alias) != _lattice_alias_snap:
+        _lattice_leaf_types = set()
+        _lattice_disjoint = set()
+        _auth_targets = {}
     building_component_classes: set = set()
     for _f in fact_pack.facts:
         if _f.slot_id == "component_type":
@@ -1108,6 +1138,31 @@ def validate_building_closure(
         if isinstance(_v, str) and _v:
             _frag_ct.setdefault(_fid, set()).add(_v)
 
+    # P1-1(§3.0 专用身份通道,复审后完整版):身份只认检索器生成的 w0_component_identity
+    # 专用原子(from 原始 Fragment→Component 关系,provenance.channel 标记,value_json 已 canonical)。
+    # 不扫一般事实 qualifier(普通事实叶型不得误认)、按 fragment_id 索引、同 fragment 多来源
+    # (不该发生)标 dup→None。真实数据有效(检索器 enrich 从 raw.fragments 生成)+ 不可伪造
+    # (专用 slot_id + provenance.channel)。复审 P1-1 修复:旧 slot_id==component_type 近似真实
+    # 数据下无效(真实事实无 fragment_id)、且可被普通事实伪造。
+    _w0_identity_src: Dict[str, str] = {}
+    _w0_identity_dup: set = set()
+    for _f in fact_pack.facts:
+        if _f.slot_id != "w0_component_identity":
+            continue
+        if (_f.provenance or {}).get("channel") != "w0_component_identity":
+            continue
+        _fid = (_f.qualifiers or {}).get("fragment_id")
+        if not isinstance(_fid, str) or not _fid:
+            continue
+        try:
+            _idv = json.loads(_f.value_json)
+        except (TypeError, ValueError):
+            _idv = None
+        if isinstance(_idv, str) and _idv:
+            if _fid in _w0_identity_src:
+                _w0_identity_dup.add(_fid)
+            _w0_identity_src[_fid] = _idv
+
     # 已知组件身份宇宙（codex 裁决护栏：T 卡端脏值/未规范化不得推断 NA）
     _known_ct: set = (
         set(_ct_value_alias.values()) | set(_cat_members.keys())
@@ -1121,6 +1176,26 @@ def validate_building_closure(
             return _building_compat if building_component_classes else None
         base = _frag_ct.get(scope_fid)
         return _with_categories(set(base)) if base else None
+
+    def _w0_fragment_identity(scope_fid: Optional[str]) -> Optional[str]:
+        """§3.0 fragment 单值 W0 组件身份(叶型)。仅认 w0_component_identity 专用通道
+        (检索器 from 原始 Fragment→Component,provenance.channel 标记);同 fragment 多来源 /
+        空 / 非叶 → None(不早退,不产未证成 NA)。楼级(scope_fid None)恒 None(组件维楼级 NA 废止)。
+        """
+        if scope_fid is None or scope_fid in _w0_identity_dup:
+            return None
+        v = _w0_identity_src.get(scope_fid)
+        return v if v and v in _lattice_leaf_types else None
+
+    def _provable_disjoint(target: str, identity: str) -> bool:
+        """(授权目标叶型, fragment 身份叶型) 显式登记于 disjoint_pairs 才可证互斥。
+
+        禁传递闭包、禁"未登记=互斥"(v2.2 红线 1/4)。
+        """
+        return (
+            target in _lattice_leaf_types and identity in _lattice_leaf_types
+            and target != identity and frozenset((target, identity)) in _lattice_disjoint
+        )
 
     # ---- DEBT-050 location 维度扩展（②，2026-07-08）：位置结构可满足性基建 ----
     # location 无类目层级，直接值判（比 component 简单）。fragment location 集从
@@ -1243,9 +1318,15 @@ def validate_building_closure(
             # 即早退（②location 维度扩展：location 无类目层级，直接值判）。
             _scope_ct = _scope_component_types(scope_fid)
             _scope_lc = _scope_location_classes(scope_fid)
+            # DEBT-065 第一波:替换旧"词表空交=互斥"为 v2.2 §3.1 正向授权可证排斥——
+            # 授权表取该卡单目标叶型,fragment 取单值 W0 身份,二者显式登记排斥才 NA。
+            # 缺省拒绝:未授权/身份未知/非叶/未登记排斥 → 不早退(不产未证成 NA)。
+            _auth_target = _auth_targets.get(card.rule_card_id)
+            _w0_identity = _w0_fragment_identity(scope_fid)
             _ct_na = (
-                _card_ct and _scope_ct is not None and _card_ct <= _known_ct
-                and not (_card_ct & _with_categories(set(_scope_ct)))
+                _auth_target is not None
+                and _w0_identity is not None
+                and _provable_disjoint(_auth_target, _w0_identity)
             )
             _lc_na = (
                 _card_lc and _scope_lc is not None and _card_lc <= _known_lc
@@ -1253,8 +1334,8 @@ def validate_building_closure(
             )
             if scope_fid is not None and (_ct_na or _lc_na):
                 _reason = (
-                    f"component_type_key {sorted(_card_ct)} vs fragment "
-                    f"components {sorted(_scope_ct or [])}" if _ct_na else
+                    f"authorized target {_auth_target} vs fragment identity "
+                    f"{_w0_identity} provably disjoint" if _ct_na else
                     f"location_class_key {sorted(_card_lc)} vs fragment "
                     f"locations {sorted(_scope_lc or [])}"
                 )
@@ -1286,6 +1367,9 @@ def validate_building_closure(
                     known_component_types=_known_ct,
                     scope_location_classes=_scope_location_classes(scope_fid),
                     known_location_classes=_known_lc,
+                    auth_target=_auth_targets.get(card.rule_card_id),
+                    w0_identity=_w0_fragment_identity(scope_fid),
+                    lattice_disjoint=_lattice_disjoint,
                 )
                 obligations.append(obl)
                 trigger_results.append(obl)

@@ -39,6 +39,7 @@ def make_fact(
     unit: Optional[str] = None,
     qualifiers: Optional[Dict[str, Any]] = None,
     target_ref: Optional[str] = None,
+    provenance: Optional[Dict[str, Any]] = None,
 ) -> FactAtom:
     """构造一条 FactAtom。"""
     return FactAtom(
@@ -56,6 +57,7 @@ def make_fact(
         qualifiers=qualifiers or {},
         source_path="test/path",
         source_node_id=f"node-{fact_id}",
+        provenance=provenance or {},
     )
 
 

@@ -91,18 +91,24 @@ def test_trigger_and_slot_role_same_input_same_semantics() -> None:
 # 2. 出口优先序 + 供给缺口护栏
 # --------------------------------------------------------------------------- #
 def test_structural_na_precedes_qualifier_conflict() -> None:
-    """候选存在 + component_type_key 与作用域结构不相容(身份已知) → 仍 closed/not_applicable。
+    """候选存在 + 触发器授权目标叶型与 fragment 身份可证排斥 → 仍 closed/not_applicable。
 
-    DEBT-050 结构 NA 出口在新 qualifier_conflict 分支**之前**判定（出口优先序守恒）：
+    DEBT-065 结构 NA 出口在 qualifier_conflict 分支**之前**判定（出口优先序守恒）：
     此处 conflict 条件（候选非空+qualifier 全灭）亦成立，但结构 NA 先命中。
     """
+    import itertools
+    _leaf = ["external_wall", "fire_safety_component", "drainage_component",
+             "cantilevered_canopy", "wall_tiles"]
+    _disjoint = {frozenset(p) for p in itertools.combinations(_leaf, 2)}
     facts = [make_fact("f", slot_id=CONFLICT_SLOT, value=True, value_type="boolean",
                        qualifiers={"component_type_key": "drainage_component"})]
     o = evaluate_trigger(
         make_rule_card(),
-        _trigger(qualifiers={"component_type_key": "structural_component"}),
+        _trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
         _idx(facts), META,
-        scope_component_types={"drainage_component"}, known_component_types=KNOWN,
+        auth_target="cantilevered_canopy",
+        w0_identity="drainage_component",
+        lattice_disjoint=_disjoint,
     )
     assert (o.closure_status, o.satisfaction_status) == ("closed", "not_applicable")
     assert "structurally_unsatisfiable_qualifier" in (o.notes or "")

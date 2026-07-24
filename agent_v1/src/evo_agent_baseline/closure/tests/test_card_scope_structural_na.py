@@ -1,15 +1,15 @@
-"""卡 fragment 级结构适用边界早退（DEBT-050 扩展·件乙，spec 增补 2026-07-08）。
+"""卡 fragment 级组件结构不相容早退(DEBT-065 第一波:正向授权可证排斥)。
 
-件甲解锁无限定触发器后暴露证据/槽角色路径的组件结构不可满足（卡 component 限定落
-evidence/definition_reference 而非触发器，异类 fragment 撞 qualifier_conflict）。修案：
-卡 component 限定与 fragment 组件身份结构无交集 → 整卡不适用于该 fragment（发 kind=scope
-NA audit + 跳过）。codex 裁决 Option 1.5（Option 1 假 pass 否决/Option 2 静默过滤不取），
-四条件护栏防误杀跨组件证据引用卡。
+判据从旧"词表值集空交=互斥"改为 v2.2 §3.1:授权表取该卡单目标叶型,fragment 取单值
+W0 身份,二者显式登记于 disjoint_pairs 才早退(kind=scope NA)。缺省拒绝:未授权/身份
+未知/非叶/未登记排斥 → 不早退(不产未证成 NA)。
+
+历史(DEBT-050 件乙,已废止):曾以"卡 component 限定与 fragment 组件身份词表值无交集"
+早退,codex 穷尽裁定该判据无证明责任基础(词表四轴混装),乙案降调、本周期改正向授权。
 """
-
 from __future__ import annotations
 
-import pytest
+import itertools
 
 from evo_agent_baseline.contracts import RuleSlice, SemanticSlotDTO
 
@@ -17,80 +17,75 @@ from .fixtures import (
     BUNDLE_ID, RUN_ID, make_fact, make_fact_pack, make_rule_card, run_closure,
 )
 
-# identity-v5 现网键切换后 float evaluate_slot_role 读 role 单数定 kind，严格 SlotRoleDTO 禁
-# role 单数、只认 roles 复数（float 不读）→ kind 退化为 evidence；kind==definition 断言分叉，
-# 待主会话裁决。见 source_dtos INSTRUCTION_ANCHOR_DRIFT。
-_XFAIL_DRIFT = (
-    "identity-v5 现网键切换: float evaluate_slot_role 读 role 单数定 kind, 严格 SlotRoleDTO "
-    "禁 role 单数只认 roles 复数(float 不读) → kind 退化为 evidence; 待主会话裁决判定器读键或"
-    "测试迁移到 float-only 单元层"
-)
-
 SCOPE_SLOT = "scope.component.inspection_included"
-MAPPING = {
-    "projection_runtime_mapping_v1": {
-        "qualifier_value_aliases": {
-            "component_type_key": {
-                "external_wall": "external_wall",
-                "fire_safety_component": "fire_safety_component",
-                "structural_member": "structural_component",
-            }
-        },
-        "component_category_members": {
-            "external_component": {
-                "members": ["external_wall", "wall_tiles"],
-                "aggregation": "any_true",
-            },
-        },
-    }
+CARD_ID = "RC.fire.001"
+_LEAF = ["external_wall", "fire_safety_component", "drainage_component", "cantilevered_canopy", "wall_tiles"]
+_LATTICE = {
+    "leaf_types": _LEAF,
+    "disjoint_pairs": [sorted(p) for p in itertools.combinations(sorted(_LEAF), 2)],
 }
 
 
-def _slice(card):
+def _policy(auth=None):
+    policy = {
+        "projection_runtime_mapping_v1": {
+            "qualifier_value_aliases": {
+                "component_type_key": {
+                    "external_wall": "external_wall",
+                    "fire_safety_component": "fire_safety_component",
+                    "structural_member": "structural_component",
+                }
+            },
+        },
+        "component_type_lattice": _LATTICE,
+    }
+    if auth is not None:
+        policy["exact_fragment_target_authorizations"] = auth
+    return policy
+
+
+def _slice(card, auth=None):
     return RuleSlice(
         run_id=RUN_ID, rulecard_bundle_id=BUNDLE_ID,
         candidate_rule_cards=[card], rule_families=[],
         semantic_slots=[SemanticSlotDTO(slot_id=SCOPE_SLOT, semantic_domain="scope")],
         measures=[], artifacts=[], time_anchors=[], source_quotes=[],
-        retrieval_policy=MAPPING,
+        retrieval_policy=_policy(auth),
     )
 
 
 def _frag_fact(frag, ct):
-    """fragment 上一条带 component_type_key 的事实（建 fragment_ids + _frag_ct）。"""
+    """fragment 的 W0 组件身份专用原子(slot_id=='w0_component_identity' + provenance channel,
+    模拟检索器 enrich 从原始 Fragment→Component 生成的身份原子)。"""
     return make_fact(
-        f"cf-{frag}", slot_id="component_type", value=ct,
+        f"w0id-{frag}", slot_id="w0_component_identity", value=ct,
         carrier_type="fragment", carrier_id=frag,
-        qualifiers={"fragment_id": frag, "component_type_key": ct},
+        qualifiers={"fragment_id": frag, "component_id": f"comp-{frag}", "canonical_component_type": ct},
+        provenance={"channel": "w0_component_identity", "derivation": "fragment_component_projection"},
     )
 
 
-def _card(component_type_key=None, extra_role=None):
-    # 严格 SlotRoleDTO：roles 复数 + qualifiers（去掉禁止的 role 单数键）。早退判定读
-    # slot_role_map[].qualifiers.component_type_key，与 role/roles 无关，故不受影响。
-    roles = []
-    if component_type_key is not None:
-        roles.append({
-            "slot_ref_id": "sr01", "slot_id": SCOPE_SLOT,
-            "roles": ["definition_reference"],
-            "required": True,
-            "qualifiers": {"component_type_key": component_type_key},
-        })
-    else:
-        roles.append({
-            "slot_ref_id": "sr01", "slot_id": SCOPE_SLOT,
-            "roles": ["definition_reference"],
-            "required": True, "qualifiers": {},
-        })
-    if extra_role:
-        roles.append(extra_role)
-    return make_rule_card(rule_card_id="RC.fire.001", slot_role_map=roles)
+def _id_atom(frag, ct, fid_suffix="2"):
+    """同 fragment 的第二条身份原子(测多来源 dup)。"""
+    return make_fact(
+        f"w0id{fid_suffix}-{frag}", slot_id="w0_component_identity", value=ct,
+        carrier_type="fragment", carrier_id=frag,
+        qualifiers={"fragment_id": frag, "component_id": f"comp{fid_suffix}-{frag}", "canonical_component_type": ct},
+        provenance={"channel": "w0_component_identity", "derivation": "fragment_component_projection"},
+    )
 
 
-def _obls(card, facts):
-    return run_closure(
-        _slice(card), make_fact_pack(facts)
-    ).obligation_set.obligations
+def _card(component_type_key="fire_safety_component"):
+    roles = [{
+        "slot_ref_id": "sr01", "slot_id": SCOPE_SLOT,
+        "roles": ["definition_reference"], "required": True,
+        "qualifiers": ({"component_type_key": component_type_key} if component_type_key else {}),
+    }]
+    return make_rule_card(rule_card_id=CARD_ID, slot_role_map=roles)
+
+
+def _obls(card, facts, auth=None):
+    return run_closure(_slice(card, auth), make_fact_pack(facts)).obligation_set.obligations
 
 
 def _early_exit(obls, frag):
@@ -99,67 +94,95 @@ def _early_exit(obls, frag):
             and "structurally_unsatisfiable_card_scope" in (o.notes or "")]
 
 
-def test_incompatible_fragment_card_scope_na() -> None:
-    """异类 fragment（外墙）要求 fire_safety_component → scope NA，无 qualifier_conflict。"""
-    obls = _obls(_card("fire_safety_component"), [_frag_fact("FR-WALL", "external_wall")])
+def test_authorized_disjoint_identity_early_exit() -> None:
+    """授权目标叶型 × fragment 叶身份 可证排斥 → 早退(fire_safety 授权卡 vs 外墙 fragment)。"""
+    obls = _obls(
+        _card("fire_safety_component"),
+        [_frag_fact("FR-WALL", "external_wall")],
+        auth={CARD_ID: "fire_safety_component"},
+    )
     assert _early_exit(obls, "FR-WALL")
     assert not any(o.blocked_reason_code == "qualifier_conflict" for o in obls)
 
 
-@pytest.mark.xfail(reason=_XFAIL_DRIFT, strict=False)
-def test_compatible_fragment_no_early_exit() -> None:
-    """相容 fragment（消防）不早退——正常求值生成槽角色义务。"""
-    obls = _obls(_card("fire_safety_component"),
-                 [_frag_fact("FR-FIRE", "fire_safety_component")])
+def test_unauthorized_card_no_early_exit() -> None:
+    """卡不在授权表(缺省拒绝)→ 不早退,即使身份与卡限定排斥。"""
+    obls = _obls(
+        _card("fire_safety_component"),
+        [_frag_fact("FR-WALL", "external_wall")],
+        auth=None,
+    )
+    assert not _early_exit(obls, "FR-WALL")
+
+
+def test_authorized_compatible_identity_no_early_exit() -> None:
+    """授权目标 × 同叶身份(不排斥)→ 不早退(消防授权卡 vs 消防 fragment)。"""
+    obls = _obls(
+        _card("fire_safety_component"),
+        [_frag_fact("FR-FIRE", "fire_safety_component")],
+        auth={CARD_ID: "fire_safety_component"},
+    )
     assert not _early_exit(obls, "FR-FIRE")
-    assert any(o.kind == "definition" for o in obls)  # 槽角色义务照常生成
 
 
-def test_no_component_qualifier_no_early_exit() -> None:
-    """无 component 限定的 fragment-scoped 卡不早退（反例护栏①）。"""
-    obls = _obls(_card(None), [_frag_fact("FR-WALL", "external_wall")])
-    assert not _early_exit(obls, "FR-WALL")
-
-
-def test_unknown_component_value_no_early_exit() -> None:
-    """卡 component 限定值未知（脏值）→ 不早退，保留原 missing/conflict（护栏③）。"""
-    obls = _obls(_card("typo_component"), [_frag_fact("FR-WALL", "external_wall")])
-    assert not _early_exit(obls, "FR-WALL")
-
-
-def test_category_member_fragment_no_early_exit() -> None:
-    """类目限定与成员 fragment 相容不早退（external_component ⊇ external_wall）。"""
-    obls = _obls(_card("external_component"), [_frag_fact("FR-WALL", "external_wall")])
-    assert not _early_exit(obls, "FR-WALL")
-
-
-def test_category_nonmember_fragment_early_exit() -> None:
-    """类目限定与非成员 fragment 无交集 → 早退（external_component vs 消防）。"""
-    obls = _obls(_card("external_component"),
-                 [_frag_fact("FR-FIRE", "fire_safety_component")])
-    assert _early_exit(obls, "FR-FIRE")
-
-
-def test_multi_component_union_intersect_no_early_exit() -> None:
-    """多 component 限定并集与 scope 有交集就不早退（误杀防线，codex 护栏）。"""
-    extra = {
-        "slot_ref_id": "sr02", "slot_id": SCOPE_SLOT,
-        "roles": ["definition_reference"],
-        "required": True,
-        "qualifiers": {"component_type_key": "structural_component"},
-    }
-    card = _card("fire_safety_component", extra_role=extra)
-    obls = _obls(card, [_frag_fact("FR-STRUCT", "structural_component")])
+def test_non_leaf_identity_no_early_exit() -> None:
+    """fragment 身份非叶型(structural_component)→ 不早退(非叶不参与可证排斥)。"""
+    obls = _obls(
+        _card("fire_safety_component"),
+        [_frag_fact("FR-STRUCT", "structural_component")],  # 非叶身份
+        auth={CARD_ID: "fire_safety_component"},
+    )
     assert not _early_exit(obls, "FR-STRUCT")
 
 
-def test_scope_identity_unknown_no_early_exit() -> None:
-    """作用域组件身份未知（fragment 无 component 事实）→ 不早退（护栏②）。"""
-    # fragment 由别的槽事实建立、但无 component_type_key → _scope_component_types=None
+def test_identity_unknown_no_early_exit() -> None:
+    """fragment 无 component 事实 → 身份未知 → 不早退(§3.0 保守)。"""
     frag_fact = make_fact(
         "f-noct", slot_id="defect.class.present", value=True, value_type="boolean",
         carrier_type="fragment", carrier_id="FR-NOCT",
         qualifiers={"fragment_id": "FR-NOCT"},
     )
-    obls = _obls(_card("fire_safety_component"), [frag_fact])
+    obls = _obls(_card("fire_safety_component"), [frag_fact], auth={CARD_ID: "fire_safety_component"})
     assert not _early_exit(obls, "FR-NOCT")
+
+
+def test_multi_value_identity_no_early_exit() -> None:
+    """同 fragment 多条身份原子(多来源)→ dup → 单值身份不成立 → 不早退(§3.0)。"""
+    facts = [_frag_fact("FR-MULTI", "external_wall"), _id_atom("FR-MULTI", "drainage_component")]
+    obls = _obls(_card("fire_safety_component"), facts, auth={CARD_ID: "fire_safety_component"})
+    assert not _early_exit(obls, "FR-MULTI")
+
+
+def test_no_lattice_asset_conservative_no_early_exit() -> None:
+    """policy 无组件类型格资产 → runtime 保守关闭组件结构早退(不早退)。"""
+    card = _card("fire_safety_component")
+    slc = RuleSlice(
+        run_id=RUN_ID, rulecard_bundle_id=BUNDLE_ID,
+        candidate_rule_cards=[card], rule_families=[],
+        semantic_slots=[SemanticSlotDTO(slot_id=SCOPE_SLOT, semantic_domain="scope")],
+        measures=[], artifacts=[], time_anchors=[], source_quotes=[],
+        retrieval_policy={"exact_fragment_target_authorizations": {CARD_ID: "fire_safety_component"}},
+    )
+    obls = run_closure(slc, make_fact_pack([_frag_fact("FR-WALL", "external_wall")])).obligation_set.obligations
+    assert not _early_exit(obls, "FR-WALL")
+
+
+def test_incidental_component_qualifier_not_identity() -> None:
+    """P1-1 红线:普通事实(非 slot_id=='component_type')携带的 component_type_key 不得被
+    误认作身份。defect 事实带 external_wall 但无 genuine 身份来源 → 不早退(旧 _frag_ct 近似
+    会把它当身份→与授权 fire_safety 排斥→错早退=未证成 NA)。"""
+    defect_fact = make_fact(
+        "df", slot_id="defect.class.present", value=True, value_type="boolean",
+        carrier_type="fragment", carrier_id="FR-INCID",
+        qualifiers={"fragment_id": "FR-INCID", "component_type_key": "external_wall"},
+    )
+    obls = _obls(_card("fire_safety_component"), [defect_fact], auth={CARD_ID: "fire_safety_component"})
+    assert not _early_exit(obls, "FR-INCID")
+
+
+def test_same_value_multi_source_not_folded() -> None:
+    """P1-1 红线:同值多来源不得 set 折叠成假'单值身份'。两条 slot_id=='component_type'
+    事实(均 external_wall)→ count==2 → 身份不成立 → 不早退。"""
+    facts = [_frag_fact("FR-DUP", "external_wall"), _id_atom("FR-DUP", "external_wall")]
+    obls = _obls(_card("fire_safety_component"), facts, auth={CARD_ID: "fire_safety_component"})
+    assert not _early_exit(obls, "FR-DUP")

@@ -55,6 +55,9 @@ RULECARD_FILES: Dict[str, str] = {
     "time_anchor_registry": "time_anchor_registry_v1.json",
     "controlled_vocabularies": "controlled_vocabularies_v1.json",
     "projection_runtime_mapping": "projection_runtime_mapping_v1.json",
+    # DEBT-065 第一波:组件类型格(共享本体,排斥关系)+ 精确目标授权表。
+    "component_type_lattice": "component_type_lattice_v1.json",
+    "exact_fragment_target_authorizations": "exact_fragment_target_authorizations_v1.json",
 }
 
 # §1.0 / §3.4.3 评论：obligation edge 基线允许的 relation。
@@ -975,10 +978,26 @@ def build_rulecard_graph(
         audit.record_source(cards_path.name)
         rule_cards_doc = _load_json(cards_path)
         cards = rule_cards_doc.get("cards", []) or []
+        _seen_card_ids: set = set()
         for card in cards:
             if not isinstance(card, dict) or not card.get("rule_card_id"):
                 continue
             rule_card_id = card["rule_card_id"]
+            # P1-4:无条件全卡包 rule_card_id 唯一(不依赖 DEBT-065 资产存在)——重复 ID 字典
+            # 覆盖会让授权只验证最后一张卡却作用于合并义务(复审 P1-4 根因)。
+            if rule_card_id in _seen_card_ids:
+                raise ValueError(f"卡包内重复 rule_card_id: {rule_card_id}(P1-4 全卡包唯一)")
+            _seen_card_ids.add(rule_card_id)
+            # P1-4 收尾:无条件每卡单组件检查——卡内所有 component_type_key 值(across
+            # slot_role_map/threshold_regimes/trigger_conditions)必须一致,>1 个不同值 → hard-fail。
+            # 此检查不依赖 DEBT-065 类型格/授权表资产存在,覆盖全卡包(复审 P1-4 根因)。
+            from ..closure.component_lattice import _card_component_values
+            _card_ct_vals = _card_component_values(card)
+            if len(_card_ct_vals) > 1:
+                raise ValueError(
+                    f"卡 {rule_card_id} 包含多个 component_type_key 值: "
+                    f"{sorted(_card_ct_vals)}(P1-4 每卡单组件无条件检查)"
+                )
             family_id = opt_str(card.get("family_id"))
 
             result.batch.add_node(build_rule_card_node(card))
@@ -1060,7 +1079,93 @@ def build_rulecard_graph(
     else:
         audit.warn("manifest.json not found")
 
+    # --- DEBT-065 第一波:组件类型格 + 精确目标授权表(共享本体消费侧运输)---
+    _load_component_lattice_and_authorizations(result, cards, rulecard_dir, audit)
+
     return result
+
+
+def _load_component_lattice_and_authorizations(
+    result, cards, rulecard_dir, audit
+) -> None:
+    """DEBT-065:灌 component_type_lattice + exact_fragment_target_authorizations 进 KG。
+
+    ingest 时(§1.1 hard-fail)用 closure.component_lattice 验证:lattice 双快照哈希/二分/
+    disjoint,授权表 bundle/单叶目标/evidence 格式。授权表条目级 stale(指纹+修订 vs **原始卡**)
+    在此消解——loader 有原始 rule_cards.json,产出验证过的 {rule_card_id: target},检索侧只按
+    id 查(绕开 KG 重建 DTO 与 card_fingerprint 口径分歧)。资产缺席则跳过(runtime 保守关闭)。
+    """
+    from ..closure.component_lattice import (
+        LatticeIngestError, load_authorizations, load_component_lattice,
+    )
+
+    lattice_path = rulecard_dir / RULECARD_FILES["component_type_lattice"]
+    if not lattice_path.is_file():
+        return
+    audit.record_source(lattice_path.name)
+    lattice_doc = _load_json(lattice_path)
+    # P1-3:类型格资产在场但清单缺失(bundle_id 未加载)→ 强失败(不得让错误卡包类型格
+    # 经 None 绕过配套校验入图)。expected_bundle_id 由此保证传入非 None。
+    if not result.bundle_id:
+        raise LatticeIngestError(
+            "类型格资产在场但 bundle_id 缺失(manifest 未加载)——P1-3 配套校验强失败"
+        )
+    vocab_path = rulecard_dir / RULECARD_FILES["controlled_vocabularies"]
+    ct_domain = (
+        (_load_json(vocab_path).get("vocabularies") or {}).get("component_type_key") or []
+        if vocab_path.is_file() else []
+    )
+    mapping_path = rulecard_dir / RULECARD_FILES["projection_runtime_mapping"]
+    mapping_doc = _load_json(mapping_path) if mapping_path.is_file() else {}
+    alias_map = (mapping_doc.get("qualifier_value_aliases") or {}).get("component_type_key") or {}
+    # ingest 验证:资产坏 → LatticeIngestError → 批不启动(§1.1 hard-fail)
+    lattice_obj = load_component_lattice(
+        lattice_doc, ct_domain, alias_map, expected_bundle_id=result.bundle_id,
+    )
+    result.batch.add_node(NodeSpec(
+        "ComponentTypeLattice", "version", opt_str(lattice_doc.get("version")) or "component_type_lattice.v1",
+        {"lattice_json": json.dumps(lattice_doc, ensure_ascii=False, sort_keys=True)},
+    ))
+
+    auth_path = rulecard_dir / RULECARD_FILES["exact_fragment_target_authorizations"]
+    if not auth_path.is_file() or not result.bundle_id:
+        return
+    audit.record_source(auth_path.name)
+    auth_doc = _load_json(auth_path)
+    # P1-4:卡标识唯一——字典静默覆盖会让授权只验证最后一张卡却作用于合并义务。
+    cards_by_id: Dict[str, Any] = {}
+    for c in cards:
+        if not isinstance(c, dict) or not c.get("rule_card_id"):
+            continue
+        rid = c["rule_card_id"]
+        if rid in cards_by_id:
+            raise LatticeIngestError(f"卡包内重复 rule_card_id: {rid}")
+        cards_by_id[rid] = c
+    auth_obj = load_authorizations(
+        auth_doc, result.bundle_id, lattice_obj.leaf_types, cards_by_id=cards_by_id,
+    )
+    validated: Dict[str, Any] = {}
+    for rid in auth_obj.by_id:
+        card = cards_by_id.get(rid)
+        if card is None:
+            continue  # stale_card_binding:卡不存在于卡包
+        target = auth_obj.authorized_target(card)  # 指纹+修订校验 → None 则 stale
+        if target is not None:
+            # P1-2:授权运输保留指纹供审计/复核——validator 取 entry["target"]。
+            entry = auth_obj.by_id[rid]
+            validated[rid] = {
+                "target": target,
+                "card_content_sha256": entry.card_content_sha256,
+            }
+    result.batch.add_node(NodeSpec(
+        "ExactFragmentTargetAuthorizations", "version",
+        opt_str(auth_doc.get("version")) or "exact_fragment_target_authorizations.v1",
+        {
+            "authorized_targets_json": json.dumps(validated, ensure_ascii=False, sort_keys=True),
+            # P1-2:绑定同一卡包 bundle_id(与 ComponentTypeLattice 同源)。
+            "rulecard_bundle_id": result.bundle_id,
+        },
+    ))
 
 
 def _link_card_neighbors(

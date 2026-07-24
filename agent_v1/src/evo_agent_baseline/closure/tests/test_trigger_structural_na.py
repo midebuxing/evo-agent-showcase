@@ -6,6 +6,8 @@ codex 裁决（方案甲通过/乙否决）测试面：不相容判 NA 三形态
 
 from __future__ import annotations
 
+import itertools
+
 from evo_agent_baseline.closure.fact_binding import FactIndex
 from evo_agent_baseline.closure.obligation_deriver import evaluate_trigger
 
@@ -15,6 +17,9 @@ META = {"run_id": "R-test-001", "world_id": "WB-test-001",
         "building_id": "BLD-test-001"}
 KNOWN = {"structural_component", "drainage_component", "external_wall",
          "cantilevered_canopy", "external_component", "wall_tiles"}
+# DEBT-065:组件类型格叶集 + 显式排斥对(触发器级新判据用)。
+_LEAF = ["external_wall", "fire_safety_component", "drainage_component", "cantilevered_canopy", "wall_tiles"]
+_DISJOINT = {frozenset(p) for p in itertools.combinations(_LEAF, 2)}
 
 
 def _slot_trigger(**over):
@@ -36,27 +41,31 @@ def _empty_index():
 
 
 def test_incompatible_fragment_scope_na() -> None:
-    """排水部位上要求 structural_component、无绑定 → closed+not_applicable。"""
+    """DEBT-065:触发器组件限定恒等于授权目标叶型 × fragment 叶身份可证排斥 → NA。"""
     o = evaluate_trigger(
-        make_rule_card(), _slot_trigger(), _empty_index(), META,
-        scope_component_types={"drainage_component"},
-        known_component_types=KNOWN,
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        _empty_index(), META,
+        auth_target="cantilevered_canopy",
+        w0_identity="drainage_component",
+        lattice_disjoint=_DISJOINT,
     )
     assert (o.closure_status, o.satisfaction_status) == ("closed", "not_applicable")
     assert o.comparator_result is False
     assert "structurally_unsatisfiable_qualifier" in (o.notes or "")
 
 
-def test_incompatible_building_scope_na() -> None:
-    """无 canopy 楼宇上要求 cantilevered_canopy → NA（楼级组件类集判）。"""
+def test_building_scope_component_na_abolished() -> None:
+    """DEBT-065:组件维楼级结构 NA 废止——楼级(单值身份 None)→ 不早退,回落 missing。"""
     o = evaluate_trigger(
         make_rule_card(),
         _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
         _empty_index(), META,
-        scope_component_types={"structural_component", "drainage_component"},
-        known_component_types=KNOWN,
+        auth_target="cantilevered_canopy",
+        w0_identity=None,
+        lattice_disjoint=_DISJOINT,
     )
-    assert (o.closure_status, o.satisfaction_status) == ("closed", "not_applicable")
+    assert o.closure_status == "open" and o.open_reason_code == "missing_fact"
 
 
 KNOWN_LC = {"external", "common_part", "common_pipe_duct",

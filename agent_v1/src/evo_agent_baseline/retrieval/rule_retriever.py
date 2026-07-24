@@ -379,6 +379,48 @@ def assemble_rule_slice(
                 f"{type(exc).__name__}: {exc}"
             )
 
+    # DEBT-065 第一波:组件类型格 + 精确目标授权表进 policy(闭包侧组件结构不相容早退
+    # 判据消费:授权卡目标叶型 × fragment 单值身份 可证排斥才 NA)。loader ingest 已验证
+    # 并产出 {rule_card_id: {target, sha}};坏 JSON 不阻断检索,可见化进 policy(闭包侧
+    # 无资产则保守关闭组件结构早退,不影响判定权)。
+    lattice_rows = client.read(queries.RULE_COMPONENT_TYPE_LATTICE)
+    _lattice_bundle_id: Optional[str] = None
+    if lattice_rows:
+        try:
+            retrieval_policy["component_type_lattice"] = json.loads(
+                lattice_rows[0].get("lattice_json") or "{}"
+            )
+            _lattice_bundle_id = lattice_rows[0].get("rulecard_bundle_id")
+        except (TypeError, ValueError) as exc:
+            retrieval_policy["component_type_lattice_error"] = f"{type(exc).__name__}: {exc}"
+    auth_rows = client.read(queries.RULE_EXACT_FRAGMENT_TARGET_AUTHORIZATIONS)
+    _auth_bundle_id: Optional[str] = None
+    if auth_rows:
+        try:
+            retrieval_policy["exact_fragment_target_authorizations"] = json.loads(
+                auth_rows[0].get("authorized_targets_json") or "{}"
+            )
+            _auth_bundle_id = auth_rows[0].get("rulecard_bundle_id")
+        except (TypeError, ValueError) as exc:
+            retrieval_policy["exact_fragment_target_authorizations_error"] = (
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    # P1-2:版本冻结同源校验——lattice / 授权表 / 当前卡包的 rulecard_bundle_id 必须
+    # 三方一致;任一不一致或缺失 → 不放进 policy(等价缺席,validator 保守关闭组件早退)。
+    _bundle_ids = [
+        b for b in (_lattice_bundle_id, _auth_bundle_id, rulecard_bundle_id) if b
+    ]
+    if len(set(_bundle_ids)) != 1 or len(_bundle_ids) != 3:
+        retrieval_policy.pop("component_type_lattice", None)
+        retrieval_policy.pop("exact_fragment_target_authorizations", None)
+        retrieval_policy["component_structure_bundle_mismatch"] = {
+            "lattice_bundle_id": _lattice_bundle_id,
+            "auth_bundle_id": _auth_bundle_id,
+            "current_bundle_id": rulecard_bundle_id,
+            "note": "P1-2 同源校验失败——资产 bundle 不一致,保守关闭组件结构早退",
+        }
+
     return build_rule_slice(
         run_id=run_id,
         rulecard_bundle_id=rulecard_bundle_id,

@@ -178,6 +178,25 @@ ORDER BY m.version DESC
 LIMIT 1
 """.strip()
 
+# DEBT-065 第一波:组件类型格(共享本体,排斥关系)+ 精确目标授权表(loader 已验证并
+# 产出 {rule_card_id: target})。TODO(多版本):v2.2 §2.4 要求运行期按精确版本键查询;
+# v1 单版本先沿 mapping 的 ORDER BY version DESC LIMIT 1,多版本落地时改精确键(禁字典序)。
+RULE_COMPONENT_TYPE_LATTICE = """
+MATCH (l:ComponentTypeLattice)
+RETURN l.version AS version, l.lattice_json AS lattice_json,
+       l.rulecard_bundle_id AS rulecard_bundle_id
+ORDER BY l.version DESC
+LIMIT 1
+""".strip()
+
+RULE_EXACT_FRAGMENT_TARGET_AUTHORIZATIONS = """
+MATCH (a:ExactFragmentTargetAuthorizations)
+RETURN a.version AS version, a.authorized_targets_json AS authorized_targets_json,
+       a.rulecard_bundle_id AS rulecard_bundle_id
+ORDER BY a.version DESC
+LIMIT 1
+""".strip()
+
 # §5.4.1 slot-driven candidate cards —— 从 FactPack 的 slot_id 集合查命中卡。
 RULE_SLOT_DRIVEN_CARDS = """
 MATCH (s:SemanticSlot)<-[:REFERS_TO_SEMANTIC_SLOT]-(sr:SlotRef)<-[:HAS_SLOT_REF]-(rc:RuleCard)

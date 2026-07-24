@@ -162,12 +162,12 @@ def _jval(v: Any) -> str:
     return json.dumps(v, ensure_ascii=False)
 
 
-def _fact(fid, *, slot_id=None, value=None, vt="string", qualifiers=None) -> FactAtom:
+def _fact(fid, *, slot_id=None, value=None, vt="string", qualifiers=None, provenance=None) -> FactAtom:
     return FactAtom(
         fact_id=fid, world_id=WORLD_ID, building_id=BUILDING_ID, carrier_type="sidecar_entry",
         carrier_id=BUILDING_ID, target_ref=None, slot_id=slot_id, measure_key=None,
         value_json=_jval(value), value_type=vt, unit=None, qualifiers=qualifiers or {},
-        source_path="t", source_node_id=f"n-{fid}",
+        source_path="t", source_node_id=f"n-{fid}", provenance=provenance or {},
     )
 
 
@@ -248,11 +248,16 @@ def test_fragment_expansion_per_fragment_scoped_identity(tmp_path):
 
 
 def test_structural_scope_audit_bound_at_incompatible_fragment(tmp_path):
-    """DEBT-050 fragment 结构 NA：卡 component_type_key 要求集与 fragment 组件身份结构不容 → 该 fragment
+    """DEBT-065 fragment 组件结构 NA：授权卡目标叶型与 fragment 单值身份可证排斥 → 该 fragment
     产 `structural_scope_audit` 义务、绑 fragment scope 结构审计蓝图（相容 fragment 不产该审计）。"""
-    rp = {"projection_runtime_mapping_v1": {
-        "qualifier_value_aliases": {"component_type_key": {"beam_raw": "beam", "column_raw": "column"}},
-        "component_category_members": {}, "subject_component_crosswalk": {}}}
+    rp = {
+        "projection_runtime_mapping_v1": {
+            "qualifier_value_aliases": {"component_type_key": {"beam_raw": "beam", "column_raw": "column"}},
+            "component_category_members": {}, "subject_component_crosswalk": {}},
+        # DEBT-065:beam/column 作合成叶型;RC.struct 授权 beam,fragment FR-2(column)与 beam 可证排斥 → NA。
+        "component_type_lattice": {"leaf_types": ["beam", "column"], "disjoint_pairs": [["beam", "column"]]},
+        "exact_fragment_target_authorizations": {"RC.struct": "beam"},
+    }
     sr = [{"slot_ref_id": "sr01", "slot_id": "slot.defect.present",
            "qualifiers": {"component_type_key": "beam"}, "roles": ["state"], "required": True}]
     c = _card("RC.struct", slot_role_map=sr)
@@ -261,6 +266,13 @@ def test_structural_scope_audit_bound_at_incompatible_fragment(tmp_path):
               qualifiers={"fragment_id": "FR-1", "component_type_key": "beam"}),
         _fact("f2", slot_id="slot.defect.present", value=True, vt="boolean",
               qualifiers={"fragment_id": "FR-2", "component_type_key": "column"}),
+        # P1-1:genuine W0 身份来源(w0_component_identity 专用通道,每 fragment 恰一条)。
+        _fact("id1", slot_id="w0_component_identity", value="beam", vt="string",
+              qualifiers={"fragment_id": "FR-1", "canonical_component_type": "beam"},
+              provenance={"channel": "w0_component_identity", "derivation": "fragment_component_projection"}),
+        _fact("id2", slot_id="w0_component_identity", value="column", vt="string",
+              qualifiers={"fragment_id": "FR-2", "canonical_component_type": "column"},
+              provenance={"channel": "w0_component_identity", "derivation": "fragment_component_projection"}),
     ]
     cards, rs = _synthetic_slice([c], semantic_slots=_DEFECT_SLOT, retrieval_policy=rp)
     run = run_shadow_closure(_write_bundle(tmp_path, [c]), rs, _fp(facts), _META)

@@ -1,0 +1,105 @@
+{
+  "version": "component_type_lattice.v1",
+  "rulecard_bundle_id": "rulecard_v2.mbis_cop_2023",
+  "leaf_types": [
+    "external_wall",
+    "fire_safety_component",
+    "drainage_component",
+    "cantilevered_canopy",
+    "wall_tiles"
+  ],
+  "non_leaf_types": [
+    "structural_component",
+    "external_component",
+    "ubw",
+    "covered_component",
+    "transfer_structure"
+  ],
+  "subsumption": {
+    "external_component": [
+      "external_wall",
+      "cantilevered_canopy",
+      "wall_tiles"
+    ]
+  },
+  "disjoint_pairs": [
+    [
+      "cantilevered_canopy",
+      "drainage_component"
+    ],
+    [
+      "cantilevered_canopy",
+      "external_wall"
+    ],
+    [
+      "cantilevered_canopy",
+      "fire_safety_component"
+    ],
+    [
+      "cantilevered_canopy",
+      "wall_tiles"
+    ],
+    [
+      "drainage_component",
+      "external_wall"
+    ],
+    [
+      "drainage_component",
+      "fire_safety_component"
+    ],
+    [
+      "drainage_component",
+      "wall_tiles"
+    ],
+    [
+      "external_wall",
+      "fire_safety_component"
+    ],
+    [
+      "external_wall",
+      "wall_tiles"
+    ],
+    [
+      "fire_safety_component",
+      "wall_tiles"
+    ]
+  ],
+  "w0_generation_plan_types": [
+    "balcony_slab",
+    "canopy",
+    "drainage_branch",
+    "drainage_stack",
+    "external_wall",
+    "fire_door",
+    "parapet_wall",
+    "signboard",
+    "structural_member",
+    "unauthorized_structure",
+    "wall_tile_finish"
+  ],
+  "w0_dormant_types": [
+    "access_panel",
+    "floor_trap",
+    "fire_resisting_wall",
+    "escape_route",
+    "smoke_vent",
+    "fire_service_installation",
+    "unknown_fire_component",
+    "protective_render"
+  ],
+  "vocabulary_snapshot_sha256": "93c54df54e2cbc557170a1b53c98263ff4c3404d6834aff817cbbd46fd40d351",
+  "alias_mapping_version": "regulation_projection.runtime_mapping.v1",
+  "alias_mapping_snapshot_sha256": "375addbdaf858e27da93e1fe05712de5df57c92f9bddc548e2197ae080fc9847",
+  "canonical_hash_algorithm": "sha256(utf8(json.dumps(obj,sort_keys=True,separators=(',',':'),ensure_ascii=False)))",
+  "provenance": {
+    "authority": "W0 component_type_registry + 组件计划(单类型链)",
+    "proof_anchors": [
+      "models.py:447",
+      "generator.py:502",
+      "registry.py:1460",
+      "fact_retriever.py:490"
+    ],
+    "scope_statement": "互斥仅在 W0 生成模型内成立,不外推现实本体",
+    "spec": "spec草案_DEBT065类型格与授权状态轴_v2.2"
+  }
+}
