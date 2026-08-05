@@ -557,6 +557,21 @@ def dedupe_key(o: ObligationV2) -> str:
 
 # A.7③bis OpenReasonCode / BlockedReasonCode 全序表（非阻断③；rank 大者合并胜出）
 OPEN_REASON_ORDER: dict = {
+    # 2026-08-03 三方仲裁「丁」路新增，取新最大值（不动既有档位 ⇒ 既有 merge 逐字节不变）：
+    # 「该精确绑定经裁定不能确立本义务」与下面那条同属「已知且确定」，不是缺口。
+    # ⚠️ 档位取新最大值只证明**不扰动旧行为**，不证明「最高档」本身是对的——
+    # 它会遮蔽同义务上的 `binding_requires_adjudication_authorization` /
+    # `observed_false_without_violation_basis`。诊断行只产 open/unknown、
+    # 同键竞争场景少，**影响面已评估为小并接受**（审核门 2026-08-03 要求留痕）。
+    "diagnostic_binding_not_valid_evidence": 12,
+    # 2026-08-02 A′裁决新增，取新最大值（不动既有档位 ⇒ 既有 merge 逐字节不变）：
+    # 「完整聚合读数为假」是确定的已知信息（不是缺口），消费者最该先看到。
+    "binding_requires_adjudication_authorization": 11,
+    "observed_false_without_violation_basis": 10,
+    # 2026-07-27 新增，取新最大值（不动任何既有档位，故既有 merge 结果逐字节不变）：
+    # 证据许可闸命中意味着「绑错了槽」，比「缺一条事实」更值得让消费者先看到。
+    "artifact_state_not_valid_evidence": 9,
+    "missing_satisfaction_binding": 8,
     "applicability_uncertain": 7,
     "depends_on_open_trigger": 6,
     "missing_required_field_group": 5,

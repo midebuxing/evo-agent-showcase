@@ -8,7 +8,7 @@ evaluator-only：agent runtime 不得 import 本子包，不得访问 evaluator 
 - metrics.py       —— verdict / coverage / threshold / closure 指标
 - leakage_audit.py —— 答案泄漏审计（spec §8.4.5）
 - report.py        —— 离线评测报告（spec §8.5）
-- family_crosswalk_v1.json —— W2 16 coarse → rule_card 43 fine 对照表（spec §8.3.2）
+- family_crosswalk_v1.json —— W2 16 coarse → rule_card 44 fine 对照表（spec §8.3.2）
 """
 
 from evo_agent_baseline.eval.leakage_audit import (

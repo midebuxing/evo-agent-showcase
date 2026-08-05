@@ -23,10 +23,11 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from canonical_profile import CANONICAL_PROFILE_ID, canonical_json
 
+from evo_agent_baseline import slot_alias_policy
 from evo_agent_baseline.contracts import (
     ClosureSummary,
     ClosureValidationResult,
@@ -36,7 +37,11 @@ from evo_agent_baseline.contracts import (
     RuleSlice,
 )
 
-from .applicability import evaluate_applicability
+from . import unknown_attribution
+from .applicability import (
+    collect_building_component_classes,
+    evaluate_applicability,
+)
 from .fact_binding import FactIndex, build_method_canonical_map
 from .identity_binding import BoundObligation
 from .identity_blueprint_catalog import (
@@ -770,6 +775,46 @@ def _sha256_hex(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+# 🔴 DEBT-079：这些字段是**运行期标识**，每跑一次都变，不属于「输入内容」。
+# 含它们的哈希跨运行永远不可能相等 ⇒ 不能当跨批对账锚。
+_VOLATILE_IDENTITY_FIELDS = ("run_id",)
+
+
+def _content_only(payload: dict) -> dict:
+    """剔掉运行期标识后的 payload（只在顶层剔，不递归——那些字段只在顶层）。"""
+    return {k: v for k, v in payload.items() if k not in _VOLATILE_IDENTITY_FIELDS}
+
+
+def compute_fact_pack_content_hash(fact_pack: FactPack) -> str:
+    """FactPack 的**内容**哈希——剔掉 `run_id` 等运行期标识（DEBT-079）。
+
+    与 `compute_fact_pack_hash` 的关系：**两者并存，用途不同，不可互换**。
+
+    | | 含 `run_id` | 用途 |
+    |---|---|---|
+    | `compute_fact_pack_hash` | ✅ | 本次运行的输入指纹（spec v1 §6.2/§3.8 口径，**不动**） |
+    | `compute_fact_pack_content_hash` | ❌ | **跨批对账**：内容同 ⇒ 哈希必等 |
+
+    为什么要新加一个而不是改老的：老的口径写在 spec 里，改它属规格面；
+    而「跨批证明事实包没变」这个需求是纯新增的，加一个字段即可满足，
+    不需要重定义任何既有字段。
+
+    **实证背景**（2026-07-29，批 D vs 批 E，同池同库同档位）：
+    两批 `fact_pack.json` 逐字段比对**只有 `run_id` 不同**，
+    而 30/30 栋 `fact_pack_hash` **全部不同**——门④「事实包没变」
+    此前**没有任何落盘哈希能证明**，只能靠人逐字段比。
+    """
+    return _sha256_hex(_canonical_dumps(_content_only(fact_pack.model_dump())))
+
+
+def compute_rule_slice_content_hash(rule_slice: RuleSlice) -> str:
+    """RuleSlice 的**内容**哈希——剔掉 `run_id` 等运行期标识（DEBT-079）。
+
+    与 `compute_rule_slice_hash` 并存，用途见 `compute_fact_pack_content_hash`。
+    """
+    return _sha256_hex(_canonical_dumps(_content_only(rule_slice.model_dump())))
+
+
 def compute_fact_pack_hash(fact_pack: FactPack) -> str:
     """canonical FactPack hash（spec v1 §6.2 + §3.8）。
 
@@ -882,57 +927,28 @@ def _fact_pack_meta(fact_pack: FactPack) -> Dict[str, str]:
     }
 
 
-def _normalize_alias_map(aliases: Any) -> Dict[str, str]:
-    """别名表归一为 {orig: canonical} 单值映射。
+# 别名归一统一入口已收口到 `evo_agent_baseline.slot_alias_policy`（2026-07-27，
+# 别名归一三咬后）；下面三个是**薄包装**保既有测试/脚本兼容，唯一权威实现在新模块。
+# 新模块只依赖 contracts（吃 dict），closure / retrieval / scripts 三方 import 均无环。
 
-    DEBT-040 修复：projection_runtime_mapping_v1 的值是**列表**（如
-    `{"repair.prescribed.started": ["procedure.repair.prescribed.started"]}`），
-    旧实现 `str(v)` 会把列表搅成 "['procedure...']" 垃圾键、canonical 查找必 miss。
-    这里 str 直取、list 取首个非空 str（v1 实际均为单元素列表；多元素取首并忽略其余，
-    与 canonical_slot 单值语义一致）。
-    """
-    if not isinstance(aliases, dict):
-        return {}
-    out: Dict[str, str] = {}
-    for k, v in aliases.items():
-        canon: Optional[str] = None
-        if isinstance(v, str) and v:
-            canon = v
-        elif isinstance(v, list):
-            for item in v:
-                if isinstance(item, str) and item:
-                    canon = item
-                    break
-        if canon is not None:
-            out[str(k)] = canon
-    return out
+
+def _normalize_alias_map(aliases: Any) -> Dict[str, str]:
+    """薄包装 → `slot_alias_policy.normalize_alias_map`（语义逐字节不变）。"""
+    return slot_alias_policy.normalize_alias_map(aliases)
 
 
 def _measure_aliases_from_policy(rule_slice: RuleSlice) -> Dict[str, str]:
-    """从 retrieval_policy 取 projection_runtime_mapping_v1.measure_aliases。
-
-    spec §6.3.5 fact binding 第 2 级用此别名表。policy 无此键时返回空。
-    """
-    policy = rule_slice.retrieval_policy or {}
-    mapping = policy.get("projection_runtime_mapping_v1") or {}
-    return _normalize_alias_map(mapping.get("measure_aliases") or {})
+    """薄包装 → `slot_alias_policy.measure_aliases_from_policy`。"""
+    return slot_alias_policy.measure_aliases_from_policy(
+        rule_slice.retrieval_policy or {}
+    )
 
 
 def _slot_aliases_from_policy(rule_slice: RuleSlice) -> Dict[str, str]:
-    """从 retrieval_policy 取 slot_aliases（spec §6.4.2 canonical_slot 用）。
-
-    合并语义（codex 评审硬化）：mapping 的 slot_aliases 为基底，policy 顶层
-    `slot_aliases` 按键覆盖——不再"顶层非空即整表遮蔽 mapping"（那会让新映射静默失效）。
-    """
-    policy = rule_slice.retrieval_policy or {}
-    mapping = policy.get("projection_runtime_mapping_v1") or {}
-    merged: Dict[str, Any] = {}
-    if isinstance(mapping.get("slot_aliases"), dict):
-        merged.update(mapping["slot_aliases"])
-    top_level = policy.get("slot_aliases")
-    if isinstance(top_level, dict):
-        merged.update(top_level)
-    return _normalize_alias_map(merged)
+    """薄包装 → `slot_alias_policy.slot_aliases_from_policy`。"""
+    return slot_alias_policy.slot_aliases_from_policy(
+        rule_slice.retrieval_policy or {}
+    )
 
 
 def _method_aliases_from_policy(rule_slice: RuleSlice) -> Dict[str, str]:
@@ -949,6 +965,137 @@ def _method_aliases_from_policy(rule_slice: RuleSlice) -> Dict[str, str]:
     return build_method_canonical_map(mapping.get("method_aliases") or {})
 
 
+def _compute_unknown_attribution_isolated(
+    obligations: List[Obligation],
+    fact_pack: FactPack,
+    rule_slice: RuleSlice,
+    fact_index: FactIndex,
+    fragment_of_fact: Any,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """unknown 归因旁路——**结构隔离**的调用壳（判定权红线）。
+
+    🔴 三条结构保证（不靠"小心"）：
+    1. 本函数只在 `summarize()` 与 `allow_stop` **算完之后**被调用；它拿到的
+       `obligations` 只用于**投影出基本值快照**，投影后即不再触碰——归因策略
+       `unknown_attribution.attribute_unknown_obligations` 收到的全是 frozen
+       dataclass / 基本值，结构上没有能力回写义务。
+    2. 归因策略**任何异常**都被吞掉并落兜底（全部 `attribution_input_missing`
+       并报警）——策略炸了也绝不改判定、绝不谎称"该你填"。
+    3. 产出的键集与 unknown 义务集**强制对齐**（缺的补兜底、多的丢弃），故
+       `ClosureValidationResult` 的守恒门恒成立。
+
+    返回 (mapping, audit)。
+    """
+    unknown_ids = [
+        o.obligation_id for o in obligations if o.satisfaction_status == "unknown"
+    ]
+    audit: Dict[str, Any] = {}
+    mapping: Dict[str, Any] = {}
+    degraded_reason: Optional[str] = None
+    try:
+        snapshots, status_by_id, deps_by_id = unknown_attribution.build_unknown_snapshots(
+            obligations,
+            canonical_slot=fact_index.canonical_slot,
+            slot_ref_bindings=unknown_attribution.build_slot_ref_bindings(
+                rule_slice
+            ),
+        )
+        pools = unknown_attribution.build_supplied_slot_pools(
+            fact_pack.facts,
+            canonical_slot=fact_index.canonical_slot,
+            fragment_of_fact=fragment_of_fact,
+        )
+        # 责任表加载失败 → 按「无登记」归因（全 system_unresolved），不拖垮原因码轴。
+        resp_map: Optional[Mapping[str, str]] = None
+        action_map: Optional[Mapping[str, str]] = None
+        registry_present = False
+        registry_load_error: Optional[str] = None
+        try:
+            resp_map, action_map, _doc = (
+                unknown_attribution.load_responsibility_registry()
+            )
+            registry_present = True
+        except Exception as reg_exc:  # noqa: BLE001
+            registry_load_error = f"{type(reg_exc).__name__}: {reg_exc}"
+        mapping = dict(
+            unknown_attribution.attribute_unknown_obligations(
+                snapshots,
+                closure_status_by_obligation_id=status_by_id,
+                dependency_ids_by_obligation_id=deps_by_id,
+                supplied_slot_pools=pools,
+                responsibility_registry=resp_map,
+                professional_action_by_slot=action_map,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 —— 归因绝不影响判定，异常一律降级
+        degraded_reason = f"{type(exc).__name__}: {exc}"
+        mapping = {}
+        registry_present = False
+        registry_load_error = None
+
+    # 键集强制对齐：多的丢、缺的补兜底（守恒门恒成立）。
+    extra = [k for k in mapping if k not in set(unknown_ids)]
+    for k in extra:
+        mapping.pop(k, None)
+    missing = [oid for oid in unknown_ids if oid not in mapping]
+    if missing:
+        mapping.update(
+            unknown_attribution.fallback_attribution(
+                missing,
+                reason=degraded_reason or "归因策略未覆盖该义务",
+            )
+        )
+
+    # Scope relation is a second, orthogonal side-channel.  Its failure must never
+    # replace the already-computed cause_code / validator reason / root dependency.
+    scope_relation_degraded_reason: Optional[str] = None
+    try:
+        card_component_types = (
+            unknown_attribution.build_card_component_type_key_map(rule_slice)
+        )
+        fragment_component_types = (
+            unknown_attribution.build_fragment_component_type_map(fact_pack.facts)
+        )
+        relation_snapshots, _, _ = unknown_attribution.build_unknown_snapshots(
+            obligations,
+            canonical_slot=fact_index.canonical_slot,
+            card_component_type_keys_by_rule_card_id=card_component_types,
+            fragment_component_type_by_fragment_id=fragment_component_types,
+        )
+        rule_card_ids_by_obligation_id = {
+            str(obligation.obligation_id): str(obligation.source_rule_card_id or "")
+            for obligation in obligations
+            if obligation.satisfaction_status == "unknown"
+        }
+        mapping = unknown_attribution.attach_scope_relations(
+            mapping,
+            relation_snapshots,
+            unknown_attribution.build_scope_relation_policy(rule_slice),
+            rule_card_ids_by_obligation_id=rule_card_ids_by_obligation_id,
+        )
+    except Exception as relation_exc:  # noqa: BLE001 - relation axis is non-authoritative
+        scope_relation_degraded_reason = (
+            f"{type(relation_exc).__name__}: {relation_exc}"
+        )
+        unavailable_policy = unknown_attribution.unavailable_scope_relation_policy()
+        mapping = unknown_attribution.attach_unavailable_scope_relations(
+            mapping,
+            relation_policy_version=unavailable_policy.relation_policy_version,
+        )
+
+    audit = unknown_attribution.summarize_attribution(mapping)
+    audit["degraded"] = degraded_reason is not None
+    audit["degraded_reason"] = degraded_reason
+    audit["scope_relation_degraded"] = scope_relation_degraded_reason is not None
+    audit["scope_relation_degraded_reason"] = scope_relation_degraded_reason
+    audit["backfilled_count"] = len(missing)
+    audit["dropped_extra_count"] = len(extra)
+    audit["responsibility_registry_present"] = registry_present
+    if registry_load_error:
+        audit["responsibility_registry_load_error"] = registry_load_error
+    return mapping, audit
+
+
 def validate_building_closure(
     rule_slice: RuleSlice,
     fact_pack: FactPack,
@@ -958,6 +1105,12 @@ def validate_building_closure(
     skill_invocation_ids: Optional[List[str]] = None,
     policy_version_id: Optional[str] = None,
     pre_dedup_out: Optional[List[BoundObligation]] = None,
+    applicability_bundle: Optional[Any] = None,
+    trigger_ct_disjoint_na: bool = False,
+    exclude_fallback_reasons_facts: bool = False,
+    authorized_scope_selection: bool = False,
+    mask_lookup_targets: bool = False,
+    c55_bucket_value_consumption: bool = False,
 ) -> ClosureValidationResult:
     """闭包验证器主入口（spec §6.6 + v1 §6.2 instrumentation）。
 
@@ -985,6 +1138,17 @@ def validate_building_closure(
       状态合并仍走 v1 `_merge_two`、`allow_stop` 公式 / 各 `evaluate_*` 判定分支**一字不动**（§12 红线）。
     - `pre_dedup_out`：非 None 时收 **pre-dedup 绑定多重集深拷贝快照**（供影子对账驱动按 v1 旧键 vs v5
       新键重算去重、逐楼 allow_stop 零翻转核对）；不改返回结果字节。
+    - `trigger_ct_disjoint_na`（「乙」放宽档，2026-08-01，**缺省 False=行为逐位不变**）：
+      触发器组件限定与 fragment 身份显式登记 disjoint 即判结构 NA，不再要求限定值恒等于
+      该卡授权目标叶型。只供配对重放量测与决策门评估；未过 codex 审核门**不得**在生产批开启。
+      显式传参、不读环境变量（防静默配置退化族）。
+      **2026-08-01 深夜追记：LLM 存量批重放实测乙伤召回（0.4548→0.4501），默认开启已被
+      否决——本参数永久定位量测档，勿再提默认开启。**
+    - `exclude_fallback_reasons_facts`（DEBT-083 第 3 步「事实用途边界分流」，2026-08-01，
+      **缺省 False=行为逐位不变**）：spec 明文 `fallback_reasons` 只解释未知/不适用、不得
+      参与满足/违反判定；开启后该组事实不进判定绑定索引（slot/measure/artifact/method），
+      仍留事实包与 carrier 索引供解释。属「修判定」——过 DEBT-083 四门验收
+      （转移矩阵/守恒/逐条真值核对/双批召回）前不得在生产批开启。
     """
     if config is None:
         config = VerifierConfig()
@@ -1013,12 +1177,23 @@ def validate_building_closure(
     measure_aliases = _measure_aliases_from_policy(rule_slice)
     slot_aliases = _slot_aliases_from_policy(rule_slice)
     method_aliases = _method_aliases_from_policy(rule_slice)  # DEBT-049 Phase3 U2 运行态展开表
+    # 🔴 构件类型涵盖关系（DEBT-076）：从类型格 policy 取，喂给 FactIndex，
+    # 由它贯穿全部限定符过滤点。**取不到 ⇒ 空 ⇒ 严格相等匹配（与改动前等价）。**
+    # ⚠️ 必须在此处取而不能复用下方 `_lattice_policy`——那段在本行之后才执行。
+    _ct_subsumption = (
+        ((rule_slice.retrieval_policy or {}).get("component_type_lattice") or {})
+        .get("subsumption") or {}
+    )
     fact_index = FactIndex(
         fact_pack,
         slot_aliases=slot_aliases,
         measure_aliases=measure_aliases,
         method_aliases=method_aliases,
         numeric_tolerance=config.numeric_tolerance,
+        component_subsumption=_ct_subsumption,
+        exclude_explanatory=exclude_fallback_reasons_facts,
+        mask_lookup_targets=mask_lookup_targets,
+        c55_bucket_value_consumption=c55_bucket_value_consumption,
     )
 
     obligations: List[Obligation] = []
@@ -1101,18 +1276,20 @@ def validate_building_closure(
         _lattice_leaf_types = set()
         _lattice_disjoint = set()
         _auth_targets = {}
-    building_component_classes: set = set()
-    for _f in fact_pack.facts:
-        if _f.slot_id == "component_type":
-            try:
-                _v = json.loads(_f.value_json)
-            except (TypeError, ValueError):
-                _v = None
-            if isinstance(_v, str) and _v:
-                _canon = _ct_value_alias.get(_v)
-                building_component_classes.add(
-                    _canon if isinstance(_canon, str) and _canon else _v
-                )
+        # 🔴 2026-07-27 codex 四审 P1（fail-open）：上面三样清了，但**包含关系
+        # `_ct_subsumption` 早在 :1071 就被读走、:1081 已传进 `FactIndex`**——
+        # 校验发生在这里（:1159）时它已经在里面了。不收回 ⇒ `qualifiers_match`
+        # 继续用**过期的父子关系**，把本该落 `qualifier_conflict`/`unknown` 的
+        # 限定符当成命中 ⇒ **快照失配却改变了闭包判定**。
+        # 「必须在此处取而不能复用下方 `_lattice_policy`」那条注释解决的是"取得到"，
+        # 没解决"校验失败要收回"——本行补上后半截。
+        # ⚠️ 这是今日第十三个同形状：**校验失败了，但某个消费者继续用未经校验的数据。**
+        _ct_subsumption = {}
+        fact_index.component_subsumption = {}
+    building_component_classes = collect_building_component_classes(
+        fact_pack,
+        _ct_value_alias,
+    )
 
     # ---- DEBT-050 修案：触发器限定符结构可满足性基建（spec 增补 2026-07-08）----
     # 作用域相容组件身份集：fragment=该部位组件类型（fragment 归属事实的
@@ -1241,10 +1418,33 @@ def validate_building_closure(
                 measure_aliases=measure_aliases,
                 method_aliases=method_aliases,
                 numeric_tolerance=config.numeric_tolerance,
+                component_subsumption=_ct_subsumption,
+                # 分流必须贯穿逐片段索引——只接主索引会让 fragment 作用域绕过边界
+                # （「同一假设散在多层」坑，缺省 False 与主索引同源）。
+                exclude_explanatory=exclude_fallback_reasons_facts,
+        mask_lookup_targets=mask_lookup_targets,
             )
         return _frag_index_cache[fid]
 
     def _card_is_fragment_scoped(card: Any) -> bool:
+        """卡按什么粒度读数——**隐式判据**：任一槽的域 ∈ `_FRAGMENT_DOMAINS`。
+
+        🔧 **DEBT-085 件二·声明读取路径的空转钩位（第一步声明期，此处不接线）**：
+        显式粒度声明已落在 `binding_contract_registry` /
+        `bucket_binding_registry` 行字段 `granularity_declaration`
+        （受控枚举 `{"building","fragment"}`，键缺省＝未声明）。
+        **声明期＝只登记不消费**——本函数今天仍只跑上面那条隐式判据，
+        判定面逐位不变（决策门 Q2 两段式第一步）。
+
+        第二步（冻结点）在这里接：先查本卡的显式声明，**未声明即 fail-closed
+        拒判**，隐式判据退役。接线时必须同批改完五处镜像
+        （本函数、`blueprint_deriver._card_is_fragment_scoped`、
+        `identity_blueprint_catalog._card_scopes`、`retrieval/pack_builder`
+        的 `aggregation=="building"` 排除、`unknown_attribution` 同款排除）
+        ——`closure/tests/test_granularity_declaration.py` 的
+        `test_declaration_has_no_runtime_reader_in_declaration_period`
+        会在第一个消费者接上时转红，那就是「五处一起改」的闸。
+        """
         for ref in card.slot_role_map or []:
             sid = str(_safe_get(ref, "slot_id") or "")
             if _slot_domain.get(sid, "") in _FRAGMENT_DOMAINS:
@@ -1321,13 +1521,24 @@ def validate_building_closure(
             # DEBT-065 第一波:替换旧"词表空交=互斥"为 v2.2 §3.1 正向授权可证排斥——
             # 授权表取该卡单目标叶型,fragment 取单值 W0 身份,二者显式登记排斥才 NA。
             # 缺省拒绝:未授权/身份未知/非叶/未登记排斥 → 不早退(不产未证成 NA)。
-            _auth_target = _auth_targets.get(card.rule_card_id)
-            _w0_identity = _w0_fragment_identity(scope_fid)
-            _ct_na = (
-                _auth_target is not None
-                and _w0_identity is not None
-                and _provable_disjoint(_auth_target, _w0_identity)
-            )
+            # DEBT-065 v3 §1.3:applicability_bundle 提供时走**单 bundle 编译式微小谓词**
+            # (生产路径必传;身份与授权全部来自离线产出、精确 digest 钉住的 bundle,
+            #  runtime 不查授权表、不重建身份、不匹配指纹)。
+            # 未提供 bundle 时回落 v2.2 判据——**仅为未迁移单测的过渡路径**,
+            # 按 v3 §0.1 在发布门禁全过后删除,不得视为正式实现。
+            if applicability_bundle is not None:
+                _v3_na, _ = applicability_bundle.early_exit(card.rule_card_id, scope_fid)
+                _ct_na = bool(_v3_na)
+                _auth_target = applicability_bundle.card_targets.get(card.rule_card_id)
+                _w0_identity = (
+                    applicability_bundle.fragment_identities.get(scope_fid) if scope_fid else None
+                )
+            else:
+                # v3 §0.1 双轨清理:v2.2 运行时组装路径(policy 授权表 + 事实身份通道)已删除。
+                # 无 bundle → 一律不早退(fail-safe),不再回落任何旧判据。
+                _ct_na = False
+                _auth_target = None
+                _w0_identity = None
             _lc_na = (
                 _card_lc and _scope_lc is not None and _card_lc <= _known_lc
                 and not (_card_lc & set(_scope_lc))
@@ -1357,6 +1568,16 @@ def validate_building_closure(
             trigger_conditions = card.trigger_conditions or {}
             trigger_items = trigger_conditions.get("items", []) or []
             trigger_results: List[Obligation] = []
+            # 丁（DEBT-083 裁决新增方案）基建：本 (卡, 作用域) 内
+            # slot_ref_id → 真触发器义务 映射 + 被 trigger_conditions 引用的
+            # slot_ref_id 集，供槽角色循环消灭双轨求值（见下方 slot roles）。
+            # 值语义：Obligation=唯一真触发器；None=同 ref 多触发项（护栏①显式阻断）。
+            _trigger_by_slot_ref: Dict[str, Optional[Obligation]] = {}
+            _trigger_ref_ids = {
+                str(_safe_get(t, "slot_ref_id") or "")
+                for t in trigger_items
+                if _safe_get(t, "slot_ref_id")
+            }
             for trigger in sorted(
                 trigger_items, key=lambda x: str(_safe_get(x, "condition_id"))
             ):
@@ -1367,9 +1588,30 @@ def validate_building_closure(
                     known_component_types=_known_ct,
                     scope_location_classes=_scope_location_classes(scope_fid),
                     known_location_classes=_known_lc,
-                    auth_target=_auth_targets.get(card.rule_card_id),
-                    w0_identity=_w0_fragment_identity(scope_fid),
-                    lattice_disjoint=_lattice_disjoint,
+                    # v3 §1.3.1:触发器级与卡级共用同一数据源(bundle),不再走 policy 授权表
+                    # 与事实身份通道;无 bundle 时三者为空 → 触发器级同样一律不早退。
+                    auth_target=(
+                        applicability_bundle.card_targets.get(card.rule_card_id)
+                        if applicability_bundle is not None else None
+                    ),
+                    w0_identity=(
+                        applicability_bundle.fragment_identities.get(scope_fid)
+                        if applicability_bundle is not None and scope_fid else None
+                    ),
+                    lattice_disjoint=(
+                        applicability_bundle.disjoint_pairs
+                        if applicability_bundle is not None else frozenset()
+                    ),
+                    ct_disjoint_na_relaxed=trigger_ct_disjoint_na,
+                    # DEBT-081 六字段正向授权（bundle 第四成员；缺省空=逐位不变）。
+                    trigger_na_authorizations=(
+                        applicability_bundle.trigger_na_authorizations
+                        if applicability_bundle is not None else None
+                    ),
+                    w0_raw_type=(
+                        applicability_bundle.fragment_raw_types.get(scope_fid)
+                        if applicability_bundle is not None and scope_fid else None
+                    ),
                 )
                 obligations.append(obl)
                 trigger_results.append(obl)
@@ -1380,6 +1622,16 @@ def validate_building_closure(
                     trigger_provenance[
                         (card.rule_card_id, condition_id, scope_fid or "")
                     ] = obl
+                # 丁护栏①（2026-08-02 codex 终审）：同 slot_ref_id 对应多个触发项时
+                # **显式阻断镜像**，不许静默取排序首个——多义时记 None 哨兵，
+                # 槽角色循环见 None 即打 schema_contract_violation。
+                # （现网 470 卡/423 触发器槽引用重复数为 0，本护栏防未来卡包演化。）
+                _t_sr = str(_safe_get(trigger, "slot_ref_id") or "")
+                if _t_sr:
+                    if _t_sr in _trigger_by_slot_ref:
+                        _trigger_by_slot_ref[_t_sr] = None
+                    else:
+                        _trigger_by_slot_ref[_t_sr] = obl
 
             trigger_active = aggregate_trigger_logic(
                 trigger_conditions.get("logic", "all"), trigger_results
@@ -1401,12 +1653,97 @@ def validate_building_closure(
                 key=lambda x: str(_safe_get(x, "slot_ref_id")),
             ):
                 if _safe_get(slot_ref, "required"):
-                    obligations.append(
-                        evaluate_slot_role(
-                            card, dict(slot_ref), scope_index, trigger_active,
-                            scope_meta,
-                        )
+                    # 二轮审核门纠正：通用聚合护栏**只豁免一致性镜像副本**，
+                    # 不按 kind 整类豁免（真触发器仍须受授权边界约束）。
+                    # 镜像标记在求值之后才写进 notes，故判据必须在此**前置计算**
+                    # 并传入——与下方 `_slot_obl` 镜像覆盖的条件严格同源，
+                    # 两处任一改动都必须同改（漂移会让豁免面与实际镜像面不一致）。
+                    # 🔴 判据必须与下方**实际发生镜像覆盖**的那一支严格等价：
+                    # 不只是「slot_ref 被 trigger_conditions 引用」，还必须
+                    # **真能取到来源触发器**（`_src is not None`）。
+                    # 首版漏了后半条 ⇒ 引用了但取不到来源的那批（走下方
+                    # `dual_track_multi_trigger_ref` 阻断支、或根本没有来源项）
+                    # 被护栏豁免却拿不到镜像标记，实测在批 I 上放过 938 条
+                    # 触发器实判（530 派生行 + 408 原生 procedure_gate_state）。
+                    _sr_id_pre = str(_safe_get(slot_ref, "slot_ref_id") or "")
+                    _mirror_now = bool(
+                        exclude_fallback_reasons_facts
+                        and trigger_active is True
+                        and "trigger" in (_safe_get(slot_ref, "roles") or [])
+                        and _sr_id_pre in _trigger_ref_ids
+                        and _trigger_by_slot_ref.get(_sr_id_pre) is not None
                     )
+                    _slot_obl = evaluate_slot_role(
+                        card, dict(slot_ref), scope_index, trigger_active,
+                        scope_meta,
+                        authorized_scope_selection=authorized_scope_selection,
+                        is_consistency_mirror=_mirror_now,
+                    )
+                    # 丁（DEBT-083 裁决新增方案，2026-08-02；同挂
+                    # `exclude_fallback_reasons_facts` 既有开关，缺省关闭＝逐位不变）：
+                    # roles 含 "trigger" 且 slot_ref_id 被本卡 trigger_conditions.items[]
+                    # 引用的槽角色义务，不再独立走「存在即满足」，改为镜像同
+                    # (卡, slot_ref_id, 作用域) 真触发器义务的求值结果——消除
+                    # 「真触发器判不适用、槽角色副本判满足」的双轨。
+                    # 仅在 trigger_active is True 时镜像：open/blocked 聚合下槽角色
+                    # 已统一走继承通道，镜像只会撞 depends_on_open_trigger 契约。
+                    # open/blocked 原因码一并镜像（契约一致性：闭包三态与原因码
+                    # 联动校验），kind 与其余身份字段保持原样。
+                    if exclude_fallback_reasons_facts and trigger_active is True:
+                        _sr_roles = _safe_get(slot_ref, "roles") or []
+                        _sr_id = str(_safe_get(slot_ref, "slot_ref_id") or "")
+                        if (
+                            "trigger" in _sr_roles
+                            and _sr_id
+                            and _sr_id in _trigger_ref_ids
+                        ):
+                            _src = _trigger_by_slot_ref.get(_sr_id)
+                            if _src is not None:
+                                _slot_obl = _slot_obl.model_copy(update={
+                                    "closure_status": _src.closure_status,
+                                    "satisfaction_status": _src.satisfaction_status,
+                                    "operator": _src.operator,
+                                    "expected_value_json": _src.expected_value_json,
+                                    "comparator_result": _src.comparator_result,
+                                    "evidence_fact_ids": list(_src.evidence_fact_ids),
+                                    "open_reason_code": _src.open_reason_code,
+                                    "blocked_reason_code": _src.blocked_reason_code,
+                                    # 丁护栏②（codex 终审）：镜像副本记来源触发器
+                                    # ——消费者/报告据此折叠或标「一致性副本」，
+                                    # 不把镜像当独立法规判断重复计数。
+                                    # ⚠️ 引用键用 (卡内唯一的) slot_ref 而非义务号：
+                                    # 义务号在 v5 去重时会按身份重算，预去重号在
+                                    # 产物里解析不到（实测踩过）。护栏①保证同 ref
+                                    # 唯一，故 `卡+kind=trigger+同 slot_ref+同作用域`
+                                    # 可唯一定位来源。
+                                    "notes": (
+                                        _slot_obl.notes
+                                        + "; consistency_mirror_of="
+                                        + f"trigger_slot_ref:{_sr_id}"
+                                    ).strip("; "),
+                                })
+                            elif _sr_id in _trigger_by_slot_ref:
+                                # 丁护栏①：同 slot_ref_id 多触发项 → 显式阻断，
+                                # 绝不静默取第一个。
+                                _slot_obl = _slot_obl.model_copy(update={
+                                    "closure_status": "blocked",
+                                    "satisfaction_status": "unknown",
+                                    "blocked_reason_code": "schema_contract_violation",
+                                    "open_reason_code": None,
+                                    "notes": (
+                                        _slot_obl.notes
+                                        + "; dual_track_multi_trigger_ref"
+                                    ).strip("; "),
+                                })
+                            else:
+                                # 结构上不该发生（每个触发项必产义务）——
+                                # fail-visible 不 fail-open：保持旧行为并记 notes。
+                                _slot_obl = _slot_obl.model_copy(update={
+                                    "notes": (
+                                        _slot_obl.notes + "; dual_track_reuse_miss"
+                                    ).strip("; "),
+                                })
+                    obligations.append(_slot_obl)
                     _reg.slot_role(card, obligations[-1], dict(slot_ref), scope_fid)
 
             # ---- thresholds ----
@@ -1437,6 +1774,7 @@ def validate_building_closure(
                 node_out = evaluate_obligation_node(
                     card, node_dto, scope_index, trigger_active, scope_meta,
                     source_sink=_ntoks,
+                    authorized_scope_selection=authorized_scope_selection,
                 )
                 obligations.extend(node_out)
                 node_obligations[node_dto.obligation_node_id] = node_out
@@ -1486,6 +1824,8 @@ def validate_building_closure(
                                 scope_index,
                                 trigger_active,
                                 scope_meta,
+                                authorized_scope_selection=(
+                                    authorized_scope_selection),
                             )
                         )
                         _reg.evidence(card, obligations[-1], dict(req), scope_fid)
@@ -1622,6 +1962,9 @@ def validate_building_closure(
     machine_report["candidate_universe_hash"] = candidate_universe_hash
     machine_report["fact_pack_hash"] = fact_pack_hash
     machine_report["rule_slice_hash"] = rule_slice_hash
+    # DEBT-079：上面两个含 `run_id`，跨运行永远不等；下面两个才是跨批对账锚。
+    machine_report["fact_pack_content_hash"] = compute_fact_pack_content_hash(fact_pack)
+    machine_report["rule_slice_content_hash"] = compute_rule_slice_content_hash(rule_slice)
     machine_report["skill_augmented_retrieval_used"] = bool(skill_inv_ids)
     machine_report["policy_version_id"] = policy_version_id
     machine_report["verifier_authority_check"] = verifier_authority_check
@@ -1634,6 +1977,13 @@ def validate_building_closure(
     # 版本原子一致，杜绝二者独立写值漂移；catalog sha256 从 catalog 抄录；unbound=0 /
     # collision_postcheck=True / legacy_v1_key_used=False 是本入口到此处的运行不变量
     # （require() 未命中即 hard-fail、run_collision_postcheck_live 已过、活动键=v5）。
+    # ---- unknown 归因旁路（判定权红线：**在 summarize / allow_stop 之后**）----
+    # 归因只读、只产旁路映射；策略异常一律降级为报警兜底，判定面逐字不动。
+    unknown_attr_map, unknown_attr_audit = _compute_unknown_attribution_isolated(
+        obligations, fact_pack, rule_slice, fact_index, _fact_frag
+    )
+    machine_report["unknown_attribution_audit"] = unknown_attr_audit
+
     machine_report["run_audit"] = {
         "obligation_set_schema": obligation_set.obligation_set_schema,
         "obligation_identity_schema": obligation_set.obligation_identity_schema,
@@ -1653,6 +2003,7 @@ def validate_building_closure(
         allow_report_generation=summary.allow_stop,  # §6.5.3
         high_risk_items=find_high_risk_items(obligations),
         machine_readable_report=machine_report,
+        unknown_attribution_by_obligation_id=unknown_attr_map,
     )
 
 
@@ -1710,6 +2061,8 @@ __all__ = [
     "compute_allow_stop_and_reason",
     "build_machine_report",
     "compute_fact_pack_hash",
+    "compute_fact_pack_content_hash",
+    "compute_rule_slice_content_hash",
     "compute_rule_slice_hash",
     "compute_candidate_universe_hash",
     "FORBIDDEN_PROPERTY_NAMES",

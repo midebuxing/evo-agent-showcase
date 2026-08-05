@@ -127,7 +127,9 @@ def test_real_corpus_node_edge_fanout_one_to_one_bound():
     assert total_node > 0 and total_edge > 0
     # DEBT-049 Phase3 U4：七卡 action→conduct_validation_test → 各 node 追加 1 条 method 子义务令牌
     # → method_tok 7→14（+7）；deadline/artifact 令牌不受影响（v1 method_tok=7）。
-    assert method_tok == 14 and deadline_tok == 25 and artifact_tok == 330
+    # 2026-08-04 件四批 1：artifact_tok 340→339——退役 §3.2.6 重复卡带 1 件 workflow artifact；
+    # method/deadline 令牌不受影响（该卡无 method、无 deadline）。
+    assert method_tok == 17 and deadline_tok == 25 and artifact_tok == 339
 
 
 def test_source_registration_does_not_change_obligation_bytes():

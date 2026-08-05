@@ -95,12 +95,23 @@ def _early_exit(obls, frag):
 
 
 def test_authorized_disjoint_identity_early_exit() -> None:
-    """授权目标叶型 × fragment 叶身份 可证排斥 → 早退(fire_safety 授权卡 vs 外墙 fragment)。"""
-    obls = _obls(
-        _card("fire_safety_component"),
-        [_frag_fact("FR-WALL", "external_wall")],
-        auth={CARD_ID: "fire_safety_component"},
+    """授权目标叶型 × fragment 叶身份 可证排斥 → 早退(fire_safety 授权卡 vs 外墙 fragment)。
+
+    v3 双轨清理后:授权与身份都来自 applicability_bundle(policy 授权表 + 事实身份通道
+    的 v2.2 运行时路径已删除,无 bundle 一律不早退)。
+    """
+    from evo_agent_baseline.closure.applicability_v3 import ApplicabilityBundle
+    bundle = ApplicabilityBundle(
+        bundle_sha256="t", leaf_types=frozenset(_LEAF),
+        disjoint_pairs=frozenset(frozenset(p) for p in itertools.combinations(sorted(_LEAF), 2)),
+        card_targets={CARD_ID: "fire_safety_component"},
+        fragment_identities={"FR-WALL": "external_wall"},
     )
+    obls = run_closure(
+        _slice(_card("fire_safety_component")),
+        make_fact_pack([_frag_fact("FR-WALL", "external_wall")]),
+        applicability_bundle=bundle,
+    ).obligation_set.obligations
     assert _early_exit(obls, "FR-WALL")
     assert not any(o.blocked_reason_code == "qualifier_conflict" for o in obls)
 
@@ -186,3 +197,53 @@ def test_same_value_multi_source_not_folded() -> None:
     facts = [_frag_fact("FR-DUP", "external_wall"), _id_atom("FR-DUP", "external_wall")]
     obls = _obls(_card("fire_safety_component"), facts, auth={CARD_ID: "fire_safety_component"})
     assert not _early_exit(obls, "FR-DUP")
+
+
+# --------------------------------------------------------------------------- #
+# v3 单 bundle 编译式判据接线(DEBT-065 第四轮 §1.3)
+# --------------------------------------------------------------------------- #
+def _v3_bundle(card_targets, fragment_identities):
+    from evo_agent_baseline.closure.applicability_v3 import ApplicabilityBundle
+    return ApplicabilityBundle(
+        bundle_sha256="test-bundle",
+        leaf_types=frozenset(_LEAF),
+        disjoint_pairs=frozenset(frozenset(p) for p in itertools.combinations(sorted(_LEAF), 2)),
+        card_targets=card_targets,
+        fragment_identities=fragment_identities,
+    )
+
+
+def _v3_obls(bundle, frag):
+    """facts 里**不含任何身份原子**——v3 下身份只来自 bundle(P1-1 结构性消除)。"""
+    facts = [make_fact("f-v3", slot_id=SCOPE_SLOT, value=True,
+                       carrier_type="fragment", carrier_id=frag)]
+    return run_closure(_slice(_card("fire_safety_component")), make_fact_pack(facts),
+                       applicability_bundle=bundle).obligation_set.obligations
+
+
+def test_v3_bundle_early_exit_without_identity_atom() -> None:
+    """v3 §1.3:授权目标叶 × bundle 身份可证排斥 → 早退;facts 无身份原子也成立。"""
+    frag = "FRAG-ext-v3"
+    b = _v3_bundle({CARD_ID: "fire_safety_component"}, {frag: "external_wall"})
+    assert _early_exit(_v3_obls(b, frag), frag)
+
+
+def test_v3_bundle_unauthorized_card_no_early_exit() -> None:
+    """v3 缺省拒绝:bundle 内该卡未授权 → 不早退(即便身份本可证排斥)。"""
+    frag = "FRAG-ext-v3b"
+    b = _v3_bundle({}, {frag: "external_wall"})
+    assert not _early_exit(_v3_obls(b, frag), frag)
+
+
+def test_v3_bundle_unknown_identity_no_early_exit() -> None:
+    """v3 缺省拒绝:bundle 内无该 fragment 身份 → 不早退。"""
+    frag = "FRAG-ext-v3c"
+    b = _v3_bundle({CARD_ID: "fire_safety_component"}, {})
+    assert not _early_exit(_v3_obls(b, frag), frag)
+
+
+def test_v3_bundle_same_leaf_no_early_exit() -> None:
+    """v3:授权目标与身份同叶(不在排斥对)→ 不早退。"""
+    frag = "FRAG-fire-v3"
+    b = _v3_bundle({CARD_ID: "fire_safety_component"}, {frag: "fire_safety_component"})
+    assert not _early_exit(_v3_obls(b, frag), frag)

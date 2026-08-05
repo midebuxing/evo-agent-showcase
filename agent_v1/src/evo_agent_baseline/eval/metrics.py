@@ -559,6 +559,14 @@ class ThresholdMetrics:
     observed_value_compared: int
     threshold_pass_bool_hits: int
     threshold_pass_bool_compared: int
+    # 🔴 平凡基线三件套（2026-07-26 补，DEBT-069）：`threshold_pass_bool_match` 是这批
+    # 指标里**唯一真正是"过/不过"判定**的一项，但它此前只落"命中/分母"，不落真值的类别
+    # 分布。于是 68/68 = 1.000 看着像强证据，实际真值 True 64 / False 4——恒预测 True
+    # 的平凡基线已有 94.1%，净超出只有 4 例。那两个类别数此前只存在于离线分析笔记里，
+    # 批产物无法独立复算，引用时只能标"分析口径"。落进产物才能自证。
+    threshold_pass_bool_truth_true: int
+    threshold_pass_bool_truth_false: int
+    threshold_pass_bool_majority_baseline: Optional[float]
     unit_hits: int
     unit_compared: int
     threshold_obligations: int
@@ -583,6 +591,9 @@ class ThresholdMetrics:
             "observed_value_compared": self.observed_value_compared,
             "threshold_pass_bool_hits": self.threshold_pass_bool_hits,
             "threshold_pass_bool_compared": self.threshold_pass_bool_compared,
+            "threshold_pass_bool_truth_true": self.threshold_pass_bool_truth_true,
+            "threshold_pass_bool_truth_false": self.threshold_pass_bool_truth_false,
+            "threshold_pass_bool_majority_baseline": self.threshold_pass_bool_majority_baseline,
             "unit_hits": self.unit_hits,
             "unit_compared": self.unit_compared,
             "threshold_obligations": self.threshold_obligations,
@@ -741,6 +752,7 @@ def compute_threshold_metrics(
     val_hit = val_total = 0
     obs_hit = obs_total = 0
     pass_hit = pass_total = 0
+    pass_truth_true = pass_truth_false = 0
     unit_hit = unit_total = 0
     compared = 0
     threshold_obligations = 0
@@ -809,6 +821,11 @@ def compute_threshold_metrics(
             t_pass = instance_tr.get("pass_bool") if instance_tr else None
             if a_pass is not None and t_pass is not None:
                 pass_total += 1
+                # 真值类别分布——没有它，pass_bool_match 的 1.000 无法与平凡基线对照
+                if bool(t_pass):
+                    pass_truth_true += 1
+                else:
+                    pass_truth_false += 1
                 if bool(a_pass) == bool(t_pass):
                     pass_hit += 1
 
@@ -835,6 +852,11 @@ def compute_threshold_metrics(
         observed_value_compared=obs_total,
         threshold_pass_bool_hits=pass_hit,
         threshold_pass_bool_compared=pass_total,
+        threshold_pass_bool_truth_true=pass_truth_true,
+        threshold_pass_bool_truth_false=pass_truth_false,
+        # 恒猜多数类的准确率——`pass_bool_match` 必须与它对照才有意义
+        threshold_pass_bool_majority_baseline=_safe_ratio(
+            max(pass_truth_true, pass_truth_false), pass_total),
         unit_hits=unit_hit,
         unit_compared=unit_total,
         threshold_obligations=threshold_obligations,

@@ -1,8 +1,11 @@
 """DEBT-047 适用性 subject 词桥单测：三态（无交集 NA / 有交集续判 / 表外不过滤）。"""
 
-from evo_agent_baseline.closure.applicability import evaluate_applicability
+from evo_agent_baseline.closure.applicability import (
+    collect_building_component_classes,
+    evaluate_applicability,
+)
 
-from .fixtures import make_fact_pack, make_rule_card
+from .fixtures import make_fact, make_fact_pack, make_rule_card
 
 
 def _card(subject):
@@ -53,3 +56,61 @@ def test_backward_compat_without_bridge():
     """缺省参数（既有调用方式）→ 词桥跳过，行为与 v0.4 相同。"""
     r = evaluate_applicability(_card("fire_safety_components"), make_fact_pack())
     assert r.state != "not_applicable"
+
+
+def test_building_component_classes_include_controlled_carrier_type():
+    """载体类型已在组件词汇中登记时，成为楼内组件类；不依赖 component_type 事实。"""
+    pack = make_fact_pack([
+        make_fact(
+            "F-UBW",
+            slot_id="present",
+            value=True,
+            value_type="boolean",
+            carrier_type="ubw",
+        ),
+    ])
+    aliases = {"unauthorized_structure": "ubw"}
+
+    classes = collect_building_component_classes(pack, aliases)
+
+    assert classes == {"ubw"}
+
+
+def test_building_component_classes_ignore_non_component_carriers():
+    """普通载体枚举不在组件词汇中时不得进入组件类集，锁住通用映射的边界。"""
+    pack = make_fact_pack([
+        make_fact("F-BLD", slot_id="building.use", value="residential"),
+        make_fact(
+            "F-MSR",
+            slot_id=None,
+            measure_key="m.test",
+            value=1,
+            value_type="number",
+            carrier_type="measurement",
+        ),
+    ])
+
+    classes = collect_building_component_classes(
+        pack,
+        {"unauthorized_structure": "ubw"},
+    )
+
+    assert classes == set()
+
+
+def test_explicit_component_type_source_keeps_existing_alias_semantics():
+    """显式 component_type 读取源继续按同一别名表规范化。"""
+    pack = make_fact_pack([
+        make_fact(
+            "F-CT",
+            slot_id="component_type",
+            value="structural_member",
+        ),
+    ])
+
+    classes = collect_building_component_classes(
+        pack,
+        {"structural_member": "structural_component"},
+    )
+
+    assert classes == {"structural_component"}

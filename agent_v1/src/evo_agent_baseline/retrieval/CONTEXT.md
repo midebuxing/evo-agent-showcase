@@ -9,6 +9,7 @@
 ## 入口
 - `make_retrieval_fn(client, rulecard_bundle_id) -> RetrievalFn` —— 在 `__init__.py`。工厂，闭包捕获 `Neo4jClient` + bundle id，返回 `(world_id, building_id, run_id) -> (FactPack, RuleSlice)`，正好对齐编排器（`agent/llm_orchestrator.py`）注入的 `retrieval_fn`。**外部接线走这一个。**
 - 两个源侧原语：`retrieve_fact_pack(client, run_id, building_id)`（`fact_retriever.py`）、`retrieve_rule_slice(client, run_id, fact_pack, rulecard_bundle_id, ...)`（`rule_retriever.py`）。
+- 调用方 `rulecard_bundle_id` 标签的**单一权威来源**：`rulecard_bundle_identity.py`（读磁盘权威卡包自声明 `bundle_id`，2026-07-27 统一；历史上三个调用面三个值，别再复制常量）。
 
 ## 改这块只需加载（按需，多数任务 2-3 个就够）
 | 文件 | 管什么 | 什么时候看 |

@@ -307,16 +307,36 @@ def run_worldgenerator_fullcoverage_framework_v2(
         }
     )
     batch_profile = _resolve_batch_profile(count)
-    batch_config_hash = _hash_payload(
-        {
-            "generator_version": GENERATOR_VERSION,
-            "requested_count": count,
-            "seed": seed,
-            "batch_profile": batch_profile,
-            "schema": "building_centric.v2",
-            "archetype_distribution": (batch_config or {}).get("archetype_distribution"),
-        }
-    )
+    # 🔴 `batch_config_hash` 名字说是「批配置哈希」，实际是**白名单**取字段
+    # （2026-07-29 查实：此前只取 `archetype_distribution` 一个键）。
+    # 后果：任何其它 `batch_config` 旋钮都会**影响世界生成但不进哈希**
+    # ⇒ 两个内容不同的池拿到**同一个 `deterministic_key`**，锚区分不出它们。
+    # 实测：开 `ensure_component_type_coverage` 后 generated 格 23→34，而键逐位相同。
+    #
+    # 修法保持**缺省等价**：新键**只在为真时**才进哈希载荷 ⇒ 既有池（开关关）
+    # 的 `deterministic_key` 一个字节不变、仍可复现；开关一开即得新身份。
+    # ⏳ 遗留：白名单本身仍是隐患——下一个旋钮若忘了在这里登记，同样静默同键。
+    #    根治要改成「整个 batch_config 规范化后入哈希」，但那会改掉所有既有池的键，
+    #    须与换锚一并做，不在本次范围内。
+    _batch_hash_payload = {
+        "generator_version": GENERATOR_VERSION,
+        "requested_count": count,
+        "seed": seed,
+        "batch_profile": batch_profile,
+        "schema": "building_centric.v2",
+        "archetype_distribution": (batch_config or {}).get("archetype_distribution"),
+    }
+    if (batch_config or {}).get("ensure_component_type_coverage"):
+        _batch_hash_payload["ensure_component_type_coverage"] = True
+    # 🔴 `fragment_count_per_building` 是**函数签名上公开、且真被消费**的旋钮
+    #    （见本函数 :267 形参与 :347 传递），却一直不在哈希载荷里
+    #    ⇒ `fragment_count_per_building=4` 与 `=8` 会生成**不同世界内容**、
+    #    却拿到**同一个 `batch_config_hash` / `deterministic_key`**。
+    #    这不是未来风险，是当前可调参数造成的确定性同键（codex 审核门 2026-07-30 指出）。
+    #    同样按**缺省等价**处理：只有偏离默认值 4 时才进载荷 ⇒ 既有池键逐位不变。
+    if fragment_count_per_building != 4:
+        _batch_hash_payload["fragment_count_per_building"] = fragment_count_per_building
+    batch_config_hash = _hash_payload(_batch_hash_payload)
     deterministic_key = _hash_payload(
         {
             "generator_version": GENERATOR_VERSION,
@@ -339,9 +359,28 @@ def run_worldgenerator_fullcoverage_framework_v2(
     )
 
     sidecar_contract = _build_sidecar_contract()
-    # spec 09 §1.2 修订：sidecar 派生层用 deterministic_key 派生独立子 rng（保 reproducibility）
-    import random as _random
-    sidecar_rng = _random.Random(int(deterministic_key[:16], 16))
+    # 🔴🔴 sidecar 随机流：本函数**不再持有** sidecar rng（波次二 #22「rng 隔离 1a」）。
+    #
+    # 沿革（两步，各自单独验过，别把它们混成一件事）：
+    #
+    # **1a-0 解绑**：旧写法 `sidecar_rng = Random(int(deterministic_key[:16], 16))`
+    # 把 sidecar 流挂在 `deterministic_key` 上，而 `deterministic_key` ←
+    # `registry_bundle_hash` ← **全部注册表的完整 model_dump**（见 :302-308 / :340-348）。
+    # 后果：改**任何**一张注册表的**任何**字段（哪怕与 sidecar 毫无关系）都换种子、
+    # 整批 sidecar 重掷。实测（50 栋 seed401，只把 `RegistryBundle.version` 加个后缀
+    # ——generator/sidecar 都不读它，对世界生成完全惰性）：世界侧 13 个比较单元
+    # 逐字节不变，而 `sidecar_entries` 变 **8,119/19,090**、`expected_verdict`
+    # 翻 **113/340 ＝ 33.2%**、`pass_bool` 差 763/11,318。⇒ 波次二每一件动注册表的改动
+    # 都自带一次 33% 量级的背景翻判，任何单件改动自己的效应都会被淹没、无法归因。
+    #
+    # **1a-i′ 槽级化**：批级流整条退役，采样改由 `rng_domains.sub_rng` 按
+    # `(域串, world_id[, fragment_id], slot_id[, combo])` 派生 ⇒ 连「第 i 栋片段数一变、
+    # 第 i+1..n 栋全部移位」这条跨栋顺序依赖也一并消失（那是 1a-0 治不了的另一半）。
+    #
+    # ⚠️ **只解流、不解锚**：`deterministic_key` / `registry_bundle_hash` 照旧计算、
+    #    照旧写进各 meta 与 cohort manifest ⇒ 池身份与复现契约一个字节不变。
+    #    改注册表仍然换池身份（该换），只是不再改 sidecar 的值。
+    #
     # W1-012 / W1-RC-02：sidecar conditional fallback 计数挂入 ContextVar，with 块退出后
     # 把收集到的 dict 接进 validation_report（framework v2 主入口无 BatchGateStats，故落
     # validation_report 作持久化 audit 产物——spec 10 §6 silent fallback 批次级可见性落地点）.
@@ -349,7 +388,6 @@ def run_worldgenerator_fullcoverage_framework_v2(
         sidecar_runtime_bundle = _build_sidecar_runtime_bundle_for_buildings(
             building_worlds,
             registries=registry_bundle,
-            rng=sidecar_rng,
         )
 
     validation_report = _build_v2_validation_report(

@@ -55,12 +55,18 @@ def authorization(sources, lattice):
 def test_load_lattice_ok(lattice):
     assert isinstance(lattice, ComponentLattice)
     assert len(lattice.leaf_types) == 5
-    assert len(lattice.disjoint_pairs) == 10
+    # 🔴 2026-07-26（DEBT-076）：原断言 `== 10`（叶的 C(5,2)）锁死"互斥只在叶间"。
+    # 裁定要求支持**跨层**互斥，故改为「叶全组合是下界」+ 跨层来自人裁关系表。
+    import itertools as _it
+    _leaf_pairs = {frozenset(c) for c in _it.combinations(lattice.leaf_types, 2)}
+    assert len(_leaf_pairs) == 10
+    assert _leaf_pairs <= lattice.disjoint_pairs, "叶×叶互斥必须全覆盖"
 
 
 def test_load_auth_ok(authorization):
     assert isinstance(authorization, Authorization)
-    assert len(authorization.by_id) == 55
+    # 高置信 55 + 中置信 27（2026-07-29 采纳草稿§四）= 82
+    assert len(authorization.by_id) == 82
 
 
 # ---- provable_disjoint ----
@@ -114,14 +120,23 @@ def test_lattice_snapshot_mismatch_hardfail(sources):
 
 def test_lattice_disjoint_incomplete_hardfail(sources):
     bad = copy.deepcopy(sources["lattice"])
-    bad["disjoint_pairs"] = bad["disjoint_pairs"][:-1]  # 删一对
+    # 🔴 必须删一个**叶×叶**对（2026-07-26）：原写法 `[:-1]` 删排序后最后一对，
+    # 而跨层互斥登记进来后那可能是跨层对——多/少跨层对**不该** hard-fail
+    # （它们是人裁关系表的正当扩充），只有**缺叶对**才是类型格生成出错。
+    import itertools as _it
+    _leaves = bad["leaf_types"]
+    _one_leaf_pair = sorted(next(_it.combinations(sorted(_leaves), 2)))
+    bad["disjoint_pairs"] = [p for p in bad["disjoint_pairs"]
+                            if sorted(p) != _one_leaf_pair]
     with pytest.raises(LatticeIngestError):
         load_component_lattice(bad, sources["vocab_domain"], sources["alias_map"], expected_bundle_id=sources["bundle_id"])
 
 
 def test_lattice_partition_broken_hardfail(sources):
     bad = copy.deepcopy(sources["lattice"])
-    bad["non_leaf_types"] = [t for t in bad["non_leaf_types"] if t != "ubw"]  # 破二分
+    # 破二分:从 non_leaf 抽掉一个真实存在的值(第二波后 ubw 已迁出组件类型轴,
+    # 改用当前词表里仍在的 non_leaf 值构造,避免测试随词表变动失效)。
+    bad["non_leaf_types"] = bad["non_leaf_types"][1:]
     with pytest.raises(LatticeIngestError):
         load_component_lattice(bad, sources["vocab_domain"], sources["alias_map"], expected_bundle_id=sources["bundle_id"])
 

@@ -211,3 +211,245 @@ def test_no_component_qualifier_unaffected() -> None:
     )
     assert o.closure_status == "open"
     assert o.open_reason_code == "missing_fact"
+
+
+# ---------------------------------------------------------------------------
+# 「乙」放宽档（2026-08-01，ct_disjoint_na_relaxed，缺省关闭）：
+# req_ct 与 fragment 身份显式登记 disjoint 即 NA，不再要求 req_ct 恒等于授权目标。
+# 同日 codex 审核门收紧：**限定符键须恰好只有 component_type_key**（多轴不翻）。
+# 测试面：缺省等价（不传 flag 行为逐位不变）、缺省拒绝四形态（未登记/身份未知/
+# 同型/多轴 全不翻）、归因标记只落在放宽档命中上（严档 NA 不带标记）。
+# ---------------------------------------------------------------------------
+
+def _mismatched_component_fact():
+    """槽上有事实、component 是唯一不匹配轴 → 严档下 qualifier_conflict。"""
+    return make_fact(
+        "F-relax-01",
+        slot_id="defect.class.present",
+        value=True, value_type="boolean",
+        qualifiers={"component_type_key": "external_wall"},
+    )
+
+
+def test_relaxed_default_off_keeps_qualifier_conflict() -> None:
+    """缺省（不传 flag）：无授权 + 事实限定符不匹配 → 仍 blocked/qualifier_conflict。"""
+    o = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        FactIndex(make_fact_pack([_mismatched_component_fact()])), META,
+        auth_target=None,
+        w0_identity="external_wall",
+        lattice_disjoint=_DISJOINT,
+    )
+    assert (o.closure_status, o.blocked_reason_code) == ("blocked", "qualifier_conflict")
+    assert "[relaxed_disjoint_na]" not in (o.notes or "")
+
+
+def test_relaxed_on_unauthorized_disjoint_flips_na() -> None:
+    """开 flag：无授权但单轴 (req_ct, 身份) 显式 disjoint → NA，notes 带放宽档标记。"""
+    o = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        FactIndex(make_fact_pack([_mismatched_component_fact()])), META,
+        auth_target=None,
+        w0_identity="external_wall",
+        lattice_disjoint=_DISJOINT,
+        ct_disjoint_na_relaxed=True,
+    )
+    assert (o.closure_status, o.satisfaction_status) == ("closed", "not_applicable")
+    assert o.comparator_result is False
+    assert "[relaxed_disjoint_na]" in (o.notes or "")
+
+
+def test_relaxed_multi_axis_keeps_conflict() -> None:
+    """开 flag 但限定符是多轴（组件+缺陷类）→ 审核门收紧：不翻，保持 qualifier_conflict。
+
+    真实反例形状（审核门给出）：附录五 §2.3 环氧树脂卡法规前提是「如使用環氧樹脂」
+    不是片段主身份——多轴命中在规格授权「组件轴独立且充分」之前一律不许 NA。
+    """
+    o = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"defect_class_key": "structural_damage_sign",
+                                  "component_type_key": "cantilevered_canopy"}),
+        FactIndex(make_fact_pack([make_fact(
+            "F-relax-02", slot_id="defect.class.present",
+            value=True, value_type="boolean",
+            qualifiers={"defect_class_key": "structural_damage_sign",
+                        "component_type_key": "external_wall"},
+        )])), META,
+        auth_target=None,
+        w0_identity="external_wall",
+        lattice_disjoint=_DISJOINT,
+        ct_disjoint_na_relaxed=True,
+    )
+    assert (o.closure_status, o.blocked_reason_code) == ("blocked", "qualifier_conflict")
+    assert "[relaxed_disjoint_na]" not in (o.notes or "")
+
+
+def test_relaxed_same_type_keeps_original() -> None:
+    """开 flag 但 req_ct == fragment 身份（同型）→ 不翻（此处事实缺 → missing_fact）。"""
+    o = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "external_wall"}),
+        _empty_index(), META,
+        auth_target=None,
+        w0_identity="external_wall",
+        lattice_disjoint=_DISJOINT,
+        ct_disjoint_na_relaxed=True,
+    )
+    assert (o.closure_status, o.open_reason_code) == ("open", "missing_fact")
+    assert "[relaxed_disjoint_na]" not in (o.notes or "")
+
+
+def test_relaxed_on_unregistered_pair_keeps_conflict() -> None:
+    """开 flag 但 (req_ct, 身份) 未登记 disjoint → 缺省拒绝，保持 qualifier_conflict（不猜）。"""
+    o = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        FactIndex(make_fact_pack([_mismatched_component_fact()])), META,
+        auth_target=None,
+        w0_identity="external_wall",
+        lattice_disjoint=set(),          # 未登记任何排斥对
+        ct_disjoint_na_relaxed=True,
+    )
+    assert (o.closure_status, o.blocked_reason_code) == ("blocked", "qualifier_conflict")
+
+
+def test_relaxed_on_identity_unknown_keeps_conflict() -> None:
+    """开 flag 但 fragment 身份未知（None）→ 缺省拒绝，保持 qualifier_conflict。"""
+    o = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        FactIndex(make_fact_pack([_mismatched_component_fact()])), META,
+        auth_target=None,
+        w0_identity=None,
+        lattice_disjoint=_DISJOINT,
+        ct_disjoint_na_relaxed=True,
+    )
+    assert (o.closure_status, o.blocked_reason_code) == ("blocked", "qualifier_conflict")
+
+
+def test_relaxed_missing_fact_shape_also_na() -> None:
+    """槽整体无事实（missing_fact 形态）：flag 关保持 open，flag 开同样 NA——
+    结构不可满足与「有事实但不匹配」在放宽档语义上是同一件事。"""
+    kw = dict(
+        auth_target=None, w0_identity="external_wall", lattice_disjoint=_DISJOINT,
+    )
+    off = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        _empty_index(), META, **kw,
+    )
+    assert (off.closure_status, off.open_reason_code) == ("open", "missing_fact")
+    on = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        _empty_index(), META, ct_disjoint_na_relaxed=True, **kw,
+    )
+    assert (on.closure_status, on.satisfaction_status) == ("closed", "not_applicable")
+    assert "[relaxed_disjoint_na]" in (on.notes or "")
+
+
+def test_relaxed_flag_integration_via_validate_building_closure() -> None:
+    """入口集成（2026-08-01 codex 审核门小缺口②）：主链 `validate_building_closure`
+    的 `trigger_ct_disjoint_na` ①缺省(不传)与显式 False **逐位等价**；②显式 True 时
+    无授权+单轴 disjoint 的 fragment 触发器经主链翻 NA 并带放宽档标记，
+    楼级（身份 None）同一触发器不翻。"""
+    import itertools as _it
+
+    from evo_agent_baseline.contracts import RuleSlice, SemanticSlotDTO
+    from evo_agent_baseline.closure.applicability_v3 import ApplicabilityBundle
+
+    from .fixtures import BUNDLE_ID, RUN_ID, run_closure
+
+    # 契约面：TriggerItemDTO 无 slot_id 字段（extra_forbidden），触发器经 slot_ref_id
+    # 引用 slot_role_map（spec §6.3.3），限定符由角色表条目携带（map_qualifiers 路径）。
+    card = make_rule_card(
+        rule_card_id="RC.relax.int01",
+        slot_role_map=[{
+            "slot_ref_id": "sr01", "slot_id": "defect.class.present",
+            "roles": ["trigger"], "required": False,
+            "qualifiers": {"component_type_key": "cantilevered_canopy"},
+        }],
+        trigger_conditions={"logic": "all", "items": [{
+            "condition_id": "trg01", "predicate_kind": "slot",
+            "operator": "==", "expected_value": True,
+            "slot_ref_id": "sr01",
+        }]},
+    )
+    rs = RuleSlice(
+        run_id=RUN_ID, rulecard_bundle_id=BUNDLE_ID,
+        candidate_rule_cards=[card], rule_families=[],
+        semantic_slots=[SemanticSlotDTO(
+            slot_id="defect.class.present", semantic_domain="defect")],
+        measures=[], artifacts=[], time_anchors=[], source_quotes=[],
+        retrieval_policy={},
+    )
+    fp = make_fact_pack([make_fact(
+        "f-relax-int", slot_id="defect.class.present",
+        value=True, value_type="boolean",
+        carrier_type="fragment", carrier_id="FR-WALL",
+        qualifiers={"component_type_key": "external_wall",
+                    "fragment_id": "FR-WALL"},
+    )])
+    bundle = ApplicabilityBundle(
+        bundle_sha256="t", leaf_types=frozenset(_LEAF),
+        disjoint_pairs=frozenset(
+            frozenset(p) for p in _it.combinations(sorted(_LEAF), 2)),
+        card_targets={},                                   # 无授权（缺省拒绝面）
+        fragment_identities={"FR-WALL": "external_wall"},
+    )
+
+    def rows(res):
+        return [(o.kind, o.fragment_id or "", str(o.closure_status),
+                 str(o.satisfaction_status), str(o.blocked_reason_code or ""),
+                 str(o.notes or ""))
+                for o in res.obligation_set.obligations]
+
+    off_default = run_closure(rs, fp, applicability_bundle=bundle)
+    off_explicit = run_closure(rs, fp, applicability_bundle=bundle,
+                               trigger_ct_disjoint_na=False)
+    on = run_closure(rs, fp, applicability_bundle=bundle,
+                     trigger_ct_disjoint_na=True)
+
+    # ①缺省 == 显式 False：主链义务集逐位等价（缺省等价在入口层成立）。
+    assert rows(off_default) == rows(off_explicit)
+
+    def trig(res, frag):
+        return [o for o in res.obligation_set.obligations
+                if o.kind == "trigger" and (o.fragment_id or "") == frag]
+
+    t_off = trig(off_default, "FR-WALL")
+    assert t_off and any(
+        o.blocked_reason_code == "qualifier_conflict" for o in t_off)
+    # ②开关经主链传到 fragment 触发器：翻 NA + 放宽档标记
+    # （注意 trig() 也会捞到聚合审计行——按标记精确取翻转行）。
+    t_on = trig(on, "FR-WALL")
+    flipped = [o for o in t_on if "[relaxed_disjoint_na]" in (o.notes or "")]
+    assert flipped and (flipped[0].closure_status,
+                        flipped[0].satisfaction_status) == (
+        "closed", "not_applicable")
+    # 翻转触发器聚合为 False ⇒ 主链产出「下游跳过」审计（下游传导在入口层可见）。
+    assert any("action obligations skipped" in (o.notes or "") for o in t_on)
+    # 放宽档标记全批只落在那一个 fragment 触发器上（楼级不翻的护栏由单元测试
+    # test_relaxed_on_identity_unknown_keeps_conflict 盖住；本夹具楼级不产触发器行）。
+    all_marked = [o for o in on.obligation_set.obligations
+                  if "[relaxed_disjoint_na]" in (o.notes or "")]
+    assert len(all_marked) == 1 and (all_marked[0].fragment_id or "") == "FR-WALL"
+
+
+def test_relaxed_strict_path_has_no_relaxed_marker() -> None:
+    """严档（授权恒等判据）命中时即便 flag 开，notes 也不得带放宽档标记——
+    归因标记只许落在「放宽档才翻」的义务上，否则重放分账会虚高。"""
+    o = evaluate_trigger(
+        make_rule_card(),
+        _slot_trigger(qualifiers={"component_type_key": "cantilevered_canopy"}),
+        _empty_index(), META,
+        auth_target="cantilevered_canopy",
+        w0_identity="drainage_component",
+        lattice_disjoint=_DISJOINT,
+        ct_disjoint_na_relaxed=True,
+    )
+    assert (o.closure_status, o.satisfaction_status) == ("closed", "not_applicable")
+    assert "structurally_unsatisfiable_qualifier" in (o.notes or "")
+    assert "[relaxed_disjoint_na]" not in (o.notes or "")

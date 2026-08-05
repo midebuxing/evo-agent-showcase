@@ -275,7 +275,16 @@ def test_structural_scope_audit_bound_at_incompatible_fragment(tmp_path):
               provenance={"channel": "w0_component_identity", "derivation": "fragment_component_projection"}),
     ]
     cards, rs = _synthetic_slice([c], semantic_slots=_DEFECT_SLOT, retrieval_policy=rp)
-    run = run_shadow_closure(_write_bundle(tmp_path, [c]), rs, _fp(facts), _META)
+    # v3 双轨清理:授权与身份来自 applicability_bundle(v2.2 policy 授权表 + 事实身份通道已删)
+    from evo_agent_baseline.closure.applicability_v3 import ApplicabilityBundle
+    _bundle = ApplicabilityBundle(
+        bundle_sha256="t", leaf_types=frozenset({"beam", "column"}),
+        disjoint_pairs=frozenset({frozenset({"beam", "column"})}),
+        card_targets={"RC.struct": "beam"},
+        fragment_identities={"FR-1": "beam", "FR-2": "column"},
+    )
+    run = run_shadow_closure(_write_bundle(tmp_path, [c]), rs, _fp(facts), _META,
+                             applicability_bundle=_bundle)
 
     _assert_complete_and_no_mismerge(run)
     struct = [b for b in run.bound

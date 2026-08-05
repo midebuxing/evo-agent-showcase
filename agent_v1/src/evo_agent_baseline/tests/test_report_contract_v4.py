@@ -142,12 +142,20 @@ def test_renderer_produces_authoritative_four_layers():
     assert "重新运行核验" in text
 
 
-def test_renderer_fails_closed_when_quote_missing():
-    """缺权威条文 → 整篇 fallback(返回 None),不半渲染。"""
+def test_renderer_degrades_when_quote_missing_but_fails_when_card_missing():
+    """引文缺失分档（2026-08-04 语义升级，沿革见 placeholder 测试 docstring）：
+
+    - 引文空/占位 ⇒ **诚实降级**（卡号引用行，不冒充引文）；
+    - 卡整个缺失 ⇒ 仍整篇 fallback（这半边一寸不让）。"""
     pk = _pack()
-    pk.rule_cards[0]["quote"] = ""  # R1 无引文
+    pk.rule_cards[0]["quote"] = ""  # R1 无引文 ⇒ 降级
     norm, _ = validate_submission_payload_v4(_valid_payload(), pk.key_items)
-    assert render_v4_points(pk, norm) is None
+    lines = render_v4_points(pk, norm)
+    assert lines is not None and "显式缺席" in chr(10).join(lines)
+    pk2 = _pack()
+    pk2.rule_cards = []             # 卡缺失 ⇒ 整篇 fallback
+    norm2, _ = validate_submission_payload_v4(_valid_payload(), pk2.key_items)
+    assert render_v4_points(pk2, norm2) is None
 
 
 def test_reason_templates_do_not_leak_rule_requirements():
@@ -181,12 +189,23 @@ def test_non_string_fields_rejected_cleanly_not_crash():
         assert any(e["error_code"] == "field_type" for e in errs)
 
 
-def test_placeholder_quote_fails_closed():
-    """占位引文'（未取得引文）'不算权威 → 整篇 fallback（copilot 审#2）。"""
+def test_placeholder_quote_degrades_honestly_not_whole_fallback():
+    """占位引文语义升级（2026-08-04）：**诚实降级**而非整篇 fallback。
+
+    沿革：copilot 审#2（2026-07-23）立的规矩是「占位引文不算权威 ⇒ 整篇 fallback」，
+    防的是占位符**冒充引文**渲给消费者。2026-08-04 实测该语义的代价：中文权威源
+    11/470 张显式缺席卡把满血批 **15/30 栋**的叙述整篇黑洞——顶部 violated 项反而
+    从叙述里消失，比降级更误导。新契约（`test_v4_absent_quote_degradation.py` 三条
+    变异锁定）：引文缺席 ⇒ 渲染成功＋卡号引用行＋缺席说明；**绝不**出现引号包着的
+    占位符（原防线保留）；卡整个缺失仍整篇 fallback。"""
     pk = _pack()
     pk.rule_cards[0]["quote"] = "（未取得引文）"
     norm, _ = validate_submission_payload_v4(_valid_payload(), pk.key_items)
-    assert render_v4_points(pk, norm) is None
+    lines = render_v4_points(pk, norm)
+    assert lines is not None, "缺席卡不得再拉黑整篇"
+    joined = chr(10).join(lines)
+    assert "「（未取得引文）」" not in joined, "占位符冒充引文＝copilot 审#2 那个洞复活"
+    assert "显式缺席" in joined
 
 
 def test_unresolved_fact_omitted_not_shown_as_none(monkeypatch=None):
@@ -338,3 +357,62 @@ def test_violated_requires_triple_consistency():
     norm, errs = validate_submission_payload_v4(p, pk.key_items)
     assert errs == []  # 校验层不看 closure 字段(其权威互证在渲染 resolve 层)
     assert render_v4_points(pk, norm) is None
+
+
+# ===== 2026-07-27 codex 审核门 P1-A：原因码登记双向对齐 =====
+
+def test_reason_code_spec_matches_authoritative_registry_both_ways():
+    """🔴 结构性闸：`REASON_CODE_SPEC` 与 `contracts` 权威原因码清单**双向**集合差为空。
+
+    修前失败形态（实测）：`missing_satisfaction_binding` 由派生器产出、已登记在
+    `contracts.OpenReasonCode`，却漏进 `REASON_CODE_SPEC` ⇒ `reason_key_of` 返回
+    None ⇒ 该义务被判 `no_authoritative_reason`、整篇 v4 提交被拒 ⇒ **消费者看不到
+    这块缺口**。而模块内原有的那条 assert 只比本文件三张表之间是否自洽——
+    漏登记时它们**依然自洽**，所以拦不住。故必须拿外部权威清单比。
+
+    反方向同样拦：本表多出 contracts 没有的码 = 在解释一个不存在的状态。
+    """
+    from typing import get_args
+
+    from evo_agent_baseline.contracts import BlockedReasonCode, OpenReasonCode
+
+    authoritative = set(get_args(OpenReasonCode)) | set(get_args(BlockedReasonCode))
+    spec = set(REASON_CODE_SPEC) - {"__violated__"}   # 合成键无 contracts 对应物
+    assert spec == authoritative, (
+        f"contracts 有而模板表缺={sorted(authoritative - spec)}；"
+        f"模板表有而 contracts 缺={sorted(spec - authoritative)}")
+
+
+def test_open_blocked_partition_matches_authoritative_registry():
+    """再细一层：open/blocked 的**归属**也须与 contracts 一致（不只是全集相等）。
+
+    只比全集会放过「把一个 open 码写进 `_BLOCKED_REASONS`」——那会让状态兼容矩阵
+    把合法项判成 `status_reason_incompatible`，同样触发整篇回退。
+    """
+    from typing import get_args
+
+    from evo_agent_baseline.agent import report_contract_v4 as v4
+    from evo_agent_baseline.contracts import BlockedReasonCode, OpenReasonCode
+
+    assert set(v4._OPEN_REASONS) == set(get_args(OpenReasonCode))
+    assert set(v4._BLOCKED_REASONS) == set(get_args(BlockedReasonCode))
+
+
+def test_missing_satisfaction_binding_survives_the_v4_contract():
+    """端到端：带该原因码的 open 义务必须能通过 v4 校验（而不是整篇被拒）。
+
+    这是「消费者能不能看到这块缺口」的实质断言——只断言字典里有这个键
+    等于只测了生产者自身。
+    """
+    pk = _pack()
+    pk.key_items.append(
+        {"alias": "O9", "obligation_id": "f" * 24, "category": "open",
+         "closure_status": "open", "satisfaction_status": "unknown",
+         "reason_code": "missing_satisfaction_binding",
+         "rule_card_alias": "R1", "fact_aliases": []})
+    payload = {"contract": "report_contract_v4", "points": [
+        {"obligation_alias": "O9", "analysis_code": "MODELING_GAP",
+         "selected_fact_aliases": [], "review_action_code": "ESCALATE_MODELING_GAP"}]}
+    norm, errs = validate_submission_payload_v4(payload, pk.key_items)
+    assert errs == [], f"新原因码过不了 v4 契约 → 整篇回退、缺口对消费者不可见：{errs}"
+    assert norm and norm[0]["obligation_alias"] == "O9"

@@ -4,9 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence, Set
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Set
 
 
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -18,8 +19,23 @@ RULE_CARD_ID_RE = re.compile(
 )
 SUBORDINATE_ID_RE = re.compile(r"^.+\.(t|x|d|e|n)\d{2}$")
 SLOT_REF_ID_RE = re.compile(r"^.+\.sr\d{2}$")
+# 语义槽词根白名单。**这不是一个闭集**——蓝图未把词根定义成闭集，只规定新增槽走
+# 规范点分命名、且卡侧槽与世界槽靠「同名或别名」衔接。
+# 2026-07-29 增补 5 个词根（第三方审核裁定，规格依据见下）：
+#   artifact / assessment / fire_safety / maintenance / ubw
+# 它们都是**世界模型实产**的槽域（实测事实数 artifact.* 2,550、fire_safety.* 347、
+# ubw.* 120、assessment.* 120、maintenance.* 120），蓝图亦逐个点名：
+#   W0 §01 设计原则与本体边界（artifact.* 为旁车行政事实）、W1 §08 派生 flag
+#   （maintenance.pre_next_cycle.required / ubw.present / fire_safety.deficiency.present /
+#     assessment.fsp.below_required_safety）、W2 §06 canonical_slots 与 projection_binding。
+# 替代方案（把槽名改写到旧词根下）被否：那会凭空制造新的命名分叉，
+# 而命名不匹配正是本项目一整类静默失效的来源。
+# ⚠️ 世界侧另有约 100 个词根（count / duration / crack_width_mm 等）是**量表键**，
+# 走下面的 MEASURE_KEY_RE，**不得**并进本表（实测两表交集为空）。
 SLOT_ID_RE = re.compile(
-    r"^(actor|scope|defect|risk|procedure|repair|investigation|verification|supervision|reporting)(\.[a-z0-9_]+)+$"
+    r"^(actor|artifact|assessment|defect|fire_safety|investigation|maintenance"
+    r"|procedure|repair|reporting|risk|scope|supervision|ubw|verification)"
+    r"(\.[a-z0-9_]+)+$"
 )
 MEASURE_KEY_RE = re.compile(
     r"^(area|ratio|count|length|duration|rate|stress|pressure|strength|depth|thickness)(\.[a-z0-9_]+)+$"
@@ -58,9 +74,31 @@ def _write_json(path: Path, payload: Any) -> None:
         handle.write("\n")
 
 
+# 契约校验违规收集器。非 None 时 `_ensure` 把失败写入列表并继续，
+# 以便一次列出全部违规（批跑闸 / 摸清全貌）；None 时保持遇错即抛。
+_VIOLATION_COLLECTOR: Optional[List[str]] = None
+
+
 def _ensure(condition: bool, message: str) -> None:
-    if not condition:
-        raise ValueError(message)
+    if condition:
+        return
+    if _VIOLATION_COLLECTOR is not None:
+        _VIOLATION_COLLECTOR.append(message)
+        return
+    raise ValueError(message)
+
+
+@contextmanager
+def _collecting_violations() -> Iterator[List[str]]:
+    """进入收集模式：契约失败写入列表，不中断后续检查。"""
+    global _VIOLATION_COLLECTOR
+    bucket: List[str] = []
+    prev = _VIOLATION_COLLECTOR
+    _VIOLATION_COLLECTOR = bucket
+    try:
+        yield bucket
+    finally:
+        _VIOLATION_COLLECTOR = prev
 
 
 def _require_keys(payload: dict, keys: Sequence[str], label: str) -> None:
@@ -606,7 +644,8 @@ def _validate_card(
         _ensure(neighbor["family_id"] in family_map, f"{card_id} neighbor family not found: {neighbor['family_id']}")
 
 
-def validate_rulecard_bundle(bundle_dir: Path) -> RuleCardBundle:
+def _validate_rulecard_bundle_body(bundle_dir: Path) -> RuleCardBundle:
+    """契约校验本体。失败走 `_ensure`（收集模式写列表 / 否则即抛）。"""
     bundle = load_rulecard_bundle(bundle_dir)
     _validate_manifest(bundle)
     family_map = _validate_family_index(bundle)
@@ -619,7 +658,7 @@ def validate_rulecard_bundle(bundle_dir: Path) -> RuleCardBundle:
     source_document_ids = {item["source_document_id"] for item in bundle.manifest["source_documents"]}
     page_counts = {item["source_document_id"]: item["page_count"] for item in bundle.manifest["source_documents"]}
     card_ids = set()
-    for idx, card in enumerate(cards):
+    for idx, card in enumerate(cards or []):
         label = f"rule_cards.cards[{idx}]"
         _require_keys(
             card,
@@ -645,6 +684,9 @@ def validate_rulecard_bundle(bundle_dir: Path) -> RuleCardBundle:
             ),
             label,
         )
+        # 缺关键键时后续会 KeyError——那是结构崩坏，收集模式也不该硬吞。
+        if "rule_card_id" not in card:
+            continue
         _ensure(card["rule_card_id"] not in card_ids, f"duplicate rule_card_id: {card['rule_card_id']}")
         _validate_card(
             card,
@@ -661,10 +703,10 @@ def validate_rulecard_bundle(bundle_dir: Path) -> RuleCardBundle:
 
     for family_id, family in family_map.items():
         declared = set(family["card_ids"])
-        actual = {card["rule_card_id"] for card in cards if card["family_id"] == family_id}
+        actual = {card["rule_card_id"] for card in (cards or []) if card.get("family_id") == family_id}
         _ensure(declared == actual, f"family_index.card_ids mismatch for {family_id}")
 
-    derived = rebuild_derived_indexes(cards)
+    derived = rebuild_derived_indexes(cards or [])
     _ensure(bundle.slot_index == derived["slot_index"], "slot_index.json does not match derived slot index")
     _ensure(
         bundle.threshold_regime_index == derived["threshold_regime_index"],
@@ -674,6 +716,29 @@ def validate_rulecard_bundle(bundle_dir: Path) -> RuleCardBundle:
         bundle.exception_definition_index == derived["exception_definition_index"],
         "exception_definition_index.json does not match derived exception/definition index",
     )
+    return bundle
+
+
+def collect_rulecard_bundle_violations(bundle_dir: Path) -> List[str]:
+    """跑完整契约校验，返回**全部**违规文案（遇错继续，不早停）。
+
+    与 `validate_rulecard_bundle` 同源；批跑闸用此函数一次列出全貌，
+    再与显式豁免清单对账——禁止靠遇错即抛只看见第一条。
+    """
+    with _collecting_violations() as bucket:
+        _validate_rulecard_bundle_body(bundle_dir)
+    return list(bucket)
+
+
+def validate_rulecard_bundle(bundle_dir: Path) -> RuleCardBundle:
+    """校验卡包契约；有违规时一次抛出**全部**违规（不再遇错即停只报第一条）。"""
+    with _collecting_violations() as bucket:
+        bundle = _validate_rulecard_bundle_body(bundle_dir)
+    if bucket:
+        raise ValueError(
+            f"rulecard bundle has {len(bucket)} contract violation(s):\n"
+            + "\n".join(f"  - {message}" for message in bucket)
+        )
     return bundle
 
 

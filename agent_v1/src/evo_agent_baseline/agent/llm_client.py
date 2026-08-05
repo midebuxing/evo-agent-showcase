@@ -22,6 +22,7 @@ evo-agent blind：LLM 通过 system_prompt 被告知禁止 W2，prompt 内容由
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -49,6 +50,38 @@ DEFAULT_API_KEY_PLACEHOLDER = "ollama"  # Ollama 不校验 key，placeholder 即
 # search_regulation）通常需要 8-15 轮；默认 16 给足空间，env 可覆盖。
 # 2026-05-29：降为 8 减少 sixthsense LLM call 总数（防风控 + 加速跑批）.
 DEFAULT_MAX_TOOL_ITERATIONS = 8
+
+
+def _chat_timeout_seconds() -> int:
+    """原生 `/api/chat` 的请求超时（秒），可用 `EVO_AGENT_LLM_TIMEOUT` 覆盖。
+
+    缺省 600 与改动前一致。**首栋要叠「灌库 + 冷推理」，实测 600 秒会超**——
+    2026-07-26 试跑两栋全部 `timed out` → `tool_call_missing` → 整批判废。
+    非法值（非正整数）一律回落缺省并出声，不静默用一个坏值。
+    """
+    import os as _os
+    raw = (_os.environ.get("EVO_AGENT_LLM_TIMEOUT") or "").strip()
+    if not raw:
+        return 600
+    try:
+        v = int(raw)
+        if v <= 0:
+            raise ValueError(raw)
+        return v
+    except ValueError:
+        print(f"[llm_client] ⚠️ EVO_AGENT_LLM_TIMEOUT={raw!r} 非法，回落缺省 600 秒")
+        return 600
+
+
+def _num_gpu_layers() -> Optional[int]:
+    """试验驱动可选的向下驻留层数；未设置时保持 Ollama 自动分配。"""
+    raw = (os.environ.get("EVO_AGENT_LLM_NUM_GPU") or "").strip()
+    if not raw:
+        return None
+    value = int(raw)
+    if value < 0:
+        raise ValueError("EVO_AGENT_LLM_NUM_GPU 必须为非负整数")
+    return value
 
 
 @dataclass
@@ -85,6 +118,7 @@ class LLMConfig:
     num_ctx: int = field(
         default_factory=lambda: int(os.environ.get("EVO_AGENT_LLM_NUM_CTX", "16384"))
     )
+    num_gpu: Optional[int] = field(default_factory=_num_gpu_layers)
     # 关思考模式（推理模型如 qwen3.5 输出进 reasoning、content 空 → agentic 循环里
     # forced_finalize 空响应早退；见记忆 reference_reasoning_model_empty_content_ollama）。
     # 置真 → 走 Ollama 原生 /api/chat + think:false（content 直出）。默认关（保 openai SDK
@@ -106,6 +140,7 @@ class LLMTurn:
     finish_reason: str
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
+    elapsed_seconds: Optional[float] = None
 
 
 class LLMClient:
@@ -154,13 +189,20 @@ class LLMClient:
         }
         # Ollama 的 OpenAI 兼容端点同样默认 num_ctx=4096 并静默截断前端；
         # 经 extra_body 透传（云端 OpenAI 会忽略未知字段，故对云端无害）。
+        options: Dict[str, Any] = {}
         if self.config.num_ctx:
-            kwargs["extra_body"] = {"options": {"num_ctx": self.config.num_ctx}}
+            options["num_ctx"] = self.config.num_ctx
+        if self.config.num_gpu is not None:
+            options["num_gpu"] = self.config.num_gpu
+        if options:
+            kwargs["extra_body"] = {"options": options}
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
+        started_at = time.perf_counter()
         resp = self._client.chat.completions.create(**kwargs)
+        elapsed_seconds = round(time.perf_counter() - started_at, 6)
         choice = resp.choices[0]
         msg = choice.message
 
@@ -188,6 +230,7 @@ class LLMClient:
             finish_reason=choice.finish_reason or "",
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            elapsed_seconds=elapsed_seconds,
         )
 
     # ------------------------------------------------------------------ #
@@ -275,14 +318,20 @@ class LLMClient:
                 "num_ctx": self.config.num_ctx,
             },
         }
+        if self.config.num_gpu is not None:
+            body["options"]["num_gpu"] = self.config.num_gpu
         if tools:
             body["tools"] = tools
         req = _url.Request(
             endpoint, data=_json.dumps(body, ensure_ascii=False).encode("utf-8"),
             headers={"Content-Type": "application/json"}, method="POST",
         )
+        started_at = time.perf_counter()
         try:
-            with _url.urlopen(req, timeout=600) as fh:
+            # 🔴 超时写死 600 秒曾整批判废(2026-07-26 试跑实证:两栋均
+            # `native /api/chat 请求失败: timed out` → `tool_call_missing` → 批废)。
+            # 首栋要叠灌库 + 冷推理，600 秒不够。改为可配，缺省仍 600 保持旧行为。
+            with _url.urlopen(req, timeout=_chat_timeout_seconds()) as fh:
                 data = _json.loads(fh.read().decode("utf-8"))
         except _uerr.HTTPError as e:  # Ollama 错误体带进异常，便于定位（如 schema/格式）
             try:
@@ -294,6 +343,7 @@ class LLMClient:
             raise RuntimeError(f"native /api/chat 请求失败: {e}") from e
         if not isinstance(data, dict):
             raise RuntimeError(f"native /api/chat 响应非对象: {type(data).__name__}")
+        elapsed_seconds = round(time.perf_counter() - started_at, 6)
 
         msg = data.get("message", {}) or {}
         tool_calls_out: List[Dict[str, Any]] = []
@@ -318,6 +368,7 @@ class LLMClient:
             finish_reason=data.get("done_reason") or "stop",
             prompt_tokens=data.get("prompt_eval_count"),
             completion_tokens=data.get("eval_count"),
+            elapsed_seconds=elapsed_seconds,
         )
 
 

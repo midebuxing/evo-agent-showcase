@@ -2848,6 +2848,32 @@ node-level obligation 的判定按以下优先级：
 7. 若 `node_kind="prohibition"`：找到 prohibited fact truthy → `closed + violated`；找到 falsy → `closed + satisfied`；缺失 → `open + missing_fact`；
 8. 若无任何可绑定 artifact / evidence / deadline / slot / measure 且 source quote 存在：`open + missing_fact`，notes 写 `action_not_fact_bound`，不得 satisfied。
 
+**[v0.4-DEBT-073] node 满足通道解析（2026-07-26）**：`action` 是动作词，**不是事实
+槽名**，不得再执行 `canonical_slot(action)`。node-level obligation 只消费卡中已声明且能
+确定归属到该 node 的满足通道：
+
+1. `slot_role_map[]` 是卡级表、没有 `obligation_node_id` 外键。仅当该卡
+   `obligation_graph.nodes[]` **恰有一个 node** 时，`required=true` 且
+   `roles[0] == 'evidence'` 的 slot ref 才能确定归属到该 node；
+2. 在同一单 node 边界内，`node.artifact_ids[]` 与 `node.deadline_ids[]` 按既有 artifact /
+   deadline binding 求值。多 node 卡即使共享 artifact，也不得据此同时关闭多个 node 主义务；
+3. `trigger_condition_ids[]` 只控制激活，不能作为动作已完成的证据；`recipient_ids[]`
+   只做引用存在性检查，也不能作为满足通道；`definition_reference` / `prerequisite` 角色
+   不得冒充 evidence；
+4. 普通动作的多个必需通道按合取聚合：任一 blocked → `blocked + unknown`，否则任一
+   open → `open + unknown`，全部 closed 后任一 falsy / violated → `closed + violated`，
+   否则 `closed + satisfied`。禁止节点只允许唯一 evidence 满足槽；truthy → violated、
+   falsy → satisfied，无法唯一定位则缺省拒绝；
+5. 卡侧没有可确定满足通道 → `open + missing_satisfaction_binding`。有通道但没有事实仍用
+   `missing_fact` / `missing_artifact_evidence` / `missing_time_anchor`；限定符不匹配仍为
+   `blocked + qualifier_conflict`。绝不把“查不到”改成 satisfied；
+6. node 产物必须用现有结构字段落盘绑定证据：`slot_ref_ids` / `slot_ids` /
+   `artifact_ids` / `artifact_keys` / `deadline_ids` / `evidence_fact_ids`，并在 notes 写稳定的
+   `satisfaction_bindings=[...]`。不新增 `satisfaction_slot_ref_id`，避免与多通道事实冲突；
+7. node identity blueprint 必须把上述 evidence slot（含 qualifier 指纹）灌入
+   `slot_bindings`。否则 slot / qualifier 改变判定却不改变 `canonical_identity_hash`，违反
+   身份材料完整性。
+
 #### 6.3.10.5 edges 处理
 
 edges 表达义务间条件依赖。verifier 在所有 node-level obligations 初评后处理 edges。

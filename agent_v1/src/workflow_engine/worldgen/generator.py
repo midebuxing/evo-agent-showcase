@@ -37,6 +37,7 @@ if TYPE_CHECKING:  # 仅注解用（BatchGateStats 定义在 gates），避免�
     from workflow_engine.worldgen.gates import BatchGateStats
 
 import workflow_engine.worldgen.checks  # noqa: F401  — T-22: registers C001-C022 gate checks
+from workflow_engine.worldgen import rng_domains
 
 # QA-Parallelize 2026-05-09: cross-building ProcessPool worker globals.
 # 大 registries 一次性 pickle 到 worker 进程的 module-level globals（在 initializer 里），
@@ -640,9 +641,11 @@ def _select_fragment_templates(
     building: BuildingContext,
     building_template_id: str,
     registries: RegistryBundle,
-    rng: random.Random,
+    *,
+    world_id: str,
     target_count: int = 4,
     available_component_types: Optional[set] = None,
+    ensure_component_type_coverage: bool = False,
 ) -> List[Dict[str, Any]]:
     """Pick `target_count` fragment templates compatible with this building.
 
@@ -651,14 +654,39 @@ def _select_fragment_templates(
 
     W0-008 (2026-05-21)：`building_template_id` 由 caller 显式传入（从
     `BuildingInternalMetadata.building_template_id` 取），不再从 BuildingContext 读取.
+
+    🔴🔴 1a-ii 稳定化（波次二 #22，2026-08-05）：**两处 `rng.shuffle` 改成「按稳定键排序
+    后取前 k」**，`rng` 形参一并删除 —— 本函数对主 rng 的消费**归零**。
+
+    病：`rng.shuffle(整表)` ⇒ 表长一变，排列整体重来 ⇒ **选中的是另一批模板** ⇒
+    片段身份全变。实测该表结构放大了这个病：15 张片段模板只覆盖 6 个
+    `building_template_id`，而楼型注册表有 15 个 ⇒ **9/15 楼型 `primary` 为空、
+    走下面 `:not primary` 的全表回退**（seed401 池 50 栋里 34 栋 ＝ 68% 属这 9 个楼型），
+    于是它们 shuffle 的是**整张表**，加一张模板就 12→16 全排列重掷。
+
+    改法（三线定稿的候选甲）：`sorted(..., key=stable_sort_key(域串, world_id, 模板 id))`。
+    追加一张模板 ＝ 在这个序里插一个位置，**既有模板的相对序不变**；
+    ⚠️ 但**不是「插入无影响」**：候选池 n→n+1 而取 k 不变，新模板的键排进前 k 时
+    仍会挤掉一个既有的，概率 ＝ k/(n+1)（全表回退那 9 个楼型：k=4、n=15 ⇒ 25%，
+    对比现状整表重排 ≈100%）。**别把它宣称成「加模板＝纯追加」。**
+
+    ⚠️ 另一条须记：ctcov 的追加集 `covered = {t["component_type"] for t in chosen}`
+    依赖 `chosen`，故本改动也会改 ctcov 的追加集。那是预期的（换池），不是不变量。
     """
     all_templates = _registry_records(registries, "fragment_template_registry")
     primary = [t for t in all_templates if t.get("building_template_id") == building_template_id]
     if not primary:
         primary = list(all_templates)
+
+    def _template_key(template: Dict[str, Any]) -> bytes:
+        return rng_domains.stable_sort_key(
+            rng_domains.FRAGMENT_TEMPLATE_SELECT,
+            world_id,
+            str(template.get("fragment_template_id") or ""),
+        )
+
     chosen: List[Dict[str, Any]] = []
-    pool = list(primary)
-    rng.shuffle(pool)
+    pool = sorted(primary, key=_template_key)
     for template in pool:
         chosen.append(template)
         if len(chosen) >= target_count:
@@ -675,11 +703,48 @@ def _select_fragment_templates(
                 t for t in remaining
                 if t.get("component_type") in available_component_types
             ]
-        rng.shuffle(remaining)
+        remaining = sorted(remaining, key=_template_key)
         for template in remaining:
             chosen.append(template)
             if len(chosen) >= target_count:
                 break
+
+    # 🔴 构件类完整性（2026-07-29，DEBT「验收③ 队列 1′」；**缺省关，开关不动 rng**）
+    #
+    # 病：片段是**模板驱动**的（每栋固定取 `target_count=4` 个模板），而
+    # `_pick_component_for_fragment` 每个模板只挑**一个**组件。于是一栋楼里
+    # 某个构件类可能一个片段都没有 —— 实测池内 `343 组件 / 200 片段`，
+    # **172 个组件（50.1%）零片段**，121 个 (楼, 构件类) 格零片段。
+    #
+    # 后果：义务按片段求值，没有该类片段 ⇒ 针对该类的卡产不出作用域内义务 ⇒
+    # 阅卷记「漏」。但那是**世界没把题出出来**，不是系统没答。自然实验：
+    # 同一 (规范项, 构件类) 在有该类片段的楼上覆盖率 **99.5%**、没有的楼上 **0.0%**。
+    #
+    # ⚠️ 判据是「**楼内已存在的构件类**至少产一个片段」这条**组件层完整性规则**，
+    #    **不是**「按漏掉的规范项补片段」——后者就是照误差清单造题。
+    #    所以这里只看 `available_component_types`（世界自己有什么），
+    #    **不读任何法规卡、不读真值**。
+    #
+    # ⚠️ 缺省 False：开着会追加模板 ⇒ 消耗 rng ⇒ 整个世界的随机流改变。
+    #    开它必须配新池名，**不得原地改同一 seed 的语义**。
+    #    注册表只有 12 个模板覆盖 8 种构件类，而 `component_type_registry` 有 19 种；
+    #    `balcony_slab` / `parapet_wall` / `signboard` **无模板**，本开关对它们无能为力
+    #    （须新写模板，属内容工作，另行处置）。
+    #
+    # 🔴🔴 追加**必须用独立子 rng**，绝不能碰主 `rng`（2026-07-29 实测栽过一次）。
+    #    首版直接 `rng.randrange(...)` ⇒ 主 rng 状态被推进 ⇒ 而
+    #    `_pick_component_for_fragment` 是在**主循环里**才取 rng ⇒
+    #    **连原有那几个模板都绑到了不同的组件上**。实测批 H：
+    #    **19/30 栋的原有片段整批消失**，于是「开 vs 关」不是单变量对照，
+    #    而是「换了随机流、顺便类覆盖更好的另一个世界」——因果宣称不成立。
+    #    改用子 rng 后，主 rng 状态不变 ⇒ 原有片段逐个保留，新增的纯属追加。
+    if ensure_component_type_coverage and available_component_types:
+        covered = {t.get("component_type") for t in chosen}
+        for ctype in sorted(available_component_types - covered):
+            candidates = [t for t in all_templates if t.get("component_type") == ctype]
+            if candidates:
+                sub_rng = random.Random(f"ctcov|{building_template_id}|{ctype}")
+                chosen.append(candidates[sub_rng.randrange(len(candidates))])
     return chosen
 
 
@@ -1274,7 +1339,8 @@ def generate_coverage_relations(
     fragments: List[FragmentContext],
     components_by_id: Dict[str, ComponentNode],
     registries: RegistryBundle,
-    rng: random.Random,
+    *,
+    world_id: str,
 ) -> List[CoverageRelation]:
     """Build CoverageRelation per fragment based on coverage_relation_registry (spec 04 §3 / §8).
 
@@ -1283,10 +1349,18 @@ def generate_coverage_relations(
 
     W0-005 (2026-05-21)：`component_type` 走 `components_by_id[fragment.component_id]`
     （spec 06 §0.1 reference 反查 + spec 04 §5 ComponentNode），不读 FragmentRuntimeState 自身 cache.
+
+    🔴 1a-i（波次二 #22，2026-08-05）：本阶段**不再收主 rng**，改按
+    `(域串, world_id, fragment_id)` 逐片段派生子流。删形参而非留着不用——
+    「不消费主 rng」由此成为结构上不可能违反的事实，强于任何运行时断言。
     """
     cr_records = _registry_records(registries, "coverage_relation_registry")
     relations: List[CoverageRelation] = []
     for fragment_index, fragment in enumerate(fragments):
+        # 键只吃「这次抽的是什么」——不吃批规模、不吃 fragment_index（那正是要治的病）。
+        rng = rng_domains.sub_rng(
+            rng_domains.COVERAGE_RELATIONS, world_id, fragment.fragment_id
+        )
         component = components_by_id.get(fragment.component_id)
         component_type = component.component_type if component is not None else ""
         candidates = [
@@ -1780,19 +1854,26 @@ def generate_coverage_sampling_measurements(
     components: List[ComponentNode],
     fragments: List[FragmentContext],
     registries: RegistryBundle,
-    rng: random.Random,
+    *,
+    world_id: str,
     per_fragment_count: int = 2,
 ) -> List[MeasurementRecord]:
     """spec 03 Step 6 / spec 04 §16 coverage_sampling measurement family
     (derivation_mode='coverage_sampling_plan'; W1-015 docstring 替换 T-19 历史工单编号).
 
     For each fragment, sample `per_fragment_count` coverage_sampling slots from registry.
+
+    🔴 1a-i（波次二 #22）：改逐片段子流，主 rng 形参已删。见
+    `generate_coverage_relations` 同款说明。
     """
     slot_pool = _registry_slot_records_by_family(registries, ["coverage_sampling"])
     if not slot_pool:
         return []
     measurements: List[MeasurementRecord] = []
     for fragment in fragments:
+        rng = rng_domains.sub_rng(
+            rng_domains.COVERAGE_SAMPLING, world_id, fragment.fragment_id
+        )
         chosen = list(slot_pool)
         rng.shuffle(chosen)
         for index, slot_record in enumerate(chosen[:per_fragment_count]):
@@ -1814,13 +1895,19 @@ def generate_technical_validation_measurements(
     fragments: List[FragmentContext],
     conditions: List[ConditionState],
     registries: RegistryBundle,
-    rng: random.Random,
+    *,
+    world_id: str,
     per_fragment_count: int = 2,
 ) -> List[MeasurementRecord]:
     """spec 03 Step 7 / spec 04 §16 technical_validation + boolean_assertion measurement family
     (derivation_mode='technical_validation_plan'; W1-015 docstring 替换 T-19 历史工单编号).
 
     For each fragment with verification-relevant condition, sample `per_fragment_count` slots.
+
+    🔴 1a-i（波次二 #22）：改逐片段子流，主 rng 形参已删。子流建在两条分支**之前**——
+    本阶段的分支不对称（`condition is None or severity < 0.2` 走 not_applicable 路径、
+    该路径不消费 rng 造值），过去这正是「某片段严重度跨过 0.2 ⇒ 其后所有片段量测移位」
+    的第二重耦合来源；键控子流后该耦合结构上消失。
     """
     slot_pool = _registry_slot_records_by_family(registries, ["technical_validation", "boolean_assertion"])
     if not slot_pool:
@@ -1828,6 +1915,9 @@ def generate_technical_validation_measurements(
     condition_by_fragment = {c.fragment_id: c for c in conditions}
     measurements: List[MeasurementRecord] = []
     for fragment in fragments:
+        rng = rng_domains.sub_rng(
+            rng_domains.TECHNICAL_VALIDATION, world_id, fragment.fragment_id
+        )
         condition = condition_by_fragment.get(fragment.fragment_id)
         # W1-003 / spec 10 §6 silent fallback 红线 + spec 07 §2.3 公式输入缺时输出 `not_applicable`
         # 不 silently drop：fragment 没有 condition 或 severity 过低（< 0.2，无 verification 必要）时，
@@ -1876,7 +1966,8 @@ def generate_structural_assessment_measurements(
     mechanisms: List[MechanismState],
     components_by_id: Dict[str, ComponentNode],
     registries: RegistryBundle,
-    rng: random.Random,
+    *,
+    world_id: str,
     per_fragment_count: int = 2,
     drainage_by_fragment: Optional[Dict[str, "DrainageState"]] = None,
     drivers_by_fragment: Optional[Dict[str, "DriverState"]] = None,
@@ -2007,6 +2098,13 @@ def generate_structural_assessment_measurements(
         component = components_by_id.get(fragment.component_id)
         if component is None:
             continue  # 无法定位 component → 跳过本 fragment（reference contract 主键不应该缺失）
+        # 🔴 1a-i（波次二 #22）：逐片段子流，建在**两个 guard 之后**——被跳过的片段
+        # 不建无用子流，也让「哪些片段被跳过」不再影响其余片段拿到哪条流
+        # （本阶段的 guard 极不对称：inactive mechanism / 缺 component 的片段零消费，
+        #  过去它们的存在与否会整体移位后续片段的抽样）。
+        rng = rng_domains.sub_rng(
+            rng_domains.STRUCTURAL_ASSESSMENT, world_id, fragment.fragment_id
+        )
         fragment_area_m2 = fragment.fragment_area_m2
         fragment_length_m = fragment.fragment_length_m or 0.0
         cover_depth_mm = component.cover_depth_mm
@@ -2562,6 +2660,34 @@ def _build_per_fragment_state_lookup(world: WorldBundle) -> Dict[str, Dict[str, 
     return lookup
 
 
+# 🔴 1b（波次二 #31）：spec 08 §2 step 7 明写 `assessment_fsp_below_required_safety`
+#    的输入是 **W1 Step 8 输出的 `ratio.fsp.structural_performance`**（逐片段量测），
+#    Step 8 已在 `:2129-2130` 逐片段算好并在 `:2173-2174` 落盘。派生层只负责**读**它，
+#    不得自己重算——尤其不得拿全楼 max severity 重算一个楼级标量再发给每个构件
+#    （守则 §4.3.3(c) 把结构表现系数定义在**結構構件**上，法规里不存在"全楼 FSP"）。
+_FSP_MEASUREMENT_SLOT_ID = "ratio.fsp.structural_performance"
+
+
+def _lookup_fragment_fsp_measurement(
+    measurements: List[MeasurementRecord],
+) -> Optional[float]:
+    """取该片段自身的 Step 8 结构表现系数量测；无量测返回 None（⇒ no_assessment 路线）。
+
+    入参是 `_build_per_fragment_state_lookup` 按 `measurement.target_ref == fragment_id`
+    收好的**本片段**量测列表，故此处不再做作用域过滤。
+    W1-003 的 not_applicable 占位记录（`value_enum == "not_applicable"`、`value_num` 空）
+    不算"做过评估"，与 `verification.test.failed` 的 `valid_tv` 判据同口径。
+    """
+    for measurement in measurements:
+        if (
+            measurement.slot_id == _FSP_MEASUREMENT_SLOT_ID
+            and measurement.value_num is not None
+            and measurement.value_enum != "not_applicable"
+        ):
+            return float(measurement.value_num)
+    return None
+
+
 def _compute_max_danger_index(condition: ConditionState, drainage, ubw, fire) -> float:
     """spec 06 §11 max danger index = max over (detachment / spall / fire / ubw / drainage severity)."""
     candidates: List[float] = [condition.severity_index]
@@ -2588,6 +2714,14 @@ def _compute_derived_flags_for_condition(
 ) -> Dict[str, Dict[str, Any]]:
     """spec 06 §11 派生 14 个 derived flag (W1-010).
 
+    🔴 作用域（1b / 波次二 #31，2026-08-05 三线门定案）：本函数**全部输入都是片段级**。
+    `condition` / `drainage` / `ubw` / `fire` / `repair_assessment` / `measurements`
+    由 `_build_per_fragment_state_lookup` 按 `fragment_id` 取；`fsp_estimate` 是
+    **该片段自己**的 `ratio.fsp.structural_performance` 量测（无量测时为 None）。
+    过去 `fsp_estimate` 是调用方拿全楼 max severity 重算的楼级标量——那是唯一一处
+    跨片段输入，已在 1b 移除。**别再往这里塞任何楼级聚合量**：它会让"加一个片段"
+    改掉既有构件的判定（非追加），并把最差处的事实张冠李戴到达标构件上。
+
     spec 08 §1 共 9 行 derived flag table，其中 family_uncovered 属 W2 法规映射层不在 W1 派生；
     spec 08 §2 派生顺序步骤 1-13 加 14 defect.cause_or_extent.uncertain 列出 14 条派生项.
     返回 5 个 sub-dict：risk_flags / repair_flags / verification_flags / assessment_flags /
@@ -2605,6 +2739,10 @@ def _compute_derived_flags_for_condition(
     drainage_health = drainage.public_health_risk_index if drainage is not None else 0.0
     max_danger = _compute_max_danger_index(condition, drainage, ubw, fire)
 
+    # 1b：`fsp_estimate` 为 None ＝ 本片段**没做过结构评估**（无 Step 8 量测）。
+    # row 8 走 not_applicable + no_assessment（见下）；row 1 的 `fsp < 0.75` 分项则按
+    # spec §10 的 fsp_true 初值 1.20 取值 ⇒ 该析取项恒不触发——"没评估过"不得被当成
+    # "评估过且不合格"（这正是 1b 要根除的那类伪装）。
     fsp = fsp_estimate if fsp_estimate is not None else 1.20  # spec §10 default fsp_true initial
     repair_quality = (
         repair_assessment.repair_quality_index
@@ -2624,6 +2762,8 @@ def _compute_derived_flags_for_condition(
     )
 
     # spec §11 row 1: risk_building_safety_emergency
+    # 🔴 1b：本行的 `fsp` 与 row 8 同源，故也随之从楼级改成片段级（官方线令同批改，
+    #    否则同一个 fsp 在同一个函数里同时有两个作用域）。
     risk_building_safety_emergency = (
         severity >= _RISK_BUILDING_SAFETY_SEVERITY_THRESHOLD
         or fsp < _RISK_BUILDING_SAFETY_FSP_THRESHOLD
@@ -2714,6 +2854,9 @@ def _compute_derived_flags_for_condition(
             verification_test_failed = verification_failed_input
 
     # spec §11 row 8: assessment_fsp_below_required_safety
+    # 🔴 1b：`fsp_estimate is None` 这条分支在 1b 之前是**死分支**（三池 862 个 condition
+    #    里 0 条触发）——因为调用方总能算出一个楼级 max，哪怕本片段根本没做结构评估。
+    #    改读片段量测后它第一次真正生效。
     if fsp_estimate is not None:
         assessment_fsp_below_required_safety: Any = fsp < _FSP_FLOOR_PROXY
     else:
@@ -2808,11 +2951,22 @@ def populate_derived_flags(world: WorldBundle) -> WorldBundle:
 
     state_lookup = _build_per_fragment_state_lookup(world)
 
-    # 估算 fsp_true（spec §10 公式；T-18g 已建好 helper）
-    age_norm_value = _age_norm(world.building.age_years)
-    max_severity = max((c.severity_index for c in world.conditions), default=0.0)
-    fsp_estimate = max(0.0, min(2.0, 1.20 - 0.30 * max_severity - 0.10 * age_norm_value))
-
+    # 🔴 1b（波次二 #31，2026-08-05 三线门全票定案）：此处**不再自算 fsp**。
+    #    旧实现是：
+    #        age_norm_value = _age_norm(world.building.age_years)
+    #        max_severity = max((c.severity_index for c in world.conditions), default=0.0)
+    #        fsp_estimate = clip(1.20 - 0.30*max_severity - 0.10*age_norm_value)
+    #    ——拿**全楼** max severity 重算一个楼级标量，再发给**每一个** condition。
+    #    三条判据判定它是实现偏离而非语义选项：
+    #      ① 守则 §4.3.3(a)(c)/§4.3.4 三处连写「結構構件」，FSP 是构件级的抗力/荷载比值，
+    #         法规里不存在"全楼 FSP"；把最差构件的比值复制给达标构件，据此签发
+    #         「緊急補救工程＋立即向建築事務監督報告」，是错误的事实陈述而非保守估计。
+    #      ② spec 08 §2 step 7 / §1 表明写输入 = W1 Step 8 的 `ratio.fsp.structural_performance`。
+    #      ③ 那个正确的值 **Step 8 已逐片段算好并落盘**（`:2129-2130` → `:2173-2174`），
+    #         本改动零新公式、零新系数、零新注册表，只是让派生层去读它本该读的值。
+    #    副产品：片段级 fsp 只依赖本片段 condition＋楼龄，故"加一个片段"不再改动既有
+    #    片段的 fsp 派生族（#31 那条非追加通道随之消失）。因果方向别写反——不是为了
+    #    让验收变绿才改语义，是改回正确作用域之后非追加性作为副产品消失。
     new_world = world.model_copy(deep=True)
     # W1-002: RAS 双轨消除——Step 9 派生公式为最终权威，Step 1 bootstrap 仅占位.
     # 用 fragment_id → RAS 索引，便于派生后回写 4 个字段 (repair_required / verification_failed
@@ -2822,6 +2976,8 @@ def populate_derived_flags(world: WorldBundle) -> WorldBundle:
     }
     for index, condition in enumerate(new_world.conditions):
         ctx = state_lookup.get(condition.fragment_id, {})
+        # 1b：该片段自身的 Step 8 量测；无量测 → None → row 8 落 not_applicable + no_assessment
+        fragment_fsp = _lookup_fragment_fsp_measurement(ctx.get("measurements", []))
         flags = _compute_derived_flags_for_condition(
             condition=condition,
             fragment=ctx.get("fragment"),
@@ -2832,7 +2988,7 @@ def populate_derived_flags(world: WorldBundle) -> WorldBundle:
             repair_assessment=ctx.get("repair_assessment"),
             measurements=ctx.get("measurements", []),
             building=new_world.building,
-            fsp_estimate=fsp_estimate,
+            fsp_estimate=fragment_fsp,
         )
         condition.derived_outcomes.risk_flags.update(flags["risk_flags"])
         condition.derived_outcomes.repair_flags.update(flags["repair_flags"])
@@ -2845,7 +3001,19 @@ def populate_derived_flags(world: WorldBundle) -> WorldBundle:
             _compute_max_danger_index(condition, ctx.get("drainage"), ctx.get("ubw"), ctx.get("fire")),
             4,
         )
-        condition.derived_outcomes.risk_index_values["index.fsp.estimate"] = round(fsp_estimate, 4)
+        # 🔴 1b：`index.fsp.estimate` 写**该片段自己**的量测值。无量测时**不写这个键**
+        #    ——`risk_index_values` 是 Dict[str, float]，写不下 "not_applicable"；而写一个
+        #    编造的默认值等于在数值通道里重犯"把没评估过伪装成评估过"。键缺席 ＝ 没评估过，
+        #    与同一 condition 上的 `fallback_reasons["assessment.fsp.below_required_safety"]
+        #    == "no_assessment"` 互为佐证。
+        #    ⚠️ 无量测时**显式 pop**：本函数其余字段都走 `.update()`（键恒被写、旧值必被盖），
+        #    只有这一个键是有条件写的。不 pop 的话，在一个已填过 derived_outcomes 的世界上
+        #    重跑（本函数是纯函数、契约上允许重跑）会留下上一轮的陈值，输出就不再只由输入决定。
+        #    生产主链只调一次、字典是空的，故这一行零行为差异——它守的是重跑语义。
+        if fragment_fsp is not None:
+            condition.derived_outcomes.risk_index_values["index.fsp.estimate"] = round(fragment_fsp, 4)
+        else:
+            condition.derived_outcomes.risk_index_values.pop("index.fsp.estimate", None)
 
         # W1-002: Step 9 真实公式回写到 RAS 同名字段；bool 化 not_applicable→False（RAS 字段 schema 不
         # 支持 enum 值，按 spec 8 §2 step 11/12/13 unknown_policy "no scope → not_applicable" 仅作
@@ -2965,8 +3133,11 @@ def generate_world_bundle(
 
     # T-17b: per-fragment 状态生成
     fragment_templates = _select_fragment_templates(
-        building, template_id, registries, rng, target_count=fragment_count,
+        building, template_id, registries, world_id=world_id, target_count=fragment_count,
         available_component_types={c.component_type for c in components},
+        # 缺省 False；开它须配新池名（会改随机流）。见 `_select_fragment_templates` 长注释。
+        ensure_component_type_coverage=bool(
+            (batch_config or {}).get("ensure_component_type_coverage", False)),
     )
     fragments: List[FragmentContext] = []
     drivers: List[DriverState] = []
@@ -3018,17 +3189,26 @@ def generate_world_bundle(
         )
         if fire is not None:
             fire_safety_states.append(fire)
+    # 🔴 1a-i（波次二 #22，2026-08-05）：以下四个后置阶段**不再收主 rng**，
+    # 各自按 `(域串, world_id, fragment_id)` 逐片段派生子流。
+    # 病因：这四段过去在主 rng 上顺序穿线，于是「某栋楼多一个片段」会让其后所有
+    # 既有片段的量测全部移位（实测甲-a：保留 200/200 键却翻判 78）——
+    # 加片段不是纯追加，任何「加了什么就量什么」的对照都不成立。
     coverage_relations = generate_coverage_relations(
-        building, components, fragments, components_by_id, registries, rng
+        building, components, fragments, components_by_id, registries, world_id=world_id
     )
 
     # T-17c (T-19 并入): measurement 3 family 生成
     measurements: List[MeasurementRecord] = []
     measurements.extend(
-        generate_coverage_sampling_measurements(building, components, fragments, registries, rng)
+        generate_coverage_sampling_measurements(
+            building, components, fragments, registries, world_id=world_id
+        )
     )
     measurements.extend(
-        generate_technical_validation_measurements(building, fragments, conditions, registries, rng)
+        generate_technical_validation_measurements(
+            building, fragments, conditions, registries, world_id=world_id
+        )
     )
     drivers_by_fragment_id: Dict[str, DriverState] = {
         fragment.fragment_id: drivers[idx]
@@ -3037,7 +3217,8 @@ def generate_world_bundle(
     }
     measurements.extend(
         generate_structural_assessment_measurements(
-            building, fragments, conditions, mechanisms, components_by_id, registries, rng,
+            building, fragments, conditions, mechanisms, components_by_id, registries,
+            world_id=world_id,
             drainage_by_fragment=drainage_by_fragment_id,  # DEBT-020 round2 #3: public_health_risk_index 走 derive 路径
             drivers_by_fragment=drivers_by_fragment_id,  # DEBT-020 round5 sub-task 1: crack_width/length derive 用
         )

@@ -258,7 +258,7 @@ def _run_assessment(mechanism: MechanismState, drainage: DrainageState):
         mechanisms=[mechanism],
         components_by_id={_DRN_COMPONENT_ID: _drainage_component()},
         registries=_build_registry_bundle(),
-        rng=random.Random(7),
+        world_id="WB-TEST-DRN-0001",
         drainage_by_fragment={fragment.fragment_id: drainage},
     )
 

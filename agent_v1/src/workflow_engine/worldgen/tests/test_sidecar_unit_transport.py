@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 
 from workflow_engine.worldgen.sidecar import _sample_sidecar_facts_for_fragment
 
@@ -17,6 +16,6 @@ def test_numeric_row_carries_registry_unit() -> None:
         "recommended_mean": 0.5, "recommended_sigma": 0.1,
         "precision_steps": 0.01,
     }]
-    buckets = _sample_sidecar_facts_for_fragment("WB", "FR1", records, random.Random(1))
+    buckets = _sample_sidecar_facts_for_fragment("WB", "FR1", records)
     rows = [v for vs in buckets.values() for v in vs]
     assert rows and rows[0].unit == "ratio"

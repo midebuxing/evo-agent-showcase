@@ -307,6 +307,13 @@ def build_sidecar_graph(
             slot_id = node.props.get("slot_id")
             time_anchor_key = node.props.get("time_anchor_key")
             # 桥接边（spec §3.3.5 / §3.6.2）：端点不存在时写入期 MATCH 不命中即不建。
+            # ⚠️ 未归一（2026-07-27 注，同 fact_loader.py 的 REALIZES_SLOT）：
+            # `slot_id` 取自 sidecar 记录＝**世界侧名**，`SemanticSlot.slot_id` 是
+            # **卡侧名**，命中别名表的槽这两条桥边结构上不存在。当前无消费者
+            # （闭包读 FactPack、检索读 SlotRef），故是死边、不改行为；接线消费前
+            # 必须先过 slot_alias_policy 正向归一。
+            # `REALIZES_MEASURE` 同理，且它拿 slot_id 当 measure_key 用，另需过
+            # measure_aliases。
             if slot_id:
                 result.batch.add_edge(EdgeSpec(
                     "SidecarEntry", "sidecar_entry_id", entry_id,

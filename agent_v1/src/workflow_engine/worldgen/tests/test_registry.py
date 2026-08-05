@@ -122,7 +122,8 @@ class RegistryBundleTests(unittest.TestCase):
         # DEBT-020 round5 sub-task 5 (2026-05-10): duration.delivery.deadline 拆分为 to_person + to_ba
         # 旧 slot 标 deprecated 但保留一个 release cycle backward-compatible alias.
         # 总条数 9 → 11（+2 split slots，旧 slot 仍在）.
-        self.assertEqual(len(registry.records), 11)
+        # 期限锚供给案 (2026-08-05)：+8 楼级 duration 槽 ⇒ 11 → 19.
+        self.assertEqual(len(registry.records), 19)
         self.assertEqual(
             {record["slot_id"] for record in registry.records},
             {
@@ -139,6 +140,17 @@ class RegistryBundleTests(unittest.TestCase):
                 "count.canopy.check_locations.minimum",
                 "length.canopy.check_location.interval",
                 "count.private_premises_access.floor_interval",
+                # 期限锚供给案 (2026-08-05)：甲类 7 个新槽 + 乙 #11 第 8 个，
+                # 全部 granularity=building、走独立追加的楼级发射步骤（形态 C）。
+                # 逐条中文守则依据与「不在这里的锚点」清单见 registry.py 的块注释。
+                "duration.notification.appointment_ri.to_ba",
+                "duration.notification.nomination_temp_ri.to_ba",
+                "duration.notification.nomination_temp_ri_terminated.to_ba",
+                "duration.notification.role_ri_terminated.to_ba",
+                "duration.submission.repair_revision.to_ba",
+                "duration.notification.appointment_supervising_ri.to_ba",
+                "duration.notification.supervision_team_changed.to_ba",
+                "duration.delivery.repair_revision_proposal",
             },
         )
 
@@ -425,21 +437,35 @@ class DeliverySplitTests(unittest.TestCase):
 
     def test_to_person_slot_has_cop_confirmed_threshold(self) -> None:
         """DEBT-020 Round 7 §2 (2026-05-11): rule_card_threshold 由 PENDING 升级为 COP-confirmed:
-        same_day_as / ==0 calendar day relative to BA submission date (NOT repair completion)."""
+        same_day_as / ==0 calendar day relative to BA submission date (NOT repair completion).
+
+        🔴 2026-08-05 R5 对齐（期限锚供给案决议 §四.2）：本条原来锁的两个值都是错的一方——
+        - `unit` 原锁 `"calendar_day"`，卡侧写 `"day"`；
+        - `time_anchor_key` 原锁 `repair.completion_report_and_mbi4.submitted_to_ba`，
+          该字符串**不在** `time_anchor_registry_v1.json` 的 19 条锚点册里，是世界侧孤儿；
+          卡侧对应的真锚点是 `repair.completion_report.submitted_to_ba`。
+        两处在 provenance 绑定通道接上之前都不承载任何东西，接上之后失配是**静默**的
+        （绑不上只落 missing_time_anchor，看起来像「世界没供」），故与接线同批改。
+        再犯由 `worldgen/tests/test_deadline_anchor_emission.py` 的静态闸挡。
+        """
         slot = self.records_by_id["duration.delivery.deadline.to_person"]
         threshold = slot.get("rule_card_threshold")
         self.assertIsInstance(threshold, dict, "Round 7: rule_card_threshold should be dict")
         self.assertEqual(threshold.get("relation"), "same_day_as")
         self.assertEqual(threshold.get("operator"), "==")
         self.assertEqual(threshold.get("value"), 0)
-        self.assertEqual(threshold.get("unit"), "calendar_day")
+        self.assertEqual(threshold.get("unit"), "day")
         self.assertEqual(
             threshold.get("time_anchor_key"),
-            "repair.completion_report_and_mbi4.submitted_to_ba",
+            "repair.completion_report.submitted_to_ba",
         )
+        # 🔴 2026-08-03 按裁定更新：原断言锁的是合并词
+        # `owner_or_person_for_whom_prescribed_repair_is_carried_out`——那是**拆之前
+        # 的旧断言**。§2.1.3(r) 只点名「該名由他人代為進行訂明修葺的人」一方，
+        # `owner_or_` 前缀无依据（裁定：`规格_reporting三根轴世界侧补产_v1_20260803.md` §3.6）。
         self.assertEqual(
             threshold.get("recipient_qualifier", {}).get("actor_role_key"),
-            "owner_or_person_for_whom_prescribed_repair_is_carried_out",
+            "person_for_whom_prescribed_repair_is_carried_out",
         )
         self.assertEqual(slot.get("cop_section"), "MBIS_CoP_2023 §2.1.3(r)")
 

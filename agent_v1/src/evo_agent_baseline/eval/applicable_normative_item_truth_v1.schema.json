@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "applicable_normative_item_truth_v1.schema.json",
+  "title": "适用规范项独立真值 v1（验收标准③「适用条款不漏」阅卷侧真值）",
+  "description": "每行一条 JSONL 记录 = 一个规范性原子项在一栋楼一个作用域上的独立适用性裁定。裁定依据只有两样：中文守则正文（agent_v1/regulations/markdown/MBIS_CoP_2023.md，唯一效力来源）与世界事实（fact_pack.json）。禁止从 RuleSlice 或义务求值结果反推 applicable / expected_card_ids —— 反推等于拿被测对象当答案。expected_card_ids 只允许用「卡包 source_section 是否声明该条款」这一静态事实填写（机械查表，用于区分第 1 态与第 2 态），不得用批产物中该卡是否被检索/被求值来填。🔴 事实证据锚池（2026-08-05 #25 审核门必须修 1）：本文件事实证据锚定 `baseline_batch_final_seed301`（世界池 `agent_v1/experiments/qa_reports/_reanchor_50x1_seed301/gen_seed_301`，下称 `_reanchor` 池）；对其它池（含同 seed301 标签的 `_fragcov2`，即 `phase_i_fragcov2_seed301_20260729` 所用的 `_fragcov2_50x1_seed301/gen_seed_301`，pool_content_sha256=d835cbab6675ad9b…）的批评分，Q3 类（§2.1.3(n)）按事实写的 reason 不可跨池引用——`seed301` 只是标签、不是同池身份（本仓已记「加一个世界槽就换掉整池种子」），实测 §2.1.3(n) 十栋在两池上 5 栋应得值反号。",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "world_id",
+    "building_id",
+    "normative_item_id",
+    "source_clause_id",
+    "scope_type",
+    "scope_id",
+    "applicable",
+    "modality_zh",
+    "conditionality",
+    "reason",
+    "expected_card_ids",
+    "zh_source_excerpt"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "applicable_normative_item_truth_v1",
+      "description": "真值文件版本标识，固定字符串。"
+    },
+    "world_id": {
+      "type": "string",
+      "pattern": "^WB-",
+      "description": "世界 id，形如 WB-HK-...-S00301。"
+    },
+    "building_id": {
+      "type": "string",
+      "pattern": "^BLD-",
+      "description": "楼栋 id，批产物 buildings/ 下的目录名。"
+    },
+    "normative_item_id": {
+      "type": "string",
+      "description": "规范项原子 id，全局唯一。同一 source_clause_id 含多项义务时必须拆成多个 normative_item_id。建议形态：mbis.cop2023.<条款路径>.<短语义名>。"
+    },
+    "source_clause_id": {
+      "type": "string",
+      "description": "中文守则条款编号，形态与卡包 source_section.section_id 对齐，如 3.4.2(B)(a)。条款只有在其全部适用规范项均被评估时才算覆盖。"
+    },
+    "scope_type": {
+      "enum": ["building", "fragment", "component_class"],
+      "description": "作用域类型：building=整栋（程序/报告类义务）；fragment=具体片段（scope_id 为 FRG- 片段 id）；component_class=该楼全部某类构件片段（scope_id 为 component_type_key，如 external_wall）。"
+    },
+    "scope_id": {
+      "type": "string",
+      "description": "作用域 id。scope_type=building 时填 building_id；fragment 时填片段 id；component_class 时填 component_type_key。"
+    },
+    "applicable": {
+      "oneOf": [{"type": "boolean"}, {"const": "unknown_pending"}],
+      "description": "独立阅卷结论三态：true=法律上适用（进召回分母）；false=结构不适用（正确路由排除，不进分母也不进分子，另走精确率侧反向闸）；\"unknown_pending\"=真值侧证据双缺、阅卷者判不了（2026-08-05 决议 §三.2 扩枚举）——既不进召回分母也不进精确率分母，单独计数出报表。注意：楼内存在该类片段却只在他类片段上产生不适用记录、从未评估该类片段的，仍属漏项，应记 applicable=true。⚠️ 编码是 boolean ∪ const 字符串，不是三值字符串枚举——既有 2,766 行保持 JSON 布尔逐字节不变；消费方一律用 `is True` / `is False` 判，Python 真值判断会把非空字符串 \"unknown_pending\" 当成适用（本项目已实测的静默退化形状）。"
+    },
+    "modality_zh": {
+      "enum": ["shall", "should", "may", "prohibition"],
+      "description": "中文正文效力标记：須=shall / 應=should / 可、可能需要=may / 不得、無須以外的禁止式=prohibition。只依据中文正文裁定，英文 source_quote 是译文、无效力证据力（DEBT-068）。"
+    },
+    "conditionality": {
+      "enum": ["unconditional", "trigger_conditioned"],
+      "description": "unconditional=被选定为目标楼宇即适用；trigger_conditioned=义务以某条件成立为前提（如发现特定欠妥、有意进行详细调查）。trigger_conditioned 且条件已求值为假的，在评分中落第 7 态 correctly_inactive_by_trigger（进分子）。"
+    },
+    "reason": {
+      "type": "string",
+      "description": "中文裁定依据：引世界事实（片段构成/建筑属性）说明为何适用或不适用。必须写清依据的事实，不许只写结论。"
+    },
+    "expected_card_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^rc\\."},
+      "description": "卡包（regulations/rulecard_v2/mbis_cop_2023/rule_cards.json）中 source_section 声明了 source_clause_id 且语义对应该规范项的卡。空数组 = 卡包未建模该项（漏项落第 1 态 not_modeled）。只由机械查表得出，不含该卡是否被检索/求值的任何信息。"
+    },
+    "zh_source_excerpt": {
+      "type": "string",
+      "description": "中文正文来源摘要（可截 shortened），证明该项真实存在于守则正文。"
+    }
+  }
+}

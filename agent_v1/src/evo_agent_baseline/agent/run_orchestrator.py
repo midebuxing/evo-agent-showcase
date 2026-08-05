@@ -107,6 +107,207 @@ def _closure_fn_expects_catalog(closure_fn: Any) -> bool:
     )
 
 
+_APPLICABILITY_BUNDLE_CACHE: dict = {"loaded": False, "bundle": None, "reason": None}
+
+
+_RULECARD_DIGEST_CACHE: dict = {}
+
+
+def _default_rulecard_bundle_id() -> str:
+    """`rulecard_bundle_id` 缺省解析：磁盘权威卡包自声明值（单一权威读径，
+    2026-07-27 统一调用方标签）。历史缺省 "rule_card_v2" 与资产真实
+    bundle_id 不一致，已废弃；惰性导入避免 agent → retrieval 顶层耦合。"""
+    from evo_agent_baseline.retrieval.rulecard_bundle_identity import (
+        authoritative_rulecard_bundle_id,
+    )
+
+    return authoritative_rulecard_bundle_id()
+
+
+def _rulecard_content_digests(repo_root):
+    """算「卡包整体摘要 + 逐卡内容指纹」，供 `load_bundle` 做失配校验（DEBT-073）。
+
+    口径必须与 `card_applicability_manifest_v1.json` **生成时**一致
+    （`scripts/build_card_applicability_manifest.py:125`）：
+      - 卡包整体 = `canonical_hash(整个 cards_doc)`，**不是文件字节 sha256**；
+      - 逐卡 = `card_fingerprint_v1(card)`。
+
+    ⚠️ **口径猜错比不校验更糟**——会让每次运行都误报 `rulecard_pack_mismatch` 而整路径禁用。
+    我第一版就猜成了文件字节 sha256，先对账才发现（逐卡 55/55 对、整包对不上）。
+    故本模块配了对账测试，钉住"算出来 == manifest 声明"。
+
+    读不到卡包时返回 `(None, None)` —— 不崩掉运行时，但会打印告警（**不静默**），
+    并由 `load_bundle` 的 fail-closed 分支拒绝启用判据（2026-07-27 P1-B 前是"退回不校验"）。
+
+    实现已上移到 `closure.applicability_v3.rulecard_content_digests`（同日 P1-B）——
+    发布门禁脚本与离线重放脚本也要算同一个东西，口径散三份迟早漂移。
+    本函数只保留**进程级缓存**（每栋跑批都重算 397 张卡指纹没必要）。
+    """
+    if _RULECARD_DIGEST_CACHE:
+        return _RULECARD_DIGEST_CACHE["pack"], _RULECARD_DIGEST_CACHE["cards"]
+
+    from evo_agent_baseline.closure.applicability_v3 import rulecard_content_digests
+
+    pack, shas = rulecard_content_digests(repo_root)
+    if pack is None:
+        return None, None       # 交给 load_bundle 的 fail-closed 分支拒绝
+    _RULECARD_DIGEST_CACHE.update(pack=pack, cards=shas)
+    return pack, shas
+
+
+def load_applicability_bundle_once():
+    """加载 v3 适用性 bundle(DEBT-065 §1.2)。
+
+    **指针只从批驱动冻结的环境值取**(EVO_APPLICABILITY_BUNDLE / _SHA256 / _WORLDGEN_DIR),
+    不搜索目录、不猜名字、不回落"最新"。任何异常 → (None, DisabledReason),
+    validator 侧一律不早退;原因**打印并缓存**供 run_meta 落盘(禁静默全关)。
+    """
+    if _APPLICABILITY_BUNDLE_CACHE["loaded"]:
+        return _APPLICABILITY_BUNDLE_CACHE["bundle"], _APPLICABILITY_BUNDLE_CACHE["reason"]
+    import os
+    import pathlib
+
+    from evo_agent_baseline.closure.applicability_v3 import load_bundle
+
+    path = os.environ.get("EVO_APPLICABILITY_BUNDLE")
+    sha = os.environ.get("EVO_APPLICABILITY_BUNDLE_SHA256")
+    wdir = os.environ.get("EVO_APPLICABILITY_WORLDGEN_DIR")
+    # agent/ → evo_agent_baseline/ → src/ → agent_v1/ → 仓库根
+    repo_root = pathlib.Path(__file__).resolve().parents[4]
+    # 🔴 DEBT-073：这两个参数**过去一个都没传**，而 `load_bundle` 里两处完整性校验都是
+    # 条件式（`if rulecard_pack_sha256 and …` / `if card_content_shas is not None`），
+    # 参数为 None 就**整段跳过** ⇒ 改了卡而不重建 bundle，失配检不出来，
+    # 旧 bundle 继续被当有效判据用（fail-open）。
+    # 形态是「关键配置静默退化」族里最坏的一种：护栏函数写好了、单测覆盖了、
+    # 发布门禁也真传参数验过——**唯独生产调用点没接线**。
+    pack_sha, card_shas = _rulecard_content_digests(repo_root)
+    bundle, reason = load_bundle(
+        path, sha, repo_root=repo_root, worldgen_run_dir=wdir,
+        rulecard_pack_sha256=pack_sha, card_content_shas=card_shas,
+    )
+    _APPLICABILITY_BUNDLE_CACHE.update(loaded=True, bundle=bundle, reason=reason)
+    if reason is not None:
+        print(f"[applicability_v3] 组件结构早退禁用: {reason.code} — {reason.detail}")
+    elif bundle is not None:
+        print(f"[applicability_v3] bundle 已验证: 授权卡 {len(bundle.card_targets)} / "
+              f"可信身份 fragment {len(bundle.fragment_identities)}")
+    return bundle, reason
+
+
+def resolve_fallback_boundary_enabled() -> bool:
+    """解析 DEBT-083 哨兵边界开关（环境变量 `EVO_FALLBACK_BOUNDARY`）。
+
+    - 缺省（未设或空）→ True：哨兵线四门已过（DEBT-083 2026-08-02 codex 终审），
+      正常开启是新常态；不经批驱动的单跑工具也应拿到生产行为。
+    - "1" → True / "0" → False（反事实对照档由批驱动显式下发 0）。
+    - 其它取值 → ValueError fail-closed：拼错的值不许静默退化成缺省
+      （与 `EVO_ZH_AUTHORITY` 一族同教训——关键配置静默退化会无痕换判定面）。
+    """
+    import os
+
+    raw = os.environ.get("EVO_FALLBACK_BOUNDARY")
+    if raw is None or raw.strip() == "":
+        return True
+    if raw == "1":
+        return True
+    if raw == "0":
+        return False
+    raise ValueError(
+        f"EVO_FALLBACK_BOUNDARY 只接受 '1'/'0'（缺省=开启），实收 {raw!r}——"
+        "防拼写静默退化，拒跑。"
+    )
+
+
+def resolve_authorized_scope_selection_enabled() -> bool:
+    """解析 DEBT-083 第 5 步逐槽授权作用域选择开关（`EVO_AUTHORIZED_SCOPE_SELECTION`）。
+
+    - 缺省（未设或空）→ **False**：第 5 步整单尚在审核门流程内，未过审前
+      不默认开启；生产批由批驱动**显式**下发 "1"（下一批起）。
+    - "1" → True / "0" → False（反事实对照档由批驱动显式下发 0）。
+    - 其它取值 → ValueError fail-closed（同 `EVO_FALLBACK_BOUNDARY` 族教训：
+      关键配置静默退化会无痕换判定面）。
+    """
+    import os
+
+    raw = os.environ.get("EVO_AUTHORIZED_SCOPE_SELECTION")
+    if raw is None or raw.strip() == "":
+        return False
+    if raw == "1":
+        return True
+    if raw == "0":
+        return False
+    raise ValueError(
+        f"EVO_AUTHORIZED_SCOPE_SELECTION 只接受 '1'/'0'（缺省=关闭），实收 {raw!r}——"
+        "防拼写静默退化，拒跑。"
+    )
+
+
+def resolve_mask_lookup_targets_enabled() -> bool:
+    """解析 S3 A 侧查询行遮蔽开关（`EVO_MASK_LOOKUP_TARGETS`）。
+
+    - 缺省（未设或空）→ **False**：S3 整单过审前不默认开启；生产批由批驱动
+      显式下发。
+    - "1" → True / "0" → False；其它 ValueError fail-closed（同族教训）。
+    """
+    import os
+
+    raw = os.environ.get("EVO_MASK_LOOKUP_TARGETS")
+    if raw is None or raw.strip() == "":
+        return False
+    if raw == "1":
+        return True
+    if raw == "0":
+        return False
+    raise ValueError(
+        f"EVO_MASK_LOOKUP_TARGETS 只接受 '1'/'0'（缺省=关闭），实收 {raw!r}——"
+        "防拼写静默退化，拒跑。"
+    )
+
+
+def _closure_fn_accepts_bundle(closure_fn: Any) -> bool:
+    """closure_fn 是否接受 applicability_bundle(真 validator 接受;单测桩多半不接受)。"""
+    import inspect
+
+    try:
+        return "applicability_bundle" in inspect.signature(closure_fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _closure_fn_accepts_fallback_boundary(closure_fn: Any) -> bool:
+    """closure_fn 是否接受 exclude_fallback_reasons_facts(真 validator 接受;单测桩多半不接受)。"""
+    import inspect
+
+    try:
+        return "exclude_fallback_reasons_facts" in inspect.signature(
+            closure_fn
+        ).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _closure_fn_accepts_mask_lookup(closure_fn: Any) -> bool:
+    """closure_fn 是否接受 mask_lookup_targets(真 validator 接受;单测桩多半不接受)。"""
+    import inspect
+
+    try:
+        return "mask_lookup_targets" in inspect.signature(closure_fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _closure_fn_accepts_scope_selection(closure_fn: Any) -> bool:
+    """closure_fn 是否接受 authorized_scope_selection(真 validator 接受;单测桩多半不接受)。"""
+    import inspect
+
+    try:
+        return "authorized_scope_selection" in inspect.signature(
+            closure_fn
+        ).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def _wrap_closure_fn_with_catalog(closure_fn: ClosureFn) -> ClosureFn:
     """把真 closure 包成 3 参 `ClosureFn`：每次调用前从**固定权威 bundle 路径**建 run catalog
     （closure §5.2）注入 keyword。注入桩原样返回（`build_run_catalog` 不被触碰 → 桩路径零回归）。
@@ -120,6 +321,24 @@ def _wrap_closure_fn_with_catalog(closure_fn: ClosureFn) -> ClosureFn:
 
     from evo_agent_baseline.closure.identity_blueprint_catalog import build_run_catalog
 
+    _accepts_bundle = _closure_fn_accepts_bundle(closure_fn)
+    _accepts_fallback_boundary = _closure_fn_accepts_fallback_boundary(closure_fn)
+    # DEBT-083 开关转正常开启（codex 终审硬条件①）：编排入口解析一次并**显式**传值，
+    # 不许只靠验证器缺省。只对签名里有该参数的真验证器传，单测桩不受影响。
+    _fallback_boundary_enabled = (
+        resolve_fallback_boundary_enabled() if _accepts_fallback_boundary else None
+    )
+    # DEBT-083 第 5 步开关（审核门硬条件：编排显式下发，不许只靠验证器缺省）。
+    _accepts_scope_selection = _closure_fn_accepts_scope_selection(closure_fn)
+    _scope_selection_enabled = (
+        resolve_authorized_scope_selection_enabled()
+        if _accepts_scope_selection else None
+    )
+    _accepts_mask_lookup = _closure_fn_accepts_mask_lookup(closure_fn)
+    _mask_lookup_enabled = (
+        resolve_mask_lookup_targets_enabled() if _accepts_mask_lookup else None
+    )
+
     def _closure_with_run_catalog(
         rule_slice: RuleSlice, fact_pack: FactPack, config: Any
     ) -> ClosureValidationResult:
@@ -129,6 +348,19 @@ def _wrap_closure_fn_with_catalog(closure_fn: ClosureFn) -> ClosureFn:
             "building_id": fact_pack.building_id,
         }
         catalog = build_run_catalog(rule_slice, fact_pack, meta)
+        if _accepts_bundle:
+            bundle, _reason = load_applicability_bundle_once()
+            kwargs: Dict[str, Any] = {
+                "identity_blueprint_catalog": catalog,
+                "applicability_bundle": bundle,
+            }
+            if _accepts_fallback_boundary:
+                kwargs["exclude_fallback_reasons_facts"] = _fallback_boundary_enabled
+            if _accepts_scope_selection:
+                kwargs["authorized_scope_selection"] = _scope_selection_enabled
+            if _accepts_mask_lookup:
+                kwargs["mask_lookup_targets"] = _mask_lookup_enabled
+            return closure_fn(rule_slice, fact_pack, config, **kwargs)
         return closure_fn(
             rule_slice, fact_pack, config, identity_blueprint_catalog=catalog
         )
@@ -233,7 +465,7 @@ class RunOrchestrator:
         runs_root: str = "runs",
         agent_version: str = "baseline_agent_v0.4",
         verifier_version: str = "baseline_closure_v0.3",
-        rulecard_bundle_id: str = "rule_card_v2",
+        rulecard_bundle_id: Optional[str] = None,
         kg_snapshot_id: str = "",
         verifier_config: Optional[Any] = None,
         llm_mode: bool = False,
@@ -284,7 +516,13 @@ class RunOrchestrator:
         self._llm_mode = llm_mode
         self._llm_client = llm_client
         self._kg_client = kg_client
-        self._rulecard_bundle_id = rulecard_bundle_id
+        # None → 从磁盘权威卡包声明值取（单一权威读径，不复制常量）；
+        # 显式传入仍支持（测试 / 失配用例需要任意标签）。
+        self._rulecard_bundle_id = (
+            rulecard_bundle_id
+            if rulecard_bundle_id is not None
+            else _default_rulecard_bundle_id()
+        )
         self._kg_snapshot_id = kg_snapshot_id
         self._verifier_config = verifier_config
         # --- evo v1 hook 状态（spec v1 §5.6）---
@@ -398,12 +636,30 @@ class RunOrchestrator:
         # run_audit 累积器（spec §8.2：run_audit.json 是 agent output 之一）。
         # 契约版本与产物形状成对：LLM 支线走 v2 程序骨架；确定性地板档仍走
         # v1 write_report 模板，必须标 v1，防跨版本混算。
+        # 适用性 bundle 的加载状态必须落盘(2026-07-25)。本函数的 docstring 一直写着
+        # 禁用原因"打印并缓存供 run_meta 落盘",但实测产物里**根本没有这几个字段**——
+        # 原因只 print 到 stdout,于是 bundle 静默禁用时(如世界目录格式不符导致早退
+        # 全关)在任何产物里都查不到,只能靠跨批对账才发现。补上后批尾可加闸。
+        _ab, _ab_reason = load_applicability_bundle_once()
         run_audit: Dict[str, Any] = {
             "run_id": run_id,
             "world_id": world_id,
             "building_id": building_id,
             "agent_version": self._agent_version,
             "verifier_version": self._verifier_version,
+            "applicability_bundle_loaded": _ab is not None,
+            "applicability_bundle_disabled_reason": (
+                _ab_reason.code if _ab_reason is not None else None),
+            "applicability_bundle_sha256": (
+                getattr(_ab, "bundle_sha256", None) if _ab is not None else None),
+            # DEBT-083 哨兵边界开关实际值落盘（codex 终审硬条件②：记实际值不吃缺省）——
+            # 非法取值在 run 启动这一刻就 ValueError 拒跑，不会落出半批产物。
+            "fallback_boundary_enabled": resolve_fallback_boundary_enabled(),
+            # DEBT-083 第 5 步开关实际值落盘（同上：记实际值不吃缺省）。
+            "authorized_scope_selection_enabled":
+                resolve_authorized_scope_selection_enabled(),
+            "mask_lookup_targets_enabled":
+                resolve_mask_lookup_targets_enabled(),
             # LLM 档初始版本按活动契约冻结（LLM 中途失败时审计不被误标 3）；
             # llm_result 出来后仍会回填（下方），二者按同一模式推导、恒一致。
             "report_contract_version": (
@@ -537,6 +793,7 @@ class RunOrchestrator:
                         "finish_reason": t.finish_reason,
                         "prompt_tokens": t.prompt_tokens,
                         "completion_tokens": t.completion_tokens,
+                        "elapsed_seconds": t.elapsed_seconds,
                     }
                     for t in llm_result.state.turns
                 ]

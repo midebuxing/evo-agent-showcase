@@ -1839,7 +1839,7 @@ class T18gStructuralAssessmentSurrogateTests(unittest.TestCase):
             mechanisms=[self._make_mechanism(fragment.fragment_id)],
             components_by_id={component.component_id: component},
             registries=self._make_assessment_registries(),
-            rng=random.Random(17),
+            world_id="WB-TEST-STRUCT-0001",
             per_fragment_count=1,
         )
 
@@ -2011,7 +2011,7 @@ class CrackExplicitDeriveIntegrationTests(unittest.TestCase):
             building=building, fragments=[fragment], conditions=[condition],
             mechanisms=[mechanism],
             components_by_id={component.component_id: component},
-            registries=registries, rng=random.Random(42),
+            registries=registries, world_id="WB-TEST-STRUCT-0001",
             per_fragment_count=1,
             drivers_by_fragment={fragment.fragment_id: driver},
         )
@@ -2037,7 +2037,7 @@ class CrackExplicitDeriveIntegrationTests(unittest.TestCase):
             building=building, fragments=[fragment], conditions=[condition],
             mechanisms=[mechanism],
             components_by_id={component.component_id: component},
-            registries=registries, rng=random.Random(42),
+            registries=registries, world_id="WB-TEST-STRUCT-0001",
             per_fragment_count=1,
             drivers_by_fragment=None,  # 无 driver
         )
@@ -2299,7 +2299,7 @@ class ChainDeriveTests(unittest.TestCase):
             building=building, fragments=[fragment], conditions=[condition],
             mechanisms=[mechanism],
             components_by_id={component.component_id: component},
-            registries=registries, rng=random.Random(42),
+            registries=registries, world_id="WB-TEST-STRUCT-0001",
             per_fragment_count=1,
             drivers_by_fragment={fragment.fragment_id: driver},
         )
@@ -2326,7 +2326,7 @@ class ChainDeriveTests(unittest.TestCase):
             building=building, fragments=[fragment], conditions=[condition],
             mechanisms=[mechanism],
             components_by_id={component.component_id: component},
-            registries=registries, rng=random.Random(42),
+            registries=registries, world_id="WB-TEST-STRUCT-0001",
             per_fragment_count=1,
             drivers_by_fragment={fragment.fragment_id: driver},
         )
@@ -2958,7 +2958,7 @@ class RebarMetadataTests(unittest.TestCase):
             building=building, fragments=[fragment], conditions=[condition],
             mechanisms=[mechanism],
             components_by_id={component.component_id: component},
-            registries=registries, rng=random.Random(42),
+            registries=registries, world_id="WB-TEST-STRUCT-0001",
             per_fragment_count=1,
             drivers_by_fragment={fragment.fragment_id: driver},
         )

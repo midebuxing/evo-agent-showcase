@@ -15,7 +15,7 @@ spec→code 单向：本文件不得自创规格未授权的契约字段。
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -77,7 +77,7 @@ BlockedReasonCode = Literal[
     "internal_error",
 ]
 
-# open 原因码（spec §6.2.1 OpenReasonCode，10 个值）
+# open 原因码（spec §6.2.1 OpenReasonCode）
 OpenReasonCode = Literal[
     "missing_fact",
     "null_observed_value",
@@ -89,6 +89,31 @@ OpenReasonCode = Literal[
     "missing_required_field_group",
     "applicability_uncertain",
     "depends_on_open_trigger",
+    "missing_satisfaction_binding",
+    # 2026-07-27：证据许可闸。世界侧「产物齐备布尔」（carrier_domain=artifact 的
+    # sidecar 值，如 artifact.report.inspection）只能证明**该产物齐备**，不能证明
+    # 一条语义不是产物的义务（检验涵盖范围 / 记录 / 报告栏目 / 动作）已经履行。
+    # 命中此码 = 系统查到了那条布尔、但拒绝据它下确定判定 ⇒ 宁可 unknown。
+    "artifact_state_not_valid_evidence",
+    # 2026-08-03 三方决策门仲裁「丁」路新增。语义：系统已取得相关读数，但该**精确
+    # 绑定**已逐项对中文法规原文裁定为「此类读数不能确立本义务」，故不据其下判定。
+    # 🔴 与上一码的分工：上一码专指**产物齐备布尔**（说得出「查到了文件」）；本码用于
+    # `procedure.*` / `risk.*` / `supervision.*` / `scope.*` 等**非产物读数**——
+    # 对它们说「查到了文件」是**事实错误**，会违反仓库不变量「消费者文案所声称的事实
+    # 须对该原因码下全部义务为真」，并污染机器排障线索。
+    # ⚠️ 文案边界：**不得**写成「该义务永远不可核验」。准确边界是「当前精确绑定与
+    # 该类读数永久不得作为此义务的判定依据；若改接能确立义务的证据通道，须重新裁定」。
+    "diagnostic_binding_not_valid_evidence",
+    # 2026-08-02 A′裁决（DEBT-083 第 5 步，绑定级值授权）：完整楼级聚合读数为
+    # false——正向条件尚未成立；但无期限或终局违约判据，程序不判违反（「还没
+    # 做完 ≠ 未履行」，同 2026-07-27 期限捏造教训），交专业人员复核。
+    # 只可由值消费授权登记内的绑定产出（见 obligation_deriver
+    # VALUE_CONSUMPTION_AUTHORIZED_BINDINGS）。
+    "observed_false_without_violation_basis",
+    # 2026-08-02 S3 甲′裁决：绑定要消费聚合读数/待裁片段事实产出判定，
+    # 但该精确绑定未获裁定授权——不缺槽绑定也不缺事实，缺的是"消费这类读数
+    # 产判定"的授权（丁组待裁保护；不 blocked、不借 schema_contract_violation）。
+    "binding_requires_adjudication_authorization",
 ]
 
 
@@ -350,6 +375,127 @@ class ClosureSummary(BaseModel):
     stop_reason: str
 
 
+# ---------------------------------------------------------------------------
+# unknown 归因（旁路映射，DEBT «无故 unknown 归零» 第一步）
+# ---------------------------------------------------------------------------
+# 用户拍板的验收标准：「不是判定系统……但是也不能无故 unknown，这是两码事」。
+# 现在「要专业人员填」与「系统坏了」共用一个 `unknown` 标签，专业人员分不出。
+#
+# 🔴 落点是**旁路映射**，不是 Obligation 上的第三个字段——Obligation 的状态与原因码
+# 受同一 model_validator 约束（本文件 §6.2.2），加同级字段会扩大权威对象表面，且会
+# 穿过 closure/validator.py 的去重合并被重建。归因**只读、不参与判定**。
+
+# 消费者只两类。「系统尚未实现」是 `system_unresolved` 下的一个 cause_code，不是第三类。
+UnknownResponsibility = Literal["professional_input_required", "system_unresolved"]
+
+# Orthogonal diagnostic axis; deliberately not part of UnknownCauseCode.
+ScopeRelationKind = Literal[
+    "same",
+    "category_compatible",
+    "authorized_disjoint",
+    "different_unresolved",
+    "card_unconstrained",
+    "identity_unavailable",
+]
+
+
+class UnknownScopeRelation(BaseModel):
+    """Structured component-scope relation for one unknown obligation."""
+
+    card_component_type_keys: Tuple[str, ...]
+    fragment_component_type: Optional[str]
+    relation: ScopeRelationKind
+    target_authorization_status: str
+    relation_policy_version: str
+
+# 本阶段只用**结构上可靠**的信号，不照搬旁路脚本的常量表。
+UnknownCauseCode = Literal[
+    # 上游 trigger 未闭合传下来的继承型 unknown（根因在别处，本条自身无病）
+    "inherited_from_root",
+    # 卡级触发器聚合为 blocked ⇒ 下游义务从未进入满足通道。
+    # 判据：快照 `trigger_state == "blocked"`（验证器/派生器权威字段，不读 notes）。
+    # 与 `missing_rule_edge` 分流：后者留给真·规则边/悬空引用等接线缺口。
+    "upstream_trigger_blocked",
+    # 槽名经别名归一后在本次 FactPack 槽池里**存在**，但不在本义务作用域内 ⇒ 限定符对不上
+    "qualifier_mismatch",
+    # 槽名经别名归一后在本次 FactPack 槽池里**不存在** ⇒ 世界侧未供给
+    "slot_not_supplied",
+    # 义务图节点行 + 未绑定任何事实槽句柄 + **验证器两个原因码皆空** ⇒
+    # 结构兜底（最后手段）。有验证器码时优先透传/分流，不落本码。
+    # **不是**「需要你提供」——responsibility 仍是 `system_unresolved`。
+    "no_slot_declared",
+    # 非义务图节点行 + 未绑定事实槽 + 验证器两码皆空：非事实槽句柄轴说明。
+    # 判据纯结构：`obligation_node_id` 空 且 `has_slot_handle` 假 且无验证器码。
+    "non_slot_handle",
+    # 归因输入不足（缺责任清单 / 缺能力快照 / 归因策略异常 / 判据全部落空且原因码
+    # 不在透传名单内）。
+    # 🔴 这是**报警**值：绝不默认成「需要你提供」——对专业人员谎称"这该你填"而实际是
+    # 系统坏了，比不归因更有害。
+    "attribution_input_missing",
+    # ---- 验证器原因码透传（只读快照 `validator_reason_code`，不重推）----
+    # 证据许可闸：查到「产物齐备布尔」但拒绝据它下确定判定（有意的保守设计）。
+    "artifact_state_not_valid_evidence",
+    # 诊断型绑定闸：读数已取得，但该精确绑定经裁定不能确立本义务（非产物读数）。
+    "diagnostic_binding_not_valid_evidence",
+    # 真·规则边/悬空引用等接线缺口（**不含**卡级触发器聚合 blocked——那走
+    # `upstream_trigger_blocked`）。
+    "missing_rule_edge",
+    # 候选事实多于一条，系统拒绝任取其一下结论。
+    "ambiguous_fact_binding",
+    # 义务要求以某文件为证据，事实包中没有该文件的记录。
+    "missing_artifact_evidence",
+    # 缺期限锚点，无法核验期限是否满足。
+    "missing_time_anchor",
+    # 义务图节点缺满足通道绑定（派生器拒绝动作名当槽名兜底后的诚实码）。
+    "missing_satisfaction_binding",
+    # 产物键未在上游世界模型建模，无法消歧。
+    "artifact_not_modeled_upstream",
+    # 缺量测值，无法核验阈值/比较。
+    "missing_measurement",
+    # 查不到所需事实。
+    "missing_fact",
+    # 缺必填字段组。
+    "missing_required_field_group",
+    # 单位不一致，拒绝比较。
+    "unit_mismatch",
+    # 完整楼级聚合读数为 false——正向条件尚未成立，且无期限/终局违约判据，
+    # 程序不判违反（A′裁决，2026-08-02）。
+    "observed_false_without_violation_basis",
+    # 绑定未获裁定授权，程序拒绝据聚合/待裁读数下判定（S3，2026-08-02）。
+    "binding_requires_adjudication_authorization",
+]
+
+
+class UnknownAttribution(BaseModel):
+    """单条 `satisfaction_status == "unknown"` 义务的归因（旁路，只读）。
+
+    责任二分取自权威登记表 `responsibility_registry_v1.json`；表缺席或槽未登记时
+    **一律** `system_unresolved`（绝不默认成「需要你提供」）。
+    """
+
+    obligation_id: str
+    responsibility: UnknownResponsibility
+    cause_code: UnknownCauseCode
+    explanation: str
+    root_dependency_ids: List[str] = Field(default_factory=list)
+    policy_version: str
+    # 验证器原始原因码的基本值拷贝（恒等于该义务的
+    # `open_reason_code or blocked_reason_code`），**对每一条归因都写**（不只是透传的那些）。
+    # 🔴 纪律：机器对账 / 债清单 / 跨批对比一律用本字段，**禁止只引 `cause_code`**
+    # ——`cause_code` 是消费者分节键，不是原始码全集（槽轴四类会重映射；透传名单与
+    # `upstream_trigger_blocked` 分流见归因策略）。分组表只允许存在于渲染层
+    # （report_writer 的标签/排序表），不得进 contracts.py / 本模型 /
+    # machine_readable_report。
+    validator_reason_code: Optional[str] = None
+    # 驱动本条责任判定的槽（登记表命中时填写）；报告层按「槽 × 行动说明」聚合用。
+    responsible_slot_id: Optional[str] = None
+    # 专业人员可执行交件说明（仅 `professional_input_required` 时非空；来自登记表）。
+    professional_action: Optional[str] = None
+    # None is retained only for legacy artifacts and direct test payloads.
+    # Current verifier runs attach this side-channel field after cause attribution.
+    scope_relation: Optional[UnknownScopeRelation] = None
+
+
 class ClosureValidationResult(BaseModel):
     """闭包验证器的最终输出（spec §6.2.5）。
 
@@ -363,6 +509,42 @@ class ClosureValidationResult(BaseModel):
     allow_report_generation: bool
     high_risk_items: List[dict]
     machine_readable_report: Dict[str, Any]
+    # unknown 归因旁路映射：obligation_id -> UnknownAttribution。
+    # `None` = **本次未计算**（旧产物 / 直接构造的测试与假桩按 v1 只读，不谎标已归因）；
+    # 非 None 时由下方 model_validator 守恒门校验键集完整性。
+    unknown_attribution_by_obligation_id: Optional[Dict[str, UnknownAttribution]] = None
+
+    @model_validator(mode="after")
+    def _validate_unknown_attribution_conservation(self) -> "ClosureValidationResult":
+        """守恒门：映射键集合 == 全部 `satisfaction_status == "unknown"` 的义务 id 集合。
+
+        🔴 本校验器**只验映射完整性、绝不回写义务**（判定权红线：判定由确定性闭包
+        验证器产出，归因是旁路观察者）。字段为 None 时跳过（v1 只读容器）。
+        """
+        if self.unknown_attribution_by_obligation_id is None:
+            return self
+        expected = {
+            o.obligation_id
+            for o in self.obligation_set.obligations
+            if o.satisfaction_status == "unknown"
+        }
+        actual = set(self.unknown_attribution_by_obligation_id)
+        if expected != actual:
+            missing = sorted(expected - actual)[:5]
+            extra = sorted(actual - expected)[:5]
+            raise ValueError(
+                "unknown_attribution 守恒门失败："
+                f"缺 {len(expected - actual)} 条 {missing!r}，"
+                f"多 {len(actual - expected)} 条 {extra!r}"
+            )
+        # 每条映射的 obligation_id 必须与它的键一致（防错位挂载）。
+        for key, attr in self.unknown_attribution_by_obligation_id.items():
+            if attr.obligation_id != key:
+                raise ValueError(
+                    f"unknown_attribution 键错位：key={key!r} != "
+                    f"payload.obligation_id={attr.obligation_id!r}"
+                )
+        return self
 
 
 # ===========================================================================

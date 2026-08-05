@@ -78,6 +78,32 @@ ORDER BY m.version DESC
 LIMIT 1
 """.strip()
 
+# slot_targets 段（lookup_rule 通用派生用，2026-07-27 接线；同节点、单独取该属性）。
+# ⚠️ 本注释原写「加载器尚未写该属性 ⇒ 暗部署」，**已过时**：同日
+# `rulecard_loader.py:889` 已写 `slot_targets_json`，故重灌库后本查询取得到值、
+# 派生是**活路径**。旧库（属性缺席）仍返回 null ⇒ 检索侧按空表无操作，不阻断。
+# 🔴 活路径下的已知暴露：`derive_slot_target_lookup_rule_facts` 的「已有同名事实
+# 就跳过」去重是**裸比**（未过别名归一），而 27 个 slot_targets 键里 10 个正是
+# 别名表的键 ⇒ 对这 10 个恒不命中。真实批实测这 10 个当前派生 0 条、故尚未产生
+# 双源；但 clause 一旦可满足即会双源。详见
+# `agent_v1/tests/test_slot_alias_normalization_scan.py` 的 `_KNOWN_UNNORMALIZED`。
+FACT_SLOT_TARGETS = """
+MATCH (m:ProjectionRuntimeMapping)
+RETURN m.slot_targets_json AS slot_targets_json
+ORDER BY m.version DESC
+LIMIT 1
+""".strip()
+
+# 卡侧「被请求限定符」组合表 {slot_id: [组合...]}（2026-07-27 P1-C 接线；同节点属性）。
+# lookup_rule 形态二子句（contains_requested_qualifier）离了它无法求值——生产路径此前
+# 固定传空 dict，等于该形态永不派生。属性缺席 → null → 检索侧退空表（暗部署，不阻断）。
+FACT_SLOT_TARGET_REQUESTED_QUALIFIERS = """
+MATCH (m:ProjectionRuntimeMapping)
+RETURN m.slot_target_requested_qualifiers_json AS slot_target_requested_qualifiers_json
+ORDER BY m.version DESC
+LIMIT 1
+""".strip()
+
 # 风险槽→risk_class_key 盖章表 + 语义桥派生表（DEBT-049 第四波件甲；同节点属性）。
 FACT_RISK_SLOT_CLASS_KEYS = """
 MATCH (m:ProjectionRuntimeMapping)

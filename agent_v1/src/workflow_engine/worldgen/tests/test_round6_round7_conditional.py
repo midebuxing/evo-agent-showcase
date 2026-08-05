@@ -441,7 +441,7 @@ class CompletedAndRetainedConsistencyTests(unittest.TestCase):
         for n in range(200):
             buckets = _sample_sidecar_bool_slots_for_fragment(
                 building_world_id="B0", fragment_id=f"F{n}",
-                sidecar_bool_slot_records=records, rng=rng,
+                sidecar_bool_slot_records=records,
                 evaluator_context=ctx,
             )
             # Find values
@@ -467,7 +467,7 @@ class CompletedAndRetainedConsistencyTests(unittest.TestCase):
         for trial in range(500):
             buckets = _sample_sidecar_bool_slots_for_fragment(
                 building_world_id="B0", fragment_id=f"F{trial}",
-                sidecar_bool_slot_records=records, rng=rng,
+                sidecar_bool_slot_records=records,
                 evaluator_context=build_evaluator_context(
                     hidden_state=HIDDEN_STATE_PRIOR_MEANS,
                 ),

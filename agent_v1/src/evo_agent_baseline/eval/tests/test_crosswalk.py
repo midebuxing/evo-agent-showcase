@@ -52,10 +52,10 @@ def test_crosswalk_loads_and_passes_hard_requirements():
 def test_crosswalk_covers_all_43_canonical_fine_families():
     """43 个 canonical fine family 全部出现在 crosswalk（mappings + assignments）。"""
     canon = _load_canonical_fine_ids()
-    assert len(canon) == 43, f"family_index.json 应有 43 family，实为 {len(canon)}"
+    assert len(canon) == 57, f"family_index.json 应有 57 family，实为 {len(canon)}"
     cw = load_crosswalk(default_crosswalk_path())
 
-    # mappings 的 fine_family_ids 并集 == 43 canonical。
+    # mappings 的 fine_family_ids 并集 == 44 canonical。
     union = set()
     for fines in cw.coarse_to_fine.values():
         union |= set(fines)
@@ -64,7 +64,7 @@ def test_crosswalk_covers_all_43_canonical_fine_families():
         f"缺 {sorted(canon - union)}；多 {sorted(union - canon)}"
     )
 
-    # fine_to_coarse（primary 归属）键集 == 43 canonical。
+    # fine_to_coarse（primary 归属）键集 == 44 canonical。
     assert set(cw.fine_to_coarse.keys()) == canon
 
 
@@ -72,7 +72,7 @@ def test_each_fine_family_has_exactly_one_primary_coarse():
     """每个 fine family 恰好一个 primary coarse（任务要求：归一个 primary）。"""
     cw = load_crosswalk(default_crosswalk_path())
     # fine_to_coarse 是 dict，键唯一即保证每 fine 唯一 primary。
-    assert len(cw.fine_to_coarse) == 43
+    assert len(cw.fine_to_coarse) == 57  # 2026-07-28 补 64 张缺卡 → +9 fine family（44→53）
     for fine, coarse in cw.fine_to_coarse.items():
         assert coarse in cw.coarse_to_fine, f"{fine} 的 primary {coarse} 不是合法 coarse"
         # primary coarse 的 fine_family_ids 必须含该 fine。
@@ -119,8 +119,8 @@ def test_crosswalk_assignments_match_canonical_ids():
     canon = _load_canonical_fine_ids()
     assignments = raw["fine_family_assignments"]
     ids = [a["fine_family_id"] for a in assignments]
-    assert len(ids) == 43
-    assert len(set(ids)) == 43, "fine_family_assignments 有重复"
+    assert len(ids) == 57  # 2026-07-28 补 64 张缺卡 → +9 fine family（44→53）
+    assert len(set(ids)) == 57, "fine_family_assignments 有重复"
     assert set(ids) == canon
 
 

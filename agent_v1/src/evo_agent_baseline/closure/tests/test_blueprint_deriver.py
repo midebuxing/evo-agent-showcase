@@ -715,6 +715,44 @@ def test_ordinary_and_escalation_node_representable_v4():
         assert bp.identity.source_predicate_spec is None
 
 
+def test_node_satisfaction_slot_and_qualifier_change_identity():
+    """node 判定读取的 evidence 槽及限定符必须进入身份哈希。"""
+    node = {
+        "obligation_node_id": "n01", "node_kind": "obligation", "actor": "ri",
+        "action": "identify_defect", "recipient_ids": [], "artifact_ids": [],
+        "deadline_ids": [], "trigger_condition_ids": [],
+    }
+    graph = {"nodes": [node], "edges": []}
+    card_a = make_rule_card(
+        "rc.node-slot-a", obligation_graph=graph,
+        slot_role_map=[_slot_role(
+            slot_ref_id="sr.node", slot_id="defect.class.present",
+            qualifiers={"component_type_key": "wall"},
+        )],
+    )
+    card_b = make_rule_card(
+        "rc.node-slot-a", obligation_graph=graph,
+        slot_role_map=[_slot_role(
+            slot_ref_id="sr.node", slot_id="scope.component.covered",
+            qualifiers={"component_type_key": "wall"},
+        )],
+    )
+    card_c = make_rule_card(
+        "rc.node-slot-a", obligation_graph=graph,
+        slot_role_map=[_slot_role(
+            slot_ref_id="sr.node", slot_id="defect.class.present",
+            qualifiers={"component_type_key": "beam"},
+        )],
+    )
+    bp_a = B.build_obligation_node_blueprint(card_a, node, _META)
+    bp_b = B.build_obligation_node_blueprint(card_b, node, _META)
+    bp_c = B.build_obligation_node_blueprint(card_c, node, _META)
+    assert len(bp_a.identity.slot_bindings) == 1
+    assert bp_a.provenance.slot_ref_ids == ("sr.node",)
+    assert bp_a.canonical_identity_hash != bp_b.canonical_identity_hash
+    assert bp_a.canonical_identity_hash != bp_c.canonical_identity_hash
+
+
 def test_unknown_raw_node_kind_hard_fails_v4():
     """§3.1.1 raw-kind 闸：未知 raw node_kind（∉ 三值）经 covered/STRICT 入口 → `unknown_node_kind`
     hard-fail（`from_dict` 归一之前拒）；v1 归一路径不受影响（另测 test_method_semantics `duty`）。"""
@@ -1025,27 +1063,47 @@ def test_full_corpus_derives_blueprints_cleanly():
     workflow_deadline（25）。总 **2722**（v1=2715 + DEBT-049 Phase3 U4 七卡 method 化 +7）。
     """
     cards = _load_cards_decimal()
-    assert len(cards) == 397
+    assert len(cards) == 469  # 2026-08-04 件四批 1：§3.2.6 重复建卡二保一，退役一张 470→469
     by_channel: Dict[str, int] = defaultdict(int)
     hashes = []
     for card in cards:
         for bp in B.derive_covered_card_blueprints(card, _META):
             by_channel[bp.identity.source_channel] += 1
             hashes.append(bp.canonical_identity_hash)
-    assert by_channel["applicability"] == 397  # §5：每卡一条 scope-audit
-    assert by_channel["trigger"] == 376
-    assert by_channel["slot_role"] == 769
+    assert by_channel["applicability"] == 469  # +64 新卡各一条 scope-audit；件四批 1 退役 1 卡 470→469  # §5：每卡一条 scope-audit
+    # 🔴 2026-08-05 换池捆绑批·乙路 #30 重锚（先量后冻）：意向卡
+    # `…s2_1_3_n_investigation_intention_to_ba.c01` 接真前件槽
+    # `procedure.investigation.detailed.intended` ⇒ 新增 sr02（roles=["trigger"]）
+    # ＋卡级触发项 trg01。**恰好两条通道各 +1**：trigger 428→429、slot_role 876→877；
+    # 其余七通道（applicability 469 / threshold 41 / workflow_artifact 335 /
+    # workflow_deadline 25 / evidence 370 / obligation_graph 503 / definition 1）
+    # 与 exception 0 **逐位不变**——「未变的项即证据」。
+    assert by_channel["trigger"] == 429
+    assert by_channel["slot_role"] == 877
     assert by_channel["threshold"] == 41
-    assert by_channel["workflow_artifact"] == 326
+    assert by_channel["workflow_artifact"] == 335  # +10；件四批 1 退役卡 1 件产物 336→335
     assert by_channel["workflow_deadline"] == 25  # v4：25 卡各 1 deadline
     assert by_channel["evidence"] == 370
     # DEBT-049 Phase3 U4：七卡 action perform_or_direct_validation_test→conduct_validation_test
     # → 各 node-main refine_action_kind 翻 method + separable（node 带 artifact_ids）→ 各 +1
     # method-derived blueprint。obligation_graph 通道 410→417（+7 method-derived；v1=410=401 node+4 edge+5 md）。
-    assert by_channel["obligation_graph"] == 417  # 401 node + 4 edge + 12 method-derived（§3.4③；DEBT-049 Phase3 +7；v1=410）
+    assert by_channel["obligation_graph"] == 503  # +78 新卡义务节点；件四批 1 退役卡 1 节点 504→503  # 402 node + 4 edge + 12 method-derived（§3.4③；DEBT-049 Phase3 +7；v1=410）
     assert by_channel["definition"] == 1
     assert by_channel.get("exception", 0) == 0
-    assert sum(by_channel.values()) == 2722  # DEBT-049 Phase3 U4 +7 method-derived（v1=2715）
+    # 🔴 2026-08-04 s6_1_3 拆卡术式重锚 3055→3054：病灶卡
+    # `…s6_1_3_comply_bo_and_provide_supervision.c01.sr03`（repair.outcome.safe_until_next_cycle）
+    # 的 `required` 由 true 改 false ⇒ 该槽不再派生 slot_role blueprint。
+    # 依据（先量后冻）：术前包 vs 术后包全语料 blueprint 差集实测 **只在术前 1 条 / 只在术后 0 条**，
+    # 消失的唯一一条即 channel=slot_role、source_rule_card_id=病灶卡、slot_bindings 指向 sr03。
+    #
+    # 🔴 2026-08-04 件四批 1 再重锚 3054→3048：§3.2.6 同义重复建卡二保一，
+    # 退役 `…ri.review.s3_2_6_prepare_inspection_method_statement.c01`（保留 `…ri.review.s3_2_6.c01`）。
+    # 依据（先量后冻）：术前包 vs 术后包全语料 blueprint 差集实测 **只在术前 6 条 / 只在术后 0 条**，
+    # 6 条**全部**来自该退役卡——applicability 1 ＋ trigger 1 ＋ slot_role 2（sr01/sr02）
+    # ＋ workflow_artifact 1 ＋ obligation_graph 1；
+    # 其余四通道计数逐位不变（threshold 41 / workflow_deadline 25 / evidence 370 / definition 1），
+    # 其余 469 张卡贡献逐位不变。差集脚本：`杂物箱/jian4b1_step4_diff_blueprints.py`。
+    assert sum(by_channel.values()) == 3050  # 2026-08-05 乙路 #30：意向卡 +trigger 1 +slot_role 1 ⇒ 3048→3050（逐通道归因见 test_full_corpus_derives_blueprints_cleanly）  # 2026-07-28 补 64 张缺卡（398→462 / 节点 402→480）后重锚；增量全部归因于新卡，老卡贡献的通道计数零变化  # DEBT-049 Phase3 U4 +7 method-derived（v1=2715）
     assert len(set(hashes)) == len(hashes)
 
 
@@ -1054,7 +1112,7 @@ def test_run_level_full_corpus_no_regime_conflict():
     （v4+§3.4③+DEBT-049 Phase3 U4 七卡 method 化 +7；v1=2715）。"""
     cards = _load_cards_decimal()
     bps = B.derive_run_blueprints(cards, _META)
-    assert len(bps) == 2722  # DEBT-049 Phase3 U4 +7（v1=2715）
+    assert len(bps) == 3050  # 2026-08-05 乙路 #30：意向卡 +trigger 1 +slot_role 1 ⇒ 3048→3050（逐通道归因见 test_full_corpus_derives_blueprints_cleanly）  # DEBT-049 Phase3 U4 +7（v1=2715）；2026-08-04 s6_1_3 术式 -1（sr03 required=false）；件四批 1 退役 §3.2.6 重复卡 -6（差集实测见 test_full_corpus_derives_blueprints_cleanly 注释块）
 
 
 def test_additive_side_channel_entry_produces_blueprints():
@@ -1548,16 +1606,16 @@ def test_finalsweep_full_corpus_no_false_rejection():
     v1=2715）、完整性闸/node artifact gate 对真卡零误拒（真语料 370 evidence 全 required、无空/悬空
     artifact，401 node 无空 artifact）。"""
     cards = _load_cards_decimal()
-    assert len(cards) == 397
+    assert len(cards) == 469  # 2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
     total = 0
     by_channel: Dict[str, int] = defaultdict(int)
     for card in cards:
         for bp in B.derive_covered_card_blueprints(card, _META):
             total += 1
             by_channel[bp.identity.source_channel] += 1
-    assert total == 2722  # DEBT-049 Phase3 U4 +7 method-derived（v1=2715）
+    assert total == 3050  # 2026-08-05 乙路 #30：意向卡 +trigger 1 +slot_role 1 ⇒ 3048→3050（逐通道归因见 test_full_corpus_derives_blueprints_cleanly）  # 2026-08-04 s6_1_3 术式 -1（sr03 required=false）；件四批 1 退役 §3.2.6 重复卡 -6  # 2026-07-28 补 64 张缺卡后重锚（卡 398→462 / 节点 402→480）  # DEBT-049 Phase3 U4 +7 method-derived（v1=2715）
     assert by_channel["evidence"] == 370
-    assert by_channel["obligation_graph"] == 417  # DEBT-049 Phase3 U4 +7（v1=410）
+    assert by_channel["obligation_graph"] == 503  # +78 新卡义务节点；件四批 1 退役卡 1 节点 504→503  # DEBT-049 Phase3 U4 +7（v1=410）
 
 
 # ---- v4 版本 bump v3→v4 ----
@@ -1584,7 +1642,7 @@ def test_blocker6_decimal_bundle_all_397_derive():
     if p is None:
         pytest.fail("生产 rule_cards.json 未找到——证据闸不得 skip（skip=空转）")
     bps = B.derive_covered_blueprints_from_bundle(p, _META)
-    assert len(bps) == 2722  # DEBT-049 Phase3 U4 +7（v1=2715）
+    assert len(bps) == 3050  # 2026-08-05 乙路 #30：意向卡 +trigger 1 +slot_role 1 ⇒ 3048→3050（逐通道归因见 test_full_corpus_derives_blueprints_cleanly）  # DEBT-049 Phase3 U4 +7（v1=2715）；2026-08-04 s6_1_3 术式 -1（sr03 required=false）；件四批 1 退役 §3.2.6 重复卡 -6（差集实测见 test_full_corpus_derives_blueprints_cleanly 注释块）
     lits = {
         bp.identity.source_predicate_spec.literal_value_canonical
         for bp in bps
@@ -1595,4 +1653,4 @@ def test_blocker6_decimal_bundle_all_397_derive():
     # obligation_deriver 生产入口亦成功
     from evo_agent_baseline.closure import obligation_deriver as D2
 
-    assert len(D2.derive_obligation_blueprints_from_bundle(p, _META)) == 2722  # DEBT-049 Phase3 U4 +7（v1=2715）
+    assert len(D2.derive_obligation_blueprints_from_bundle(p, _META)) == 3050  # 2026-08-05 乙路 #30：意向卡 +trigger 1 +slot_role 1 ⇒ 3048→3050（逐通道归因见 test_full_corpus_derives_blueprints_cleanly）  # 2026-08-04 s6_1_3 术式 -1（sr03 required=false）；件四批 1 退役 §3.2.6 重复卡 -6  # 2026-07-28 补 64 张缺卡后重锚（卡 398→462 / 节点 402→480）  # DEBT-049 Phase3 U4 +7（v1=2715）

@@ -36,6 +36,7 @@ from evo_agent_baseline.agent.report_contract_v4 import (
     validate_submission_payload_v4,
 )
 
+from evo_agent_baseline import slot_alias_policy
 from evo_agent_baseline.contracts import (
     ClosureValidationResult,
     EvoPolicyVersion,
@@ -396,6 +397,11 @@ class LLMSessionState:
     )
     fact_pack: Optional[FactPack] = None
     rule_slice: Optional[RuleSlice] = None
+    # 槽别名表（卡侧名→世界侧名，统一入口 `slot_alias_policy`）：rule_slice 就位后
+    # 由 get_facts_by_slot 惰性填充。2026-07-27 修：此前 state 无别名表，大模型按工具
+    # 指引喂卡侧名直比世界侧 `f.slot_id`，14 个别名键恒返回"证据缺失"、假缺量写进
+    # 核验叙述（verdict 不受污染——判定权在闭包侧）。
+    slot_aliases: Dict[str, str] = field(default_factory=dict)
     closure_result: Optional[ClosureValidationResult] = None
     final_report: Optional[str] = None
     llm_raw_response: Optional[str] = None
@@ -3391,12 +3397,27 @@ def _tool_get_facts_by_slot(state: LLMSessionState, args: Dict[str, Any]) -> str
     slot_id = (args.get("slot_id") or "").strip()
     if not slot_id:
         return '{"error": "slot_id 不能为空"}'
+    # 别名归一：工具指引让大模型喂**卡侧名**（obligation.slot_ids），而 f.slot_id 是
+    # 世界侧名——卡侧名需经正向别名表落到世界侧再比对（镜像闭包 canonical_slot）。
+    #
+    # 🔴 **两侧都要过归一**，不能只归一查询侧（2026-07-27 真实批实测纠正）：
+    # 世界侧并非全部使用别名目标名——`scope.component.inspection_included` 这一个键
+    # 世界侧**两个名字都在产**（真实批 seed301 里以卡侧名落盘的事实有 761 条）。
+    # 只把查询名归一成 `scope.component.in_scope`，那 761 条就查不到了——本来能查到
+    # 26 条的槽会变成 0 条，比不修还糟。闭包侧 `FactIndex._build` 正是**按
+    # canonical_slot(fact.slot_id) 建索引**（fact_binding.py:116），两侧同归一后
+    # 两个名字落进同一个桶；这里逐字镜像该语义。
+    if not state.slot_aliases and state.rule_slice is not None:
+        state.slot_aliases = slot_alias_policy.slot_aliases_from_policy(
+            state.rule_slice.retrieval_policy or {}
+        )
+    world_slot_id = state.slot_aliases.get(slot_id, slot_id)
     top_k = _parse_int_arg(args, "top_k", 10, min_value=1, max_value=50)
     if top_k is _PARSE_INT_FAIL:
         return _int_arg_error("top_k", args.get("top_k"), min_value=1, max_value=50)
     hits: List[Dict[str, Any]] = []
     for f in state.fact_pack.facts:
-        if f.slot_id != slot_id:
+        if state.slot_aliases.get(f.slot_id, f.slot_id) != world_slot_id:
             continue
         hits.append(
             _strip_forbidden(

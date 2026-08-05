@@ -119,7 +119,10 @@ def bind_measure(
     def _filter_by_qualifiers(facts: List[FactAtom]) -> List[FactAtom]:
         if not qualifiers:
             return list(facts)
-        return [f for f in facts if qualifiers_match(qualifiers, f.qualifiers)]
+        # 阈值求值也必须用同一套限定符口径（DEBT-076）——否则义务侧走包含匹配、
+        # 阈值侧走严格相等，同一张卡两个口径，会出现"义务闭合了但阈值取不到值"。
+        sub = getattr(fact_index, "component_subsumption", None)
+        return [f for f in facts if qualifiers_match(qualifiers, f.qualifiers, sub)]
 
     # 1. exact measure_key
     canon = fact_index.canonical_measure(measure_key)

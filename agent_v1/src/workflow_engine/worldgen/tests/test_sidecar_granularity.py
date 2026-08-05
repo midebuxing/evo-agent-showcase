@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import random
 
 import pytest
 
@@ -61,13 +60,12 @@ def test_aggregation_table_keys_exist_in_registry() -> None:
         assert slot in by_slot, slot
 
 
-def _run_building_sampler(records, fragment_ids=("FR1", "FR2"), seed=7):
-    rng = random.Random(seed)
+def _run_building_sampler(records, fragment_ids=("FR1", "FR2")):
+    # 1a-i′ 后采样由 (world_id, fragment_id, slot_id) 稳定键决定，无 seed 形参可传。
     return _sample_sidecar_bool_slots_for_building(
         building_world_id="WB-t",
         fragment_ids=list(fragment_ids),
         sidecar_bool_slot_records=records,
-        rng=rng,
         per_fragment_contexts={fid: None for fid in fragment_ids},
         building_context=None,
     )

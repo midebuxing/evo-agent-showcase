@@ -378,6 +378,13 @@ def build_threshold_nodes(card: Dict[str, Any], audit: AuditLog) -> GraphBatch:
             "source_quote_refs": source_quote_refs,
             "formula_json": formula_json,
         }
+        # 🔴 审计留痕必须进图(DEBT-072 阻断 1)：卡自带阈值与旁路回填阈值若在图里
+        # 无法区分，日后没人能查"这条阈值是谁按什么裁的"。只在有值时写，
+        # 卡自带阈值不受影响（属性不出现）。
+        for _audit_key in ("provenance", "source_zh"):
+            _v = opt_str(thr.get(_audit_key))
+            if _v:
+                props[_audit_key] = _v
         # G-004：formula 保留校验。
         raise_if_failed(gate_g004_threshold_formula_preservation(
             threshold_regime_id, operator, upstream_formula is not None, formula_json,
@@ -714,6 +721,24 @@ def build_definition_nodes(card: Dict[str, Any]) -> GraphBatch:
 # ===========================================================================
 # §3.4.4 registries
 # ===========================================================================
+def _harvest_requested_qualifiers(rulecard_dir: Path) -> Dict[str, Any]:
+    """采集卡侧「被请求限定符」组合表 {slot_id: [限定符组合...]}（P1-C 接线用）。
+
+    复用检索侧的纯函数 `harvest_slot_target_requested_qualifiers`，**不复制第二份
+    遍历逻辑**——两份迟早漂移，而这张表决定形态二子句能不能求值。
+    函数内 import：ingest 只在此一处用检索侧的纯函数，模块级导入会把两个子包绑死。
+    卡包缺席 → 空表（与本文件其它段同样的暗部署语义，不阻断灌库）。
+    """
+    from evo_agent_baseline.retrieval.fact_retriever import (
+        harvest_slot_target_requested_qualifiers,
+    )
+
+    cards_path = rulecard_dir / RULECARD_FILES["rule_cards"]
+    if not cards_path.is_file():
+        return {}
+    return harvest_slot_target_requested_qualifiers(_load_json(cards_path))
+
+
 def build_registry_graph(rulecard_dir: Path, audit: AuditLog) -> GraphBatch:
     """加载 5 个 registry + controlled vocabularies → registry 节点（spec §3.4.4）。
 
@@ -855,6 +880,29 @@ def build_registry_graph(rulecard_dir: Path, audit: AuditLog) -> GraphBatch:
                     for b in (mapping_doc.get("defect_class_combination_bridges") or [])
                     if isinstance(b, dict)
                 ],
+                ensure_ascii=False, sort_keys=True,
+            ),
+            # slot_targets 段（2026-07-27 接线：此前查询 FACT_SLOT_TARGETS 取该属性
+            # 而 loader 从未写 → 恒 null → lookup_rule 通用派生空转且不报错）。
+            # 检索侧只消费 lookup_rule；owning_interfaces 一并搬运（原样传输，
+            # 消费与否由检索侧裁定）。
+            "slot_targets_json": json.dumps(
+                {
+                    k: v
+                    for k, v in (mapping_doc.get("slot_targets") or {}).items()
+                    if not k.startswith("_")
+                },
+                ensure_ascii=False, sort_keys=True,
+            ),
+            # 🔴 2026-07-27 codex 审核门 P1-C：卡侧「被请求限定符」组合表。
+            # `derive_slot_target_lookup_rule_facts` 的形态二子句
+            # （value_mode=contains_requested_qualifier）**必须**拿到它才能求值，
+            # 而生产路径此前固定传空 dict ⇒ 求值器因缺 `actor_role_key` 直接跳过目标槽
+            # ⇒ 采集函数写好、导出好，全仓只有测试在调（第九个「登记了没接线」）。
+            # 载体选 ProjectionRuntimeMapping 同节点：它已经是 slot_targets 的运输节点，
+            # 两张表天生配对（一张说"目标槽怎么推"、一张说"卡侧按什么限定符要"）。
+            "slot_target_requested_qualifiers_json": json.dumps(
+                _harvest_requested_qualifiers(rulecard_dir),
                 ensure_ascii=False, sort_keys=True,
             ),
         }))
@@ -1093,7 +1141,7 @@ def _load_component_lattice_and_authorizations(
     ingest 时(§1.1 hard-fail)用 closure.component_lattice 验证:lattice 双快照哈希/二分/
     disjoint,授权表 bundle/单叶目标/evidence 格式。授权表条目级 stale(指纹+修订 vs **原始卡**)
     在此消解——loader 有原始 rule_cards.json,产出验证过的 {rule_card_id: target},检索侧只按
-    id 查(绕开 KG 重建 DTO 与 card_fingerprint 口径分歧)。资产缺席则跳过(runtime 保守关闭)。
+    id 查(绕开 KG 重建 DTO 与 card_fingerprint 口径分歧)。类型格资产缺席时明确拒绝灌库。
     """
     from ..closure.component_lattice import (
         LatticeIngestError, load_authorizations, load_component_lattice,
@@ -1101,7 +1149,12 @@ def _load_component_lattice_and_authorizations(
 
     lattice_path = rulecard_dir / RULECARD_FILES["component_type_lattice"]
     if not lattice_path.is_file():
-        return
+        raise LatticeIngestError(
+            f"类型格派生物缺失：{lattice_path}。直接灌库已拒绝，不能在缺少"
+            "组件类型格时静默完成。先运行："
+            "python agent_v1/scripts/check_rulecard_derived_release.py --rebuild，"
+            "再运行不带 --rebuild 的发布检查确认派生链闭合。"
+        )
     audit.record_source(lattice_path.name)
     lattice_doc = _load_json(lattice_path)
     # P1-3:类型格资产在场但清单缺失(bundle_id 未加载)→ 强失败(不得让错误卡包类型格
@@ -1124,7 +1177,15 @@ def _load_component_lattice_and_authorizations(
     )
     result.batch.add_node(NodeSpec(
         "ComponentTypeLattice", "version", opt_str(lattice_doc.get("version")) or "component_type_lattice.v1",
-        {"lattice_json": json.dumps(lattice_doc, ensure_ascii=False, sort_keys=True)},
+        {
+            "lattice_json": json.dumps(lattice_doc, ensure_ascii=False, sort_keys=True),
+            # P1-2:必须与授权表同源。**漏写这条会让三方同源校验恒失败**
+            # (`rule_retriever` 读回 None → `len(_bundle_ids) != 3`),
+            # 于是类型格与授权表被移出 policy、组件结构早退被保守关闭——
+            # 表现为「外墙片段上的樓柱条款」判不了结构性 NA 只能 blocked,
+            # 且**不报错**。2026-07-27 实测坐实该属性自始缺失。
+            "rulecard_bundle_id": result.bundle_id,
+        },
     ))
 
     auth_path = rulecard_dir / RULECARD_FILES["exact_fragment_target_authorizations"]

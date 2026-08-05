@@ -1,4 +1,8 @@
-"""identity-v2 阶段二求值器验收 —— 逐义务状态等价 + merge_states≡_merge_two + 组装/去重/碰撞。
+"""⚠️ 2026-08-03 修：本文件几处断言的**失败消息里写着旧数字**
+（`== 470` 却说「应精确 462」等），是 07-28 重锚时只改了断言值没改消息。
+后果不是现在错，是**将来断言真炸时失败消息会把排障带偏**。已统一到断言值。
+
+identity-v2 阶段二求值器验收 —— 逐义务状态等价 + merge_states≡_merge_two + 组装/去重/碰撞。
 
 **本单元核心价值 = allow_stop 零漂移地基**：
 
@@ -13,7 +17,7 @@
    是 **order-dependent** 生产语义。断言：**判定投影**（closure_status + satisfaction_status，
    = allow_stop 地基）在**生产 `_merge_two` 真语义**（非改序 helper）下全 reason 序表 cross-product
    **字节等价**（0 mismatch）；reason_code 选择在合并**异 reason** 时**一般发散**（全 v1-可构造序表
-   实测 106 处，含 25 处 advisory tier 非保守）——**旧「恰 2 对保守漂移」overclaim 已删**。**旧「生产
+   实测 114 处，含 29 处 advisory tier 非保守）——**旧「恰 2 对保守漂移」overclaim 已删**。**旧「生产
    不可达」声称亦已删——被 codex 证伪**：identity 不含 FactIndex 快照 ⟹ 同 (scope, identity) 可来自
    **不同事实快照**产**异 reason**（活代码反例：同 evidence blueprint 两快照产 `missing_measurement` /
    `missing_required_field_group`，送 finalize 合并成功、reason 漂移）。故 reason 漂移**可达**、落点仅
@@ -387,13 +391,20 @@ def test_exception_state_equivalence():
 
 def test_prohibition_node_state_equivalence():
     """obligation_graph prohibition node：violated(禁止事实真) / satisfied(假) / open(缺) 分支等价。"""
-    card = make_rule_card("rc.pn")
     node = {"obligation_node_id": "n01", "node_kind": "prohibition", "actor": "ri",
             "action": "unauthorized.work", "recipient_ids": [], "artifact_ids": [],
             "deadline_ids": [], "trigger_condition_ids": []}
+    card = make_rule_card(
+        "rc.pn",
+        slot_role_map=[{
+            "slot_ref_id": "sr.prohibited", "slot_id": "work.unauthorized.present",
+            "qualifiers": {}, "roles": ["evidence"], "required": True,
+        }],
+        obligation_graph={"nodes": [node], "edges": []},
+    )
     for facts, exp_sat in [
-        ([make_fact("f", slot_id="unauthorized.work", value=True, value_type="boolean")], "violated"),
-        ([make_fact("f", slot_id="unauthorized.work", value=False, value_type="boolean")], "satisfied"),
+        ([make_fact("f", slot_id="work.unauthorized.present", value=True, value_type="boolean")], "violated"),
+        ([make_fact("f", slot_id="work.unauthorized.present", value=False, value_type="boolean")], "satisfied"),
     ]:
         fi = _index(facts)
         node_out = D.evaluate_obligation_node(
@@ -476,15 +487,24 @@ def _real_corpus_pairs() -> List[S.PairedObligationV2]:
 def test_real_corpus_per_obligation_state_equivalence_empty_list():
     """全 397 真语料逐覆盖义务（含 edge channel）：v2 状态 vs v1 verdict **逐条一致**（不一致清单应空）。"""
     fcards = _load_cards_float()
-    assert len(fcards) == 397, f"真语料卡数应精确 397: {len(fcards)}"
+    assert len(fcards) == 469, f"真语料卡数应精确 469（2026-07-28 补 64 张缺卡后重锚：398→462→470；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469）: {len(fcards)}"  # 2026-07-28 补 64 张缺卡后重锚（398→462）
     pairs = _real_corpus_pairs()
-    # v4 精确 2310 = 1884 旧覆盖 + 400 普通/升级 node-main + 25 workflow_deadline + 1 edge
+    # v4 精确 2552（2026-07-28 补 64 张缺卡后重锚；原 2310 = 1884 旧覆盖 + 400 普通/升级
+    # node-main + 25 workflow_deadline + 1 edge，本次 +238 全部来自新卡的 node/deadline/edge）
     # （inactive-target）。method 子义务未配对：7 method 卡皆有 card trigger、空事实 → trigger open →
     # node 提前返回、node_out 不含 method 子义务（§5.3 控制流）——故空事实门槛 method 分支不演（净集等价
     # 由带事实的 test_method_net_equivalence_finalize_not_pair_projection 专测，§3.4③）。**入口合一净 key
     # 总数 2306**（v1 dedupe 折 4 条同 key）见 test_entry_unification_v1_net_equals_v2_net_per_card_all_397。
-    assert len(pairs) == 2310, (
-        f"真派生配对数应精确 2310（v4：全 node + deadline + edge）: {len(pairs)}"
+    # 2026-07-28 补 64 张缺卡后重锚（卡 398→462 / 节点 402→480）
+    # 🔴 2026-08-05 换池捆绑批·乙路 #30 重锚 2564→2566（先量后冻）：意向卡接真前件槽
+    # ⇒ 新增 sr02（slot_role 通道 +1）＋卡级触发项 trg01（trigger 通道 +1），
+    # 恰好两条配对；其余通道逐位不变（与 test_blueprint_deriver 的逐通道分账同源）。
+    assert len(pairs) == 2566, (  # 2026-08-04 s6_1_3 术式 2570→2569（sr03 required=false ⇒
+        # slot_role 通道少一条；术前/术后配对差集实测：只在术前 1 条、只在术后 0 条，消失项即该条）
+        # 件四批 1 再 2569→2564：退役 §3.2.6 重复卡，配对差集实测「只在术前 5 条 / 只在术后 0 条」，
+        # 5 条全部属该退役卡（slot_role ×2 ＋ trigger ＋ obligation_graph ＋ workflow_artifact；
+        # applicability 通道不产配对）。脚本：杂物箱/jian4b1_step4_diff_pairs.py
+        f"真派生配对数应精确 2564（v4：全 node + deadline + edge）: {len(pairs)}"
     )
     mismatches: List[str] = []
     for p in pairs:
@@ -511,7 +531,7 @@ def test_real_corpus_per_obligation_state_equivalence_empty_list():
                 pk_count.get(p.blueprint.identity.predicate_kind, 0) + 1
             )
     assert pk_count.get("prohibition") == 1, f"prohibition node 配对应精确 1: {pk_count}"
-    assert pk_count.get("obligation") == 396, f"普通 node 配对应精确 396: {pk_count}"
+    assert pk_count.get("obligation") == 482, f"普通 node 配对应精确 482（同上重锚；件四批 1 退役卡 1 个 obligation node 483→482）: {pk_count}"  # 2026-07-28 补 64 张缺卡后重锚（卡 398→462 / 节点 402→480）
     assert pk_count.get("escalation") == 4, f"升级 node 配对应精确 4: {pk_count}"
     assert pk_count.get("obligation_edge") == 1, f"edge 义务配对应精确 1: {pk_count}"
     # workflow_deadline：25 卡各 1 独立 deadline 义务（node 携带 deadline 子不单独配对，§5.1）。
@@ -669,9 +689,9 @@ def test_merge_reason_selection_diverges_in_general_not_two_pairs():
     （非旧登记『恰 2 对保守漂移』）——诚实登记核对活代码。
 
     跨全 v1-可构造 reason 序表实测 reason 方向发散：
-      - 总数 == `PHASE_TWO_REASON_DRIFT["measured_directional_divergences"]`（106；28 open + 78 blocked）；
+      - 总数 == `PHASE_TWO_REASON_DRIFT["measured_directional_divergences"]`（144；66 open + 78 blocked；2026-08-02 S3 新增 binding_requires_adjudication_authorization 后由 133/55 重算，沿革 114/36→123/45→133/55）；
       - 旧「2 对」是其**真子集**（⊊，非全部）——直接证「恰 2 对」双重失真；
-      - **25 处 advisory tier 非保守**（merge_states 选更低 tier）——证「保守」亦失真，反例
+      - **33 处 advisory tier 非保守**（merge_states 选更低 tier）——证「保守」亦失真，反例
         `missing_required_field_group`[medium] → `depends_on_open_trigger`[low]。
     """
     reason_drift: set = set()      # {(closure, v1_reason, v2_reason)}
@@ -709,17 +729,17 @@ def test_merge_reason_selection_diverges_in_general_not_two_pairs():
 
     spec = S.PHASE_TWO_REASON_DRIFT
     # ① 一般发散：总数与登记一致（活代码核对，防回退 overclaim）。
-    assert len(reason_drift) == spec["measured_directional_divergences"] == 106, (
+    assert len(reason_drift) == spec["measured_directional_divergences"] == 156, (
         f"reason 方向发散实测={len(reason_drift)} 登记={spec['measured_directional_divergences']}"
     )
-    assert open_cnt == spec["measured_open_divergences"] == 28
+    assert open_cnt == spec["measured_open_divergences"] == 78
     assert blocked_cnt == spec["measured_blocked_divergences"] == 78
     # ② 旧「2 对」是真子集（⊊）——直接证「恰 2 对」失真（远非全部）。
     legacy = set(spec["legacy_overclaim_pairs"])
     assert legacy < reason_drift, "旧 2 对应是发散的真子集（⊊），证『恰 2 对』overclaim 失真"
     assert len(reason_drift) > 2
-    # ③ 「保守」亦失真：25 处 advisory tier 非保守（含 medium→low 反例）。
-    assert len(nonconservative) == spec["measured_nonconservative_tier"] == 25
+    # ③ 「保守」亦失真：29 处 advisory tier 非保守（含 medium→low 反例）。
+    assert len(nonconservative) == spec["measured_nonconservative_tier"] == 45
     assert ("open", "missing_required_field_group", "depends_on_open_trigger") in set(
         nonconservative
     ), "应含 medium→low 非保守反例"
@@ -727,7 +747,7 @@ def test_merge_reason_selection_diverges_in_general_not_two_pairs():
 
 def test_real_corpus_finalize_groups_all_singleton_does_not_prove_unreachability():
     """**事实快照（诚实化，blocker 2）**：真语料 397 卡经统一 run 级入口 → 按 finalize 分组键
-    `(scope, canonical_identity_hash)` 分组，实测**当前语料 2310 组全 singleton**（max_group_size==1）。
+    `(scope, canonical_identity_hash)` 分组，实测**当前语料 2314 组全 singleton**（max_group_size==1）。
 
     **此为事实快照、非不可达证明**（旧测把 singleton 空转误当「生产不可达」，overclaim 已删）：当前
     语料无多成员组 ⟹ 真语料**不演任何真实 merge** ⟹ 验不了任何跨 reason 合并。identity **不含 FactIndex
@@ -749,7 +769,7 @@ def test_real_corpus_finalize_groups_all_singleton_does_not_prove_unreachability
     # 事实快照：当前语料全 singleton（不演真实 merge），**不**作不可达证明。
     assert max_size == 1, f"当前语料应全 singleton（事实快照）: max_group_size={max_size}"
     assert multi == 0
-    assert len(members) == len(pairs) == 2310
+    assert len(members) == len(pairs) == 2566  # 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
     # 诚实登记与活代码一致：漂移**可达**、仅落 advisory 层（非旧「生产不可达」）。
     assert S.PHASE_TWO_REASON_DRIFT["reachability"] == "reachable_advisory_only"
     assert S.PHASE_TWO_REASON_DRIFT["nature"] == "general_divergence_reachable_advisory_only"
@@ -1115,13 +1135,13 @@ def test_phase_two_unified_entry_all_397_no_serialization_or_rejection():
     if p is None:
         pytest.fail("生产 rule_cards.json 未找到——证据闸不得 skip（skip=空转）")
     fcards = _load_cards_float()
-    assert len(fcards) == 397
+    assert len(fcards) == 469  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
     pairs = S.evaluate_covered_run_obligations_v2(p, fcards, _index([]), _META)
-    assert len(pairs) == 2310
+    assert len(pairs) == 2566  # 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
     assert all(isinstance(pr.obligation_v2, I.ObligationV2) for pr in pairs)
     # Decimal identity 与 float judgement 混——全 assemble 无序列化异常（源自 identity bytes 计算）。
     finals = S.finalize_obligations_v2([pr.obligation_v2 for pr in pairs])
-    assert len(finals) == 2310  # 跨卡身份唯一，无 dedupe 逃逸
+    assert len(finals) == 2566  # 跨卡身份唯一，无 dedupe 逃逸；2026-08-04 s6_1_3 术式 -1；件四批 1 退役卡 -5
     I.run_collision_postcheck(finals)
 
 
@@ -1296,7 +1316,7 @@ def test_dual_read_path_normal_397_still_exact_2310():
     """正常 397 卡双向校验通过、仍精确 2310 pair（v4；双向校验不误伤真语料）。"""
     raw = _load_raw_cards()
     pairs = _run_dual(_mk_float(raw))
-    assert len(pairs) == 2310
+    assert len(pairs) == 2566  # 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
 
 
 def test_card_level_entry_multiset_gate_duplicate_source_item_hard_fails():
@@ -1432,9 +1452,22 @@ def test_entry_unification_v1_net_equals_v2_net_per_card_all_397():
     workflow_artifact / workflow_deadline 义务（v2 配对的正是这些独立义务）。空事实索引下 7 method 卡皆有
     trigger → trigger open → node 提前返回、无 method 子（§5.3），故本门槛不演 method 折叠；method 净集
     等价（可分 2⇄2 / 不可分 1⇄1，§3.4③）由带事实的 `test_method_net_equivalence_finalize_not_pair_projection`
-    专测（比较 finalize 产出，非本处 pair 投影）。总净 2306（2310 pairs 内 v1 dedupe 折 4 条同 key）。"""
+    专测（比较 finalize 产出，非本处 pair 投影）。
+
+    **锚从 2306 改为 1936（2026-07-25，`role`/`roles` 键名漏改修复的结构性后果）**：
+    修复前 `obligation_deriver` 读单数键 `role`（卡包 769/769 条全用复数 `roles`），
+    角色恒 None → 全部槽位一律兜底成 evidence。修复后按 `roles[0]` 正确分类，差值
+    **逐项可解释、无残余**：
+
+    - 消失 429 个 key，kind 全是 evidence（= 371 trigger + 52 definition_reference
+      + 6 prerequisite 被错类的那批）；
+    - 新增 59 个 key = definition 52 + prerequisite 6 + trigger 1；
+    - 净差 429 - 59 = 370 = **371 个 trigger 槽里有 370 个在空事实索引下走了
+      「trigger open → node 提前返回」（§5.3）而不再产 key**，只 1 个结构上留下。
+
+    本门槛的**实质**（v1 净 ↔ v2 配对净逐卡零差）在修复前后都成立；总数只是防漂锚。"""
     fcards = _load_cards_float()
-    assert len(fcards) == 397
+    assert len(fcards) == 469  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
     fi = _index([])
     pairs = _real_corpus_pairs()
     v2_by_card: Dict[str, set] = {}
@@ -1458,8 +1491,14 @@ def test_entry_unification_v1_net_equals_v2_net_per_card_all_397():
     assert not mismatch, (
         f"入口合一门槛逐卡零差被破（{len(mismatch)} 卡有差，应 0）:\n" + "\n".join(mismatch[:10])
     )
-    assert total_v1 == total_v2 == 2306, (
-        f"入口合一门槛总净 key 数应精确 2306: v1={total_v1} v2={total_v2}"
+    assert total_v1 == total_v2 == 2139, (  # 2026-08-04 s6_1_3 术式 2143→2142（同上 -1）；
+        # 件四批 1 退役 §3.2.6 重复卡 2142→2138：术前/术后逐卡净 key 差集实测**只有 1 张卡有差**
+        # ——即该退役卡（术前 v1=4/v2=4，术后不存在），其余 469 张逐卡净 key 逐位不变。
+        # 🔴 2026-08-05 乙路 #30 再 2138→2139（**只 +1，不是 +2**）：意向卡新增
+        # slot_role(sr02) 与 trigger(trg01) 两条配对，但二者在**入口合一净 key 口径**下
+        # 折成同一个 key（trigger 项经 slot_ref_id 引用的正是 sr02）——这正是本门槛
+        # 「v1 dedupe 折同 key」要测的形状，故净 key 只涨 1。
+        f"入口合一门槛总净 key 数应精确 2139: v1={total_v1} v2={total_v2}"
     )
     print(f"[entry-unification gate] cards=397 v1_net_keys={total_v1} v2_pair_keys={total_v2} diff_cards=0")
 

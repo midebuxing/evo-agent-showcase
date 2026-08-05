@@ -31,6 +31,7 @@ import pytest
 from evo_agent_baseline.agent.llm_client import LLMConfig, LLMTurn, load_system_prompt
 import evo_agent_baseline.agent.llm_orchestrator as llm_orchestrator_module
 import evo_agent_baseline.agent.run_orchestrator as run_orchestrator_module
+from evo_agent_baseline.agent import report_writer as report_writer_module
 from evo_agent_baseline.agent.report_writer import (
     render_structured_narrative_points,
     build_narrative_evidence_pack,
@@ -350,6 +351,11 @@ def _exec(payload, state=None, tool_name="submit_analysis"):
 def test_v4_submission_accepted_and_rendered_through_orchestrator(monkeypatch):
     """报告契约 v4 经 orchestrator 接纳,版本号为 4,accepted_payload 带 contract。"""
     monkeypatch.setenv("EVO_REPORT_CONTRACT", "v4")  # v4 分派绑活动模式(copilot 审#1)
+    monkeypatch.setattr(
+        report_writer_module.zh_authority,
+        "zh_text_for_card",
+        lambda _card_id: "中文权威正文",
+    )
     state = _open_state()
     v4 = {"contract": "report_contract_v4",
           "points": [{"obligation_alias": "O1", "analysis_code": "EVIDENCE_GAP",

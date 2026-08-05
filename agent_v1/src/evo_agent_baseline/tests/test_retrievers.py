@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import json
+import pathlib
 from typing import Any, Dict, List
 
 from evo_agent_baseline.contracts import FactPack, RuleSlice
@@ -218,6 +220,79 @@ def test_retrieve_rule_slice_excludes_zero_score() -> None:
 
 
 # ===========================================================================
+# §5.4.2 building scope 标签接线（2026-07-27 补：此前全仓无人计算、默认 None
+# 直达查询层，适用性通道全批 0 行、50 张卡从未进候选）
+# ===========================================================================
+class RecordingFakeNeo4jClient(FakeNeo4jClient):
+    """FakeNeo4jClient + 记录每条查询实收参数（接线闸用）。"""
+
+    def __init__(self, responses: Dict[str, List[Dict[str, Any]]]) -> None:
+        super().__init__(responses)
+        self.seen_params: Dict[str, Dict[str, Any]] = {}
+
+    def read(self, cypher: str, params: Dict[str, Any] | None = None) -> List[Dict[str, Any]]:
+        self.seen_params[cypher] = dict(params or {})
+        return super().read(cypher, params)
+
+
+def test_derive_building_scope_tags() -> None:
+    """推导口径：regime=mbis（运行前提）→ MBIS 目标楼标签；其他 regime → 空（保守）。"""
+    assert rule_retriever.derive_building_scope_tags(None, "mbis") == [
+        rule_retriever.MBIS_TARGET_BUILDING_SCOPE_TAG
+    ]
+    assert rule_retriever.derive_building_scope_tags(None, "MBIS") == [
+        rule_retriever.MBIS_TARGET_BUILDING_SCOPE_TAG
+    ]
+    assert rule_retriever.derive_building_scope_tags(None, "other") == []
+
+
+def test_make_retrieval_fn_passes_nonempty_building_tags() -> None:
+    """🔴 接线闸：make_retrieval_fn 产出的检索函数必须把**非空** building tags
+    一路传到适用性查询参数层。
+
+    这是本项目第八个「失败了但不说话」的原位复发形态：参数定义在、默认值 None、
+    全仓无人计算 → 适用性通道静默 0 行。只测 `derive_building_scope_tags` 自身
+    等于没测（生产者被测、调用点没被测），故本闸端到端走
+    make_retrieval_fn → retrieve_fact_pack → retrieve_rule_slice → 查询参数。
+    """
+    from evo_agent_baseline.retrieval import make_retrieval_fn
+
+    responses = {
+        queries.FACT_BUILDING_SHELL: [{
+            "world": {"world_id": "WB-1"},
+            "building": {"building_id": "BLD-1", "building_use": "industrial"},
+        }],
+    }
+    client = RecordingFakeNeo4jClient(responses)
+    retrieval_fn = make_retrieval_fn(client, "bundle-1")
+    fact_pack, rule_slice = retrieval_fn("WB-1", "BLD-1", "RUN-1")
+    params = client.seen_params.get(queries.RULE_APPLICABILITY_BUILDING_SCOPE)
+    assert params is not None, "适用性 building scope 查询根本没被发出"
+    tags = params.get("building_scope_tags")
+    assert tags, f"building_scope_tags 为空/缺省：{tags!r}——病灶复发"
+    assert tags == [rule_retriever.MBIS_TARGET_BUILDING_SCOPE_TAG]
+    # 溯源位：policy 必须记录本次实收标签。
+    assert rule_slice.retrieval_policy["building_scope_tags"] == tags
+
+
+def test_explicit_building_scope_tags_respected() -> None:
+    """显式传列表（含空表）时尊重调用方、不推导——推导只补缺省 None。"""
+    pack = FactPack(
+        run_id="RUN-1", world_id="WB-1", building_id="BLD-1", facts=[],
+        slot_index={}, measure_index={}, carrier_index={}, source_tables=[],
+    )
+    client = RecordingFakeNeo4jClient({})
+    rule_retriever.run_rule_retrieval(client, pack, "mbis", [])
+    params = client.seen_params[queries.RULE_APPLICABILITY_BUILDING_SCOPE]
+    assert params["building_scope_tags"] == []
+    client2 = RecordingFakeNeo4jClient({})
+    rule_retriever.run_rule_retrieval(client2, pack, "mbis", ["custom_tag"])
+    assert client2.seen_params[queries.RULE_APPLICABILITY_BUILDING_SCOPE][
+        "building_scope_tags"
+    ] == ["custom_tag"]
+
+
+# ===========================================================================
 # P1-2 版本冻结:retriever 三方 bundle 同源校验(DEBT-065 复审补测)
 # ===========================================================================
 def _responses_with_assets(lattice_bundle: str, auth_bundle: str) -> Dict[str, List[Dict[str, Any]]]:
@@ -260,19 +335,159 @@ def _pack_for_assets() -> FactPack:
     )
 
 
+def _disk_pack_bundle_id() -> str:
+    """第三条腿的**真实来源**——磁盘权威卡包声明的 `bundle_id`。
+
+    🔴 不许在测试里伪造这个值。旧版三个 fake 全写 `bundle-1`「三方一致」故恒通过,
+    而生产里 `ComponentTypeLattice` 节点**根本没写过** `rulecard_bundle_id`
+    (loader 漏写,2026-07-27 修),校验恒失败、组件结构早退自上线起从未开过。
+    **伪造全部三条腿的测试结构上抓不到这个 bug。**
+    """
+    from evo_agent_baseline.closure.identity_blueprint_catalog import (
+        DEFAULT_AUTHORITATIVE_BUNDLE_PATH,
+    )
+
+    return json.loads(
+        DEFAULT_AUTHORITATIVE_BUNDLE_PATH.read_text(encoding="utf-8")
+    )["bundle_id"]
+
+
 def test_p1_2_bundle_match_keeps_lattice() -> None:
-    """P1-2:lattice/授权表/当前卡包 bundle 三方一致 → 组件类型格+授权表进 policy。"""
-    client = FakeNeo4jClient(_responses_with_assets("bundle-1", "bundle-1"))
+    """P1-2:lattice/授权表/**磁盘卡包** bundle 三方一致 → 组件类型格+授权表进 policy。"""
+    real = _disk_pack_bundle_id()
+    client = FakeNeo4jClient(_responses_with_assets(real, real))
+    # 调用方标签故意写成与真身份不同的 `bundle-1`——它**不再参与校验**,
+    # 正因为实测三个调用面三个值(资产 / 脚本常量 / orchestrator 缺省)。
     rs = rule_retriever.retrieve_rule_slice(client, "RUN-1", _pack_for_assets(), "bundle-1", regime="mbis")
     assert "component_type_lattice" in rs.retrieval_policy
     assert "exact_fragment_target_authorizations" in rs.retrieval_policy
+    assert rs.retrieval_policy["component_type_lattice_version"] == "v1"
+    assert (
+        rs.retrieval_policy["exact_fragment_target_authorizations_version"]
+        == "v1"
+    )
     assert "component_structure_bundle_mismatch" not in rs.retrieval_policy
 
 
 def test_p1_2_bundle_mismatch_drops_lattice() -> None:
-    """P1-2:lattice bundle 与当前卡包不一致 → 组件类型格+授权表不进 policy(保守关闭)。"""
-    client = FakeNeo4jClient(_responses_with_assets("bundle-OTHER", "bundle-1"))
+    """P1-2:lattice bundle 与磁盘卡包不一致 → 组件类型格+授权表不进 policy(保守关闭)。"""
+    real = _disk_pack_bundle_id()
+    client = FakeNeo4jClient(_responses_with_assets("bundle-OTHER", real))
     rs = rule_retriever.retrieve_rule_slice(client, "RUN-1", _pack_for_assets(), "bundle-1", regime="mbis")
     assert "component_type_lattice" not in rs.retrieval_policy
     assert "exact_fragment_target_authorizations" not in rs.retrieval_policy
+    assert "component_type_lattice_version" not in rs.retrieval_policy
+    assert "exact_fragment_target_authorizations_version" not in rs.retrieval_policy
     assert "component_structure_bundle_mismatch" in rs.retrieval_policy
+
+
+def test_p1_2_lattice_node_carries_bundle_id_from_loader() -> None:
+    """🔴 回归闸:loader 必须给 `ComponentTypeLattice` 写 `rulecard_bundle_id`。
+
+    这条测的是**生产者→消费者接口**,不是生产者自身:漏写该属性时检索侧读回 None,
+    三方校验恒失败、早退恒关,而**全链不报错**——上面两条(伪造三条腿)全绿也照样漏。
+    """
+    import evo_agent_baseline.ingest.rulecard_loader as loader
+
+    reg = pathlib.Path(loader.__file__).resolve().parents[3] / "regulations" / "rulecard_v2" / "mbis_cop_2023"
+    pack = json.loads((reg / "rule_cards.json").read_text(encoding="utf-8"))
+    # 🔴 真实键是 `cards`(398 张),**不是** `rule_cards`。写错键 → 传进去空列表 →
+    # 授权表节点内容为空但仍带 bundle_id → 下面的断言照样过 = **本闸自己是空的**。
+    # 2026-07-27 codex 审核抓出(我写这条闸的当次就犯了它本要防的错)。
+    cards = pack["cards"]
+    assert cards, "卡包 `cards` 为空——本闸失去意义,先查卡包"
+    res = loader.RuleCardLoadResult(batch=loader.GraphBatch())
+    res.bundle_id = pack["bundle_id"]
+    loader._load_component_lattice_and_authorizations(
+        res, cards, reg, loader.AuditLog()
+    )
+    nodes = {
+        n.label: n
+        for n in res.batch.nodes
+        if n.label in ("ComponentTypeLattice", "ExactFragmentTargetAuthorizations")
+    }
+    assert set(nodes) == {"ComponentTypeLattice", "ExactFragmentTargetAuthorizations"}
+    for label, node in nodes.items():
+        assert node.props.get("rulecard_bundle_id") == pack["bundle_id"], label
+        # 防空:节点必须真带载荷,否则「属性对了但内容是空的」照样过闸。
+        payload = [
+            v for k, v in node.props.items()
+            if k != "rulecard_bundle_id" and isinstance(v, str) and v.strip()
+        ]
+        assert payload, f"{label} 除 bundle_id 外无任何载荷"
+        assert any(len(v) > 2 for v in payload), f"{label} 载荷为空容器"
+
+
+# ===== DEBT-073：生产路径必须传卡内容失配校验参数 =====
+
+def test_rulecard_digests_match_manifest_declarations():
+    """🔴 口径必须与 manifest **生成时**一致，否则校验形同虚设或每次误报。
+
+    我第一版把整包摘要猜成"文件字节 sha256"，实测逐卡 55/55 对、**整包对不上**——
+    接上去会让每次运行都误报 `rulecard_pack_mismatch` 而整路径禁用早退。
+    正确口径是 `canonical_hash(整个 cards_doc)`
+    （`scripts/build_card_applicability_manifest.py:125`）。
+    """
+    import json
+    import pathlib
+    from evo_agent_baseline.agent.run_orchestrator import _rulecard_content_digests
+
+    repo = pathlib.Path(__file__).resolve().parents[4]
+    pack, shas = _rulecard_content_digests(repo)
+    mani_p = (repo / "agent_v1" / "regulations" / "rulecard_v2" / "mbis_cop_2023"
+              / "card_applicability_manifest_v1.json")
+    if not mani_p.is_file():
+        import pytest
+        pytest.skip("manifest 未生成（派生物）")
+    mani = json.loads(mani_p.read_text(encoding="utf-8"))
+    assert pack == mani.get("rulecard_pack_sha256"), "整包摘要口径与 manifest 不一致"
+    bad = [cid for cid, e in (mani.get("cards") or {}).items()
+           if e.get("card_content_sha256")
+           and shas.get(cid) != e["card_content_sha256"]]
+    assert not bad, f"逐卡指纹口径不一致：{bad[:3]}"
+
+
+def test_production_call_site_passes_integrity_args():
+    """🔴 接线闸：生产调用点必须真的传那两个参数。
+
+    这是本项目「关键配置静默退化」族里**最坏的一种形态**——护栏函数写好了、
+    单测覆盖了、发布门禁也真传参数验过，**唯独生产调用点没接线**，
+    而 `load_bundle` 里两处校验都是条件式（参数为 None 就整段跳过）。
+    「生产者→消费者接口只测生产者自身等于没测」在这里是"**校验函数被测了、调用点没被测**"。
+    """
+    import inspect
+    from evo_agent_baseline.agent import run_orchestrator as ro
+
+    src = inspect.getsource(ro.load_applicability_bundle_once)
+    assert "rulecard_pack_sha256=" in src, "生产调用点没传卡包整体摘要"
+    assert "card_content_shas=" in src, "生产调用点没传逐卡内容指纹"
+    # 参数得是真算出来的，不能是写死的 None
+    assert "_rulecard_content_digests(" in src, "参数不是真算的"
+
+
+def test_chat_timeout_is_configurable_with_safe_fallback(monkeypatch):
+    """🔴 超时写死 600 秒曾整批判废（2026-07-26 试跑实证）。
+
+    两栋均 `native /api/chat 请求失败: timed out` → `tool_call_missing` → 批废。
+    首栋要叠「灌库 + 冷推理」，600 秒不够。改为可配；非法值**回落缺省并出声**，
+    不静默用一个坏值（静默退化是本项目反复踩的那族坑）。
+    """
+    from evo_agent_baseline.agent.llm_client import _chat_timeout_seconds
+
+    monkeypatch.delenv("EVO_AGENT_LLM_TIMEOUT", raising=False)
+    assert _chat_timeout_seconds() == 600, "缺省必须与改动前一致"
+    monkeypatch.setenv("EVO_AGENT_LLM_TIMEOUT", "1800")
+    assert _chat_timeout_seconds() == 1800
+    for bad in ("abc", "0", "-5", ""):
+        monkeypatch.setenv("EVO_AGENT_LLM_TIMEOUT", bad)
+        assert _chat_timeout_seconds() == 600, f"非法值 {bad!r} 未回落缺省"
+
+
+def test_timeout_is_actually_wired_into_the_request():
+    """接线闸:超时必须真的用在 urlopen 上，不能只定义了函数没接。"""
+    import inspect
+    from evo_agent_baseline.agent import llm_client
+
+    src = inspect.getsource(llm_client)
+    assert "timeout=_chat_timeout_seconds()" in src, "超时函数没接进请求"
+    assert "timeout=600" not in src, "还留着写死的 600"

@@ -13,7 +13,9 @@ observed_value / threshold / 任意额外字段——一切规则语义由程序
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, get_args
+
+from evo_agent_baseline.contracts import BlockedReasonCode, OpenReasonCode
 
 # ---------------------------------------------------------------------------
 # E-5.5 reason_code → 中文模板。**只解释"系统为何 open/blocked"，不得偷渡规则卡释义**。
@@ -24,7 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 _R = Dict[str, Any]
 
 REASON_CODE_SPEC: Dict[str, _R] = {
-    # ---- open 原因码（10）----
+    # ---- open 原因码（11）----
     "missing_fact": {
         "zh": "系统尚未取得用于核验该义务的事实数据",
         "analysis": "EVIDENCE_GAP",
@@ -74,6 +76,50 @@ REASON_CODE_SPEC: Dict[str, _R] = {
         "zh": "该义务取决于一个尚未闭合的前置触发条件",
         "analysis": "APPLICABILITY_REVIEW",
         "actions": ["RESOLVE_PRECONDITION", "MANUAL_VERIFY"],
+    },
+    # 2026-07-27 codex 审核门 P1-A：`obligation_deriver` 的「无卡侧可确定通道 → 缺省
+    # 拒绝」分支产出此码（已登记在 `contracts.OpenReasonCode`），**却漏进本表** ⇒
+    # `reason_key_of` 返回 None ⇒ 受影响义务过不了 v4 契约、整篇回退 ⇒ **消费者根本
+    # 看不到这块缺口**。现批计数为 0 只因批用的是旧代码，重跑后它会是最大的一块。
+    # 语义不是「缺一条事实」而是「系统不知道该核什么」（动作没绑到可核验的事实槽），
+    # 故归 MODELING_GAP：让消费者去找建模缺口，别白跑一趟补资料。
+    "missing_satisfaction_binding": {
+        "zh": "系统未能确定该义务的满足判据（没有可核验的事实绑定），无法据以核验",
+        "analysis": "MODELING_GAP",
+        "actions": ["ESCALATE_MODELING_GAP", "MANUAL_VERIFY"],
+    },
+    # 2026-07-27：证据许可闸产出。语义**不是产物**的义务（检验涵盖范围 / 记录 /
+    # 报告栏目 / 动作）此前会因「相关产物齐备布尔=true」被判 satisfied、=false 被判
+    # violated——一份报告可以齐备而漏检半栋楼，该推断不成立。现改判 unknown。
+    # 归 MODELING_GAP：要修的是卡侧把义务绑到了证明不了它的槽，不是消费者少交材料。
+    "artifact_state_not_valid_evidence": {
+        "zh": "该义务只绑定到「相关文件是否齐备」这一状态，而文件齐备并不能证明该义务本身"
+              "已经履行，系统据此拒绝下确定判定",
+        "analysis": "MODELING_GAP",
+        "actions": ["ESCALATE_MODELING_GAP", "MANUAL_VERIFY"],
+    },
+    # 2026-08-03 仲裁「丁」路：同上闸，但绑定的是**非产物读数**，故文案不得提「文件」。
+    "diagnostic_binding_not_valid_evidence": {
+        "zh": "该义务绑定到的这类读数，经逐项对法规原文裁定并不能证明该义务本身已经履行，"
+              "系统据此拒绝下确定判定",
+        "analysis": "MODELING_GAP",
+        "actions": ["ESCALATE_MODELING_GAP", "MANUAL_VERIFY"],
+    },
+    # A′裁决（2026-08-02，DEBT-083 第 5 步绑定级值授权）——不得渲染成
+    # 「缺少事实」或「请补交同一证据」：读数已取得且完整。
+    "observed_false_without_violation_basis": {
+        "zh": "已取得完整聚合读数，结果表明正向条件尚未成立；当前没有足够的期限"
+              "或终局违约依据，程序不判违反，交由专业人员复核",
+        "analysis": "PENDING_COMPLETION_REVIEW",
+        "actions": ["MANUAL_VERIFY"],
+    },
+    # S3 裁决（2026-08-02）：不得渲染成"缺少事实"——事实在，缺的是该绑定
+    # 消费此类读数产判定的裁定授权。
+    "binding_requires_adjudication_authorization": {
+        "zh": "系统已取得相关读数，但该义务绑定尚未获得消费此类读数下判定的"
+              "裁定授权，程序按保守原则不给结论，待维护方完成逐绑定裁定",
+        "analysis": "MODELING_GAP",
+        "actions": ["ESCALATE_MODELING_GAP", "MANUAL_VERIFY"],
     },
     # ---- blocked 原因码（15）----
     "missing_rule_edge": {
@@ -191,6 +237,10 @@ _OPEN_REASONS = frozenset({
     "missing_measurement", "missing_artifact_evidence", "missing_time_anchor",
     "missing_required_qualifier", "missing_required_field_group",
     "applicability_uncertain", "depends_on_open_trigger",
+    "missing_satisfaction_binding", "artifact_state_not_valid_evidence",
+    "diagnostic_binding_not_valid_evidence",
+    "observed_false_without_violation_basis",
+    "binding_requires_adjudication_authorization",
 })
 _BLOCKED_REASONS = frozenset({
     "missing_rule_edge", "missing_obligation_edge_target",
@@ -202,6 +252,22 @@ _BLOCKED_REASONS = frozenset({
 })
 assert set(REASON_CODE_SPEC) == (_OPEN_REASONS | _BLOCKED_REASONS | {"__violated__"}), \
     "REASON_CODE_SPEC 与状态兼容矩阵不同步"
+
+# 🔴 结构性闸（2026-07-27 codex 审核门 P1-A）：**双向**对齐权威原因码清单
+# （`contracts.OpenReasonCode` / `BlockedReasonCode`）。
+# 上面那条 assert 只保证本文件**内部**三张表自洽——`missing_satisfaction_binding`
+# 正是这样漏掉的：派生器产它、contracts 登记它、本表没有，内部依然自洽。
+# 本闸在**导入时**就炸，故下次谁新增原因码而忘了登记模板，第一次 import 就知道。
+# 方向二（本表多出 contracts 没有的码）同样拦——那意味着模板在解释一个不存在的状态。
+_AUTHORITATIVE_REASONS = frozenset(
+    get_args(OpenReasonCode) + get_args(BlockedReasonCode)
+)
+_SPEC_REASONS = frozenset(REASON_CODE_SPEC) - {"__violated__"}
+assert _SPEC_REASONS == _AUTHORITATIVE_REASONS, (
+    "REASON_CODE_SPEC 与 contracts 权威原因码清单不同步；"
+    f"contracts 有而本表缺={sorted(_AUTHORITATIVE_REASONS - _SPEC_REASONS)}；"
+    f"本表有而 contracts 缺={sorted(_SPEC_REASONS - _AUTHORITATIVE_REASONS)}"
+)
 
 
 def allowed_statuses(reason_key: str) -> frozenset:
@@ -424,10 +490,19 @@ def _resolve_v4_points(
             return None  # 缺 reason 模板 → 整篇 fallback
         r_alias = item.get("rule_card_alias")
         card = card_by_alias.get(r_alias) if r_alias else None
-        # 缺权威条文 → 整篇 fallback。占位引文"（未取得引文）"（report_writer 对未取到
-        # 引文的卡的占位值）**不算权威**，一并 fail-closed（2026-07-23 copilot 审出#2）。
-        if card is None or not card.get("quote") or card.get("quote") in _PLACEHOLDER_QUOTES:
-            return None
+        # 缺权威条文的处理分两档（2026-08-04 收窄，保住两条底线）：
+        # ① 卡都找不到 → 整篇 fallback（不变）；
+        # ② 卡在、但引文是占位符「（未取得引文）」——即中文权威源对该卡**显式缺席**
+        #    （11/470，附录表格类等）——**不再拉黑整篇**，该点的「法规依据」行降级为
+        #    条款号引用＋缺席说明（诚实降级，见 render 段）。
+        # 依据：2026-07-23 copilot 审出#2 防的是**占位符冒充引文**渲给消费者；
+        # 显式写明「中文正文缺席，见条款号」不是冒充。而整篇拉黑的实测代价是
+        # 11 张缺席卡把 15/30 栋的满血叙述全部黑洞掉——顶部 violated 项（如
+        # §3.3.2(b) 缺陷识别）反而从叙述里消失，比诚实降级更误导。
+        if card is None:
+            return None  # 缺权威 R 映射 → 整篇 fallback（不变）
+        _quote_absent = (not card.get("quote")
+                         or card.get("quote") in _PLACEHOLDER_QUOTES)
         status = item.get("category")
         # 权威状态缺失/非法 → fail-closed（codex 聚合审核阻断#1：原实现
         # `or "open"` 会把缺失状态凭空补成 open，破坏"缺权威即 fallback"防御层）
@@ -472,6 +547,7 @@ def _resolve_v4_points(
             "analysis_code": pt["analysis_code"],
             "action": pt["review_action_code"],
             "evidence_parts": parts,
+            "quote_absent": _quote_absent,
         })
     return resolved
 
@@ -527,7 +603,14 @@ def render_v4_points(
             else:
                 lines.append("- 现有证据：本义务暂无可列证据。")
             # 法规依据（逐字取程序辑录权威条文，绝不由模型撰写）
-            lines.append(f"- 法规依据：[{m['r_alias']}] 「{m['quote']}」")
+            if m.get("quote_absent"):
+                # 诚实降级：不渲占位符、不编引文——条款号可查证，缺席说明如实。
+                lines.append(
+                    f"- 法规依据：[{m['r_alias']}] 卡 `{m['rule_card_id']}`"
+                    "（中文权威正文对本卡显式缺席——附录表格类等，暂无逐字引文；"
+                    "卡号内嵌条款号，请按其查阅守则原文）")
+            else:
+                lines.append(f"- 法规依据：[{m['r_alias']}] 「{m['quote']}」")
             lines.append("")
         lines.append("</details>")
         lines.append("")
@@ -544,6 +627,7 @@ _ANALYSIS_TITLE = {
     "MODELING_GAP": "建模缺口待上报",
     "SCHEMA_ISSUE": "数据契约问题",
     "SUSPECTED_VIOLATION": "疑似未满足待复核",
+    "PENDING_COMPLETION_REVIEW": "正向条件尚未成立待复核",
 }
 
 

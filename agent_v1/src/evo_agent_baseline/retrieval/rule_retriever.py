@@ -25,6 +25,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from evo_agent_baseline import slot_alias_policy
 from evo_agent_baseline.contracts import FactPack, RuleSlice
 from evo_agent_baseline.kg import queries
 from evo_agent_baseline.retrieval.pack_builder import (
@@ -37,6 +38,45 @@ from evo_agent_baseline.retrieval.pack_builder import (
     source_quote_dto_from_node,
     time_anchor_dto_from_node,
 )
+
+# spec §5.4.2 building scope 标签——卡包侧唯一在用的取值（2026-07-27 全盘核实：
+# 卡包 398 张里 397 张 building_scope=["target_building_under_mbis"]、1 张为空），
+# 语义 = 「被评估楼是 MBIS 制度下的目标楼」。
+MBIS_TARGET_BUILDING_SCOPE_TAG = "target_building_under_mbis"
+
+
+def derive_building_scope_tags(
+    fact_pack: FactPack,
+    regime: str = "mbis",
+) -> List[str]:
+    """按 spec §5.4.2 推出 building scope 标签（该节明写「根据 building facts」，且无开关）。
+
+    🔴 诚实边界（2026-07-27 逐源查实，勿当作「从事实推出来的」过度解读）：
+    世界模型**没有**任何「本楼是否 MBIS 目标楼」的事实可取——building 级事实只有
+    `building_use / structure_type / age_years / storey_count / primary_materials /
+    configuration_tags / occupancy_state` 七项（`fact_retriever._BUILDING_FACT_FIELDS`），
+    worldgen 世界包 schema 同样无 MBIS 归属字段。也**不许自造判据**：实测批里
+    `age_years=21.9` 的楼照样是 MBIS 评估对象，拿「楼龄≥30」之类现实判据推会把
+    该楼全部带 scope 的卡推出候选——那是自造判据，本项目已因此栽过。
+
+    故唯一可追溯的推导锚是**运行前提本身**：本流水线只跑 MBIS 合规评估
+    （`regime="mbis"` 本就硬编码在本检索器签名缺省里；`ComplianceAssessmentRun.run_type`
+    唯一取值 `baseline_building_review`）。卡包侧该标签的语义正是「被评估楼是 MBIS
+    目标楼」＝运行前提。⇒ `regime=="mbis"` 返回 `[MBIS_TARGET_BUILDING_SCOPE_TAG]`，
+    其他 regime 返回 `[]`（保守，不向未知 regime 放行任何 scope 卡）。
+
+    Args:
+        fact_pack: 已检索的 FactPack（当前推导不读其字段；保留入参以对齐 spec
+            「根据 building facts」的签名语义，未来世界侧补了归属事实在此接）。
+        regime: 法规 regime。
+
+    Returns:
+        building scope 标签列表。
+    """
+    if str(regime).lower() != "mbis":
+        return []
+    return [MBIS_TARGET_BUILDING_SCOPE_TAG]
+
 
 # §5.4.4 打分权重（严格照 spec 公式）。
 SCORE_WEIGHTS: Dict[str, float] = {
@@ -122,6 +162,9 @@ class RuleRetrievalResult:
     ranked: List[tuple[str, float]] = field(default_factory=list)
     verifier_candidate_ids: List[str] = field(default_factory=list)
     expansion_rows: List[Dict[str, Any]] = field(default_factory=list)
+    # 本次实际使用的 building scope 标签（显式传入或推导结果），进 retrieval_policy
+    # 供溯源——下次再有人把标签静默退回 None，policy 里直接看得见。
+    building_scope_tags: List[str] = field(default_factory=list)
 
 
 def _get_signal(signals: Dict[str, CandidateSignals], rule_card_id: str) -> CandidateSignals:
@@ -137,6 +180,7 @@ def collect_candidate_signals(
     regime: str = "mbis",
     building_scope_tags: Optional[List[str]] = None,
     component_scope_tags: Optional[List[str]] = None,
+    slot_aliases: Optional[Dict[str, str]] = None,
 ) -> Dict[str, CandidateSignals]:
     """跑 §5.4.1 / §5.4.2 各路检索，汇总候选卡信号（spec §5.4）。
 
@@ -155,7 +199,23 @@ def collect_candidate_signals(
     # §5.4.1 slot-driven。
     slot_ids = sorted(fact_pack.slot_index.keys())
     if slot_ids:
-        for row in client.read(queries.RULE_SLOT_DRIVEN_CARDS, queries.slot_params(slot_ids)):
+        # 反向多值展开（2026-07-27 修，别名归一第三次咬人）：KG 里
+        # `SemanticSlot.slot_id` 是**卡侧名**，而 slot_index 键是**世界侧名**——裸名
+        # 查询让 14 个别名键的 `exact_slot_hit_count`（权重 5.0）恒 0。只伤排序不伤
+        # 候选完整性（applicability 通道已让 cutoff 恒真、候选＝卡包全集），但会带歪
+        # 大模型上下文顺序。`slot_aliases=None` 时按无别名运行（行为与旧版逐字节一致）。
+        if slot_aliases:
+            _rev = slot_alias_policy.reverse_alias_index(slot_aliases)
+            query_names = sorted(
+                set().union(
+                    *(slot_alias_policy.card_slot_candidates(s, _rev) for s in slot_ids)
+                )
+            )
+        else:
+            query_names = slot_ids
+        for row in client.read(
+            queries.RULE_SLOT_DRIVEN_CARDS, queries.slot_params(query_names)
+        ):
             sig = _get_signal(signals, row["rule_card_id"])
             sig.exact_slot_hit_count = int(row.get("slot_hits") or 0)
 
@@ -178,6 +238,10 @@ def collect_candidate_signals(
         sig.applicability_match_count += 1
 
     # §5.4.2 applicability-driven —— component scope。
+    # 🔴 构件通道未接线：卡侧 `component_scope` 是自由文本（'external wall finishes'、
+    # 'structural components' 等），世界侧没有任何对得上的词表、无处取标签
+    # （与 DEBT-047 一致）。待世界侧补出对应词表后再接；**不要在此自造词表映射**——
+    # 那是自造判据。本任务（building_scope_tags 接线）刻意不动这里。
     component_tags = component_scope_tags or []
     if component_tags:
         for row in client.read(
@@ -234,12 +298,37 @@ def run_rule_retrieval(
         client: `Neo4jClient` 实例。
         fact_pack: FactPack。
         regime / building_scope_tags / component_scope_tags: 检索范围参数。
+            `building_scope_tags=None`（缺省）时按 spec §5.4.2 现推
+            （`derive_building_scope_tags`）——此前全仓无人计算该参数、默认 None
+            直达查询层，适用性通道全批 0 行、50 张卡从未进候选（2026-07-27 修）。
+            显式传列表（含 `[]`）则尊重调用方、不推导。
 
     Returns:
         RuleRetrievalResult。
     """
+    if building_scope_tags is None:
+        building_scope_tags = derive_building_scope_tags(fact_pack, regime)
+    # 正向别名表（供 slot-driven 反向展开）：统一入口归一；读不到/坏 JSON 按无别名
+    # 运行（保守，行为同旧版）。映射节点在 assemble_rule_slice 还会再读一次进
+    # retrieval_policy——那次是闭包侧消费，这次只服务检索排序，互不替代。
+    slot_aliases: Dict[str, str] = {}
+    try:
+        _map_rows = client.read(queries.RULE_PROJECTION_RUNTIME_MAPPING)
+        if _map_rows:
+            slot_aliases = slot_alias_policy.slot_aliases_from_policy(
+                {
+                    "projection_runtime_mapping_v1": {
+                        "slot_aliases": json.loads(
+                            _map_rows[0].get("slot_aliases_json") or "{}"
+                        )
+                    }
+                }
+            )
+    except (TypeError, ValueError):
+        slot_aliases = {}
     signals = collect_candidate_signals(
-        client, fact_pack, regime, building_scope_tags, component_scope_tags
+        client, fact_pack, regime, building_scope_tags, component_scope_tags,
+        slot_aliases=slot_aliases or None,
     )
     ranked = rank_candidates(signals)
     verifier_candidate_ids = select_verifier_candidates(signals)
@@ -255,6 +344,7 @@ def run_rule_retrieval(
         ranked=ranked,
         verifier_candidate_ids=verifier_candidate_ids,
         expansion_rows=expansion_rows,
+        building_scope_tags=list(building_scope_tags or []),
     )
 
 
@@ -337,6 +427,17 @@ def assemble_rule_slice(
         "score_weights": dict(SCORE_WEIGHTS),
         "candidate_cutoff_policy": "all_score_gt_0_not_explicitly_excluded",
         "verifier_candidate_count": len(result.verifier_candidate_ids),
+        # 本次实际使用的 building scope 标签（溯源位）：下次再有人把标签静默退回
+        # None / 空表，policy 里直接看得见（本项目「失败了但不说话」族的护栏）。
+        "building_scope_tags": list(result.building_scope_tags),
+        # 🔴 诚实说明：卡包全部带 scope 的卡共用同一标签 `target_building_under_mbis`，
+        # 补上标签后它们全 +2 分 ⇒ `score > 0` 的 cutoff 实际恒真，检索退化为
+        # 「取全集」。这是 spec 本意（§5.4.4：verifier 候选全集＝全部适用卡，
+        # ranking 只管大模型上下文顺序），不是过滤失效，勿误读。
+        "candidate_universe_note": (
+            "building scope 标签接线后全部适用卡 score>0，cutoff 恒真 ⇒ "
+            "verifier 候选＝卡包全集（spec §5.4.4 本意；排序仅影响 LLM 上下文顺序）"
+        ),
         "ranked_order": [cid for cid, _ in result.ranked],
         "ranked_scores": {cid: score for cid, score in result.ranked},
         "note": (
@@ -390,6 +491,9 @@ def assemble_rule_slice(
             retrieval_policy["component_type_lattice"] = json.loads(
                 lattice_rows[0].get("lattice_json") or "{}"
             )
+            retrieval_policy["component_type_lattice_version"] = (
+                lattice_rows[0].get("version")
+            )
             _lattice_bundle_id = lattice_rows[0].get("rulecard_bundle_id")
         except (TypeError, ValueError) as exc:
             retrieval_policy["component_type_lattice_error"] = f"{type(exc).__name__}: {exc}"
@@ -400,6 +504,9 @@ def assemble_rule_slice(
             retrieval_policy["exact_fragment_target_authorizations"] = json.loads(
                 auth_rows[0].get("authorized_targets_json") or "{}"
             )
+            retrieval_policy["exact_fragment_target_authorizations_version"] = (
+                auth_rows[0].get("version")
+            )
             _auth_bundle_id = auth_rows[0].get("rulecard_bundle_id")
         except (TypeError, ValueError) as exc:
             retrieval_policy["exact_fragment_target_authorizations_error"] = (
@@ -408,22 +515,64 @@ def assemble_rule_slice(
 
     # P1-2:版本冻结同源校验——lattice / 授权表 / 当前卡包的 rulecard_bundle_id 必须
     # 三方一致;任一不一致或缺失 → 不放进 policy(等价缺席,validator 保守关闭组件早退)。
+    #
+    # 🔴 第三条腿取**磁盘权威卡包自己声明的 `bundle_id`**,不取调用方传进来的
+    # `rulecard_bundle_id`(2026-07-27 修)。原因:
+    #   ① 那个入参是**调用方随手写的标签**,实测三个调用面三个值——资产
+    #      `rulecard_v2.mbis_cop_2023` / 四个脚本常量 `mbis_cop_2023` /
+    #      `RunOrchestrator` 缺省 `rule_card_v2`,拿它当身份必然对不上;
+    #   ② 本校验真正要防的风险是**双读径不同源**:图从卡包 X 灌,而身份蓝图目录
+    #      (`identity_blueprint_catalog`)从磁盘读卡包 Y。故第三条腿必须是**磁盘那份**,
+    #      比标签才有意义。
+    # 读不到 ⇒ 留 None ⇒ 校验失败 ⇒ 保守关早退(fail-closed,不放行)。
+    # 读取本身收在单一权威读径 `retrieval/rulecard_bundle_identity.py`
+    # （2026-07-27 统一调用方标签时抽出；fail-closed 形状护栏①顶层非对象/
+    # ②bundle_id 非字符串随读径一并搬走，行为不变：读不到 ⇒ 留 None ⇒ 同源
+    # 校验失败 ⇒ 保守关早退、不放行，诊断进 retrieval_policy 可区分）。
+    _pack_bundle_id: Optional[str] = None
+    try:  # 惰性导入:closure ← retrieval 直接导入有成环风险（读径内部同样惰性）
+        from evo_agent_baseline.retrieval.rulecard_bundle_identity import (
+            read_authoritative_rulecard_bundle_id,
+        )
+
+        _pack_bundle_id = read_authoritative_rulecard_bundle_id()
+    except (OSError, ValueError, ImportError, TypeError, AttributeError) as exc:
+        retrieval_policy["rulecard_pack_bundle_id_error"] = f"{type(exc).__name__}: {exc}"
+
     _bundle_ids = [
-        b for b in (_lattice_bundle_id, _auth_bundle_id, rulecard_bundle_id) if b
+        b for b in (_lattice_bundle_id, _auth_bundle_id, _pack_bundle_id) if b
     ]
     if len(set(_bundle_ids)) != 1 or len(_bundle_ids) != 3:
         retrieval_policy.pop("component_type_lattice", None)
+        retrieval_policy.pop("component_type_lattice_version", None)
         retrieval_policy.pop("exact_fragment_target_authorizations", None)
+        retrieval_policy.pop("exact_fragment_target_authorizations_version", None)
         retrieval_policy["component_structure_bundle_mismatch"] = {
             "lattice_bundle_id": _lattice_bundle_id,
             "auth_bundle_id": _auth_bundle_id,
-            "current_bundle_id": rulecard_bundle_id,
+            # 磁盘权威卡包声明值(第三条腿的新口径)
+            "pack_bundle_id": _pack_bundle_id,
+            # 调用方标签——**不再参与校验**,仅留作诊断(三个调用面三个值)
+            "caller_bundle_id_label": rulecard_bundle_id,
             "note": "P1-2 同源校验失败——资产 bundle 不一致,保守关闭组件结构早退",
+        }
+
+    # 🔴 2026-07-27 codex 五审 P2：三方同源校验已正确地**不拿调用方标签当身份**
+    # （它实测三个调用面三个值），但**落盘的仍是那个未经校验的标签** ⇒
+    # 规则内容来自当前卡包、运行记录与报告却标成另一个卡包，**破坏三锚可复现性**。
+    # 我今早统一标签时只统一了「来源」，漏了「落盘的那个值」。
+    # 修法：能读到磁盘权威声明值就用它；读不到才退回入参（并留诊断痕迹）。
+    _effective_bundle_id = _pack_bundle_id or rulecard_bundle_id
+    if _pack_bundle_id and rulecard_bundle_id and rulecard_bundle_id != _pack_bundle_id:
+        retrieval_policy["rulecard_bundle_id_label_overridden"] = {
+            "caller_label": rulecard_bundle_id,
+            "authoritative_pack_bundle_id": _pack_bundle_id,
+            "note": "落盘取磁盘权威卡包声明值；调用方标签仅留诊断（三个调用面曾有三个值）",
         }
 
     return build_rule_slice(
         run_id=run_id,
-        rulecard_bundle_id=rulecard_bundle_id,
+        rulecard_bundle_id=_effective_bundle_id,
         candidate_rule_cards=candidate_dtos,
         rule_families=rule_families,
         semantic_slots=list(semantic_slots.values()),
@@ -695,6 +844,8 @@ def retrieve_rule_slice_with_skills(
 
 __all__ = [
     "SCORE_WEIGHTS",
+    "MBIS_TARGET_BUILDING_SCOPE_TAG",
+    "derive_building_scope_tags",
     "CandidateSignals",
     "RuleRetrievalResult",
     "rank_candidates",

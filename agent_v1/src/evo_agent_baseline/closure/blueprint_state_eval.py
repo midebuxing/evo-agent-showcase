@@ -156,7 +156,7 @@ APPLICABILITY_TYPE_DEFECT: Dict[str, str] = {
 # **旧登记 overclaim = 「恰 2 对列明保守漂移」——已删**。真相：该发散是**一般的**（general
 # divergence），非 2 对。跨完整 **v1-可构造** reason 全序表（OPEN_REASON_ORDER ∩ v1 open Literal
 # = 8 码；BLOCKED_REASON_ORDER ∩ v1 blocked Literal = 13 码，剔 merge-only `ambiguous_merged_observation`）
-# 实测 **106 处方向发散**（28 open + 78 blocked），旧登记的 2 对只是其真子集（其余 104 处旧测未覆盖）；
+# 实测 **114 处方向发散**（36 open + 78 blocked），旧登记的 2 对只是其真子集；
 # 且 **25 处在 advisory 高风险 tier 上非保守**（merge_states 选**更低** tier，反例
 # `missing_required_field_group`[medium] → `depends_on_open_trigger`[low]）——故「2 对保守漂移」
 # 声称双重失真（既非 2、也非恒保守）。
@@ -197,9 +197,23 @@ PHASE_TWO_REASON_DRIFT: Dict[str, Any] = {
     "summary": (
         "v2 merge_states（order-independent, max-by-rank）与 v1 _merge_two（order-dependent, "
         "primary=首参）合并**异 reason** 义务时选不同 reason_code。此发散**一般**（非旧 overclaim "
-        "『恰 2 对保守漂移』）：全 v1-可构造 reason 序表实测 106 处方向发散（28 open + 78 blocked），"
+        "『恰 2 对保守漂移』）：全 v1-可构造 reason 序表实测 114 处方向发散（36 open + 78 blocked），"
         "25 处在 advisory tier 上非保守（merge_states 更低 tier）。发散**可达**（identity 不含事实快照，"
         "同 (scope,identity) 可来自异快照产异 reason），落点仅 advisory 层、不入 allow_stop。"
+        "⚠️ 2026-07-27 重算：open 原因码新增 `artifact_state_not_valid_evidence`（证据许可闸）后，"
+        "序表由 9 open 码变 10，cross-product 相应变大 —— 114→123（36→45 open，blocked 78 不变）、"
+        "非保守 29→33。**这不是发散性质变了**，是枚举面变大：新码在 v2 序表取最高 rank、而在 "
+        "`find_high_risk_items` 里落 low tier（与同为 MODELING_GAP 的 `missing_satisfaction_binding` 同档），"
+        "故它与四个 medium 档旧码配对时各多出一处「非保守」。"
+        "⚠️ 2026-08-02 再重算：open 码新增 `observed_false_without_violation_basis`（A′绑定级值授权）后"
+        "序表 10→11 open 码 —— 123→133（45→55 open，blocked 78 不变）、非保守 33→37。同上，"
+        "是枚举面变大不是性质变化：新码在两张合并序表都取新最高 rank、advisory 无高风险档。"
+        "⚠️ 2026-08-02 三算：open 码新增 `binding_requires_adjudication_authorization`（S3 甲′）"
+        "后 11→12 open 码——133→144（55→66 open，blocked 78 不变）、非保守 37→41。同上例行。"
+        "⚠️ 2026-08-03 四算：open 码新增 `diagnostic_binding_not_valid_evidence`（三方仲裁「丁」路，"
+        "非产物读数的诊断型拒判）后 12→13 open 码——144→156（66→78 open，blocked 78 不变）、"
+        "非保守 41→45。同上例行：**blocked 侧四轮一律 78 不动**，说明每轮增长都只来自 open 侧"
+        "枚举面变大，不是发散性质变化。"
     ),
     # 判定投影（closure_status + satisfaction_status = allow_stop 地基）在全部**纯 reason 发散**上
     # 字节等价——**限定 merged_observation_bottom == ()（无观测冲突）**；观测冲突合并见
@@ -208,10 +222,12 @@ PHASE_TWO_REASON_DRIFT: Dict[str, Any] = {
     # allow_stop 公式不吃 reason_code（reason 发散不触 allow_stop）。
     "reason_code_enters_allow_stop": False,
     # 全序表实测发散计数（诚实登记；测试核对活代码，防回退 overclaim）。
-    "measured_directional_divergences": 106,
-    "measured_open_divergences": 28,
+    # 2026-08-02 A′裁决新增 open 码 observed_false_without_violation_basis 后
+    # 由 123/45/78/33 重算（07-27 那轮由 114/36 重算，沿革同形）。
+    "measured_directional_divergences": 156,
+    "measured_open_divergences": 78,
     "measured_blocked_divergences": 78,
-    "measured_nonconservative_tier": 25,
+    "measured_nonconservative_tier": 45,
     # 旧 overclaim 登记的 2 对（现仅作『真子集』佐证，证明它远非全部）。
     "legacy_overclaim_pairs": (
         ("open", "missing_fact", "missing_measurement"),

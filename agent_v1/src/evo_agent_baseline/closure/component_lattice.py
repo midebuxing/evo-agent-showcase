@@ -33,6 +33,53 @@ def canonical_hash(obj) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def validate_disjoint_pair_shapes(raw_disjoint) -> List[FrozenSet[str]]:
+    """disjoint 对形状校验(§2.3②):每对恰二元——拒自反(坍缩成单元素)与多单元素。
+
+    抽成独立函数供两处复用:本模块 `load_component_lattice`(共享本体 ingest)
+    与 `applicability_v3.load_bundle`(独立适用性包加载边界)——同一校验不复制
+    第二份(2026-07-27 护栏缺口 2:后者此前缺这道,自反对会让 early_exit 在
+    target == identity 时假阳性早退)。
+    """
+    pairs: List[FrozenSet[str]] = []
+    for p in raw_disjoint:
+        fs = frozenset(p)
+        if len(fs) != 2:
+            raise LatticeIngestError(f"disjoint 含自反或非二元对: {p}")
+        pairs.append(fs)
+    return pairs
+
+
+def _assert_subsumption_acyclic(subsumption: Dict[str, FrozenSet[str]]) -> None:
+    """subsumption 有向环检测(任意长度;二元环只是它的特例)。
+
+    2026-07-27 护栏缺口 1:原实现只拒二元环(A⇄B),A→B→C→A 会被接受,
+    祖先遍历(obligation_deriver)会把环上类型当有效祖先 ⇒ 错误绑定事实。
+    沿 parent→member 边做三色 DFS,发现回边即 hard-fail(同 LatticeIngestError 路径)。
+    """
+    _WHITE, _GRAY, _BLACK = 0, 1, 2
+    color: Dict[str, int] = {p: _WHITE for p in subsumption}
+
+    def _visit(node: str, stack: List[str]) -> None:
+        color[node] = _GRAY
+        stack.append(node)
+        for nxt in subsumption.get(node, ()):
+            if nxt not in subsumption:
+                continue  # 叶成员无出边
+            c = color[nxt]
+            if c == _GRAY:
+                cycle = stack[stack.index(nxt):] + [nxt]
+                raise LatticeIngestError(f"subsumption 成环: {' → '.join(cycle)}")
+            if c == _WHITE:
+                _visit(nxt, stack)
+        stack.pop()
+        color[node] = _BLACK
+
+    for parent in subsumption:
+        if color[parent] == _WHITE:
+            _visit(parent, [])
+
+
 def card_fingerprint_v1(card_obj: dict) -> str:
     """card_fingerprint.v1 = 哈希原始 rule_cards.json 单卡对象(非 KG 重建 DTO)。"""
     return canonical_hash(card_obj)
@@ -126,22 +173,43 @@ def load_component_lattice(
         raise LatticeIngestError(f"断言A失败: leaf/non_leaf 相交 {leaf & non_leaf}")
 
     # disjoint:C(leaf,2) 全覆盖 + 对称(frozenset 天然)+ 无自反(§2.3②)
-    pairs = set()
-    for p in raw_disjoint:
-        fs = frozenset(p)
-        if len(fs) != 2:
-            raise LatticeIngestError(f"disjoint 含自反或非二元对: {p}")
-        pairs.add(fs)
+    # 形状校验(恰二元/无自反)与 applicability_v3 加载边界共用同一函数,不复制第二份。
+    pairs = set(validate_disjoint_pair_shapes(raw_disjoint))
+    # 🔴 2026-07-26（DEBT-076）：原断言 `pairs != expected` ⇒ 要求 disjoint_pairs
+    # **恰好等于**叶的 C(n,2)。那锁死了「互斥只能在叶之间」这个旧假设，而裁定明确要求
+    # **支持跨层互斥**——实测 20,368 次配对冲突里大量是跨层（卡要 `structural_component`、
+    # 世界给 `drainage_component`），叶×叶全组合永远表达不了。
+    # 改为「叶全组合是**子集**（下界，词表结构决定，必须全覆盖）」；
+    # 跨层对是**人裁关系表**追加的，属正当扩充。
+    # ⚠️ 仍然拒绝**缺**叶对——那说明类型格生成有问题，不是扩充。
     expected = {frozenset(c) for c in itertools.combinations(leaf, 2)}
-    if pairs != expected:
-        raise LatticeIngestError("disjoint_pairs 未恰覆盖叶集 C(n,2)")
+    missing = expected - pairs
+    if missing:
+        raise LatticeIngestError(
+            f"disjoint_pairs 缺 {len(missing)} 组叶×叶互斥对（叶集 C(n,2) 必须全覆盖）")
+    for fs in pairs - expected:
+        a, b = tuple(fs)
+        if a not in (leaf | non_leaf) or b not in (leaf | non_leaf):
+            raise LatticeIngestError(f"跨层互斥对含词表外类型: {sorted(fs)}")
 
-    # subsumption:父∈non_leaf,成员⊆leaf
+    # subsumption:父∈non_leaf,成员∈词表值域（**可为非叶——允许多级**）
     for parent, members in subsumption.items():
         if parent not in non_leaf:
             raise LatticeIngestError(f"subsumption 父类 {parent} 非 non_leaf")
-        if not members <= leaf:
-            raise LatticeIngestError(f"subsumption 成员 {members - leaf} 非叶型")
+        # 🔴 2026-07-26（DEBT-076）：原断言 `members <= leaf` 锁死了单级假设。
+        # 实例：`transfer_structure`（非叶）is_a `structural_component`，依据
+        # §3.4.1(b)(vii) 結構構件檢驗項目明列「轉移構築物」。裁定明确允许多级
+        # （规格措辞是「**后代 → 祖先**」而非「叶 → 父」）。
+        # 这是同一旧假设在本仓的**第三处**（另两处：生成器 disjoint 自动全组合、
+        # 类型格测试的 == 断言）——**同一个假设散在三处，改一处不够。**
+        outside = members - (leaf | non_leaf)
+        if outside:
+            raise LatticeIngestError(f"subsumption 成员 {outside} 不在词表值域")
+        if parent in members:
+            raise LatticeIngestError(f"subsumption 自反: {parent}")
+
+    # 全图有向环检测(任意长度)——替代原二元环逐对检查(只拒 A⇄B、放过 A→B→C→A)。
+    _assert_subsumption_acyclic(subsumption)
 
     # 双快照哈希与当前源资产一致(§2.3①,漂移 → hard-fail)
     vocab_hash = canonical_hash(sorted(domain))

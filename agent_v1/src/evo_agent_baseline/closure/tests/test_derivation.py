@@ -84,8 +84,16 @@ def _thr(**kw):
 
 def _dl(**kw):
     """workflow_operands.deadlines[] 一项：补 WorkflowDeadlineDTO 必填 time_anchor_key。
-    默认锚 'anchor.none' 不命中任何事实（sidecar duration 槽绑定优先级高于 time_anchor，
-    见 obligation_deriver._bind_deadline_fact）→ 不改 float 绑定结果。"""
+
+    默认锚 'anchor.none' 不命中任何事实 → 用于 missing_time_anchor 类用例。
+    要让 deadline 真绑上事实的用例，**必须显式把 time_anchor_key 指到那条事实的槽**。
+
+    2026-07-27 修正：本 docstring 原文写的是「sidecar duration 槽绑定优先级高于
+    time_anchor → 不改 float 绑定结果」——那是在**把病灶当规格描述**。当时
+    `_bind_deadline_fact` 无条件遍历硬编码 duration 槽清单、不看 time_anchor_key，
+    于是 'anchor.none' 的用例照样能绑上 duration 事实。本文件两个用例因此在**只给
+    一条事实**的情形下恒绿（只有一个候选时塌缩不可见），而真实批 225/225 义务全部
+    绑到同一条无关事实。"""
     base = {"time_anchor_key": "anchor.none"}
     base.update(kw)
     return base
@@ -708,6 +716,8 @@ def test_deadline_within_satisfied():
                     relation="within",
                     offset_value=30,
                     offset_unit="day",
+                    # 锚点须指向被比较的那条 duration 事实（见 _dl docstring）。
+                    time_anchor_key="duration.submission.deadline",
                 )
             ]
         )
@@ -730,7 +740,14 @@ def test_deadline_within_violated():
     """within：observed_duration 40 > 30 → closed + violated。"""
     card = make_rule_card(
         workflow_operands=_wf(
-            deadlines=[_dl(deadline_id="D1", relation="within", offset_value=30)]
+            deadlines=[
+                _dl(
+                    deadline_id="D1",
+                    relation="within",
+                    offset_value=30,
+                    time_anchor_key="duration.notification.deadline",
+                )
+            ]
         )
     )
     facts = [
@@ -770,8 +787,17 @@ def test_deadline_unsupported_relation_blocked():
     assert dl.blocked_reason_code == "unsupported_deadline_relation"
 
 
-def test_deadline_same_day_as_truthy():
-    """same_day_as：precomputed boolean truthy → satisfied。"""
+def test_deadline_same_day_as_zero_day():
+    """same_day_as：已歷时长 == 0 日 → satisfied；非零 → violated。
+
+    2026-08-05（期限锚供给案 R1）改判据。**本用例的前身是把病灶当规格写的**：
+    原用例喂一条 `value=True` 的布尔、断言 satisfied，因为改前该分支走
+    `_canon_truthy(observed)`。而世界侧承载「同日送交」的是已歷日数——
+    `_canon_truthy(0.0) is False` / `_canon_truthy(1.0) is True` ⇒
+    合规判 violated、违规判 satisfied，**恰好相反**（决议 §一.1）。
+    现在布尔输入落 open/missing_time_anchor（不可比，诚实不判），
+    覆盖见 `test_deadline_anchor_supply.py`。
+    """
     card = make_rule_card(
         workflow_operands=_wf(
             deadlines=[
@@ -783,17 +809,27 @@ def test_deadline_same_day_as_truthy():
             ]
         )
     )
-    facts = [
-        make_fact(
-            "F1",
-            slot_id="anchor.visit",
-            value=True,
-            value_type="boolean",
-            carrier_type="sidecar_entry",
-        )
-    ]
-    dl = _by_kind(_obls(card, facts), "deadline")[0]
-    assert dl.satisfaction_status == "satisfied"
+
+    def _run(value):
+        facts = [
+            make_fact(
+                "F1",
+                slot_id="anchor.visit",
+                value=value,
+                value_type="number",
+                carrier_type="sidecar_entry",
+            )
+        ]
+        return _by_kind(_obls(card, facts), "deadline")[0]
+
+    same_day = _run(0.0)
+    assert same_day.closure_status == "closed"
+    assert same_day.satisfaction_status == "satisfied"
+    assert same_day.operator == "=="
+
+    next_day = _run(1.0)
+    assert next_day.closure_status == "closed"
+    assert next_day.satisfaction_status == "violated"
 
 
 # ===================================================================== #
@@ -915,8 +951,9 @@ def test_refine_action_kind():
 # §6.3.10.4 node-level：prohibition / 纯判断动作
 # ===================================================================== #
 def test_node_prohibition_violated():
-    """prohibition node：prohibited fact truthy → closed + violated。"""
+    """prohibition node：声明的主证据槽 truthy → closed + violated。"""
     card = make_rule_card(
+        slot_role_map=[_srole("SR.prohibited", "work.unauthorized.present")],
         obligation_graph={
             "nodes": [
                 {
@@ -931,7 +968,7 @@ def test_node_prohibition_violated():
     facts = [
         make_fact(
             "F1",
-            slot_id="unauthorized_change",
+            slot_id="work.unauthorized.present",
             value=True,
             value_type="boolean",
         )
@@ -943,10 +980,14 @@ def test_node_prohibition_violated():
     ][0]
     assert node_obl.closure_status == "closed"
     assert node_obl.satisfaction_status == "violated"
+    assert node_obl.slot_ref_ids == ["SR.prohibited"]
+    assert node_obl.slot_ids == ["work.unauthorized.present"]
+    assert node_obl.evidence_fact_ids == ["F1"]
+    assert "satisfaction_bindings" in node_obl.notes
 
 
 def test_node_action_not_fact_bound_open():
-    """node action 无可绑定 fact → open + missing_fact，notes=action_not_fact_bound。"""
+    """卡侧没声明满足通道 → 明确拒绝，不能把 action 猜成事实槽。"""
     card = make_rule_card(
         obligation_graph={
             "nodes": [
@@ -963,5 +1004,187 @@ def test_node_action_not_fact_bound_open():
         o for o in _obls(card) if o.obligation_node_id == "N1"
     ][0]
     assert node_obl.closure_status == "open"
-    assert node_obl.open_reason_code == "missing_fact"
-    assert "action_not_fact_bound" in node_obl.notes
+    assert node_obl.open_reason_code == "missing_satisfaction_binding"
+    assert "satisfaction_binding_missing" in node_obl.notes
+
+
+def test_node_action_uses_declared_evidence_slot_not_action_name():
+    """动作词与槽名不同：只按卡中 evidence 通道绑定。"""
+    card = make_rule_card(
+        slot_role_map=[_srole("SR.defect", "defect.class.present")],
+        obligation_graph={
+            "nodes": [{
+                "obligation_node_id": "N1", "node_kind": "obligation",
+                "actor": "ri", "action": "identify_defect",
+            }]
+        },
+    )
+    node_obl = [
+        o for o in _obls(
+            card,
+            [make_fact("F1", slot_id="defect.class.present", value=True,
+                       value_type="boolean")],
+        ) if o.obligation_node_id == "N1"
+    ][0]
+    assert (node_obl.closure_status, node_obl.satisfaction_status) == (
+        "closed", "satisfied"
+    )
+    assert node_obl.slot_ref_ids == ["SR.defect"]
+    assert node_obl.slot_ids == ["defect.class.present"]
+    assert node_obl.evidence_fact_ids == ["F1"]
+
+
+def test_node_action_declared_evidence_false_is_violated():
+    """已声明证据明确为假才判 violated；不是“找不到就放过”。"""
+    card = make_rule_card(
+        slot_role_map=[_srole("SR.scope", "scope.component.covered")],
+        obligation_graph={
+            "nodes": [{
+                "obligation_node_id": "N1", "node_kind": "obligation",
+                "actor": "ri", "action": "inspect",
+            }]
+        },
+    )
+    node_obl = [
+        o for o in _obls(
+            card,
+            [make_fact("F1", slot_id="scope.component.covered", value=False,
+                       value_type="boolean")],
+        ) if o.obligation_node_id == "N1"
+    ][0]
+    assert (node_obl.closure_status, node_obl.satisfaction_status) == (
+        "closed", "violated"
+    )
+
+
+def test_node_action_declared_evidence_missing_stays_open():
+    """通道已声明但事实缺失 → open+missing_fact。"""
+    card = make_rule_card(
+        slot_role_map=[_srole("SR.scope", "scope.component.covered")],
+        obligation_graph={
+            "nodes": [{
+                "obligation_node_id": "N1", "node_kind": "obligation",
+                "actor": "ri", "action": "inspect",
+            }]
+        },
+    )
+    node_obl = [o for o in _obls(card) if o.obligation_node_id == "N1"][0]
+    assert (node_obl.closure_status, node_obl.open_reason_code) == (
+        "open", "missing_fact"
+    )
+
+
+def test_node_action_multiple_evidence_slots_are_conjunctive():
+    """两个必需 evidence 通道按合取：一条缺失不能关闭主义务。"""
+    card = make_rule_card(
+        slot_role_map=[
+            _srole("SR.a", "evidence.a.present"),
+            _srole("SR.b", "evidence.b.present"),
+        ],
+        obligation_graph={
+            "nodes": [{
+                "obligation_node_id": "N1", "node_kind": "obligation",
+                "actor": "ri", "action": "inspect",
+            }]
+        },
+    )
+    one = [
+        o for o in _obls(
+            card,
+            [make_fact("F1", slot_id="evidence.a.present", value=True,
+                       value_type="boolean")],
+        ) if o.obligation_node_id == "N1"
+    ][0]
+    assert (one.closure_status, one.open_reason_code) == ("open", "missing_fact")
+    both = [
+        o for o in _obls(
+            card,
+            [
+                make_fact("F1", slot_id="evidence.a.present", value=True,
+                          value_type="boolean"),
+                make_fact("F2", slot_id="evidence.b.present", value=True,
+                          value_type="boolean"),
+            ],
+        ) if o.obligation_node_id == "N1"
+    ][0]
+    assert (both.closure_status, both.satisfaction_status) == ("closed", "satisfied")
+
+
+def test_node_action_qualifier_mismatch_is_blocked():
+    """槽名存在但限定符不匹配 → blocked，不跨对象借事实。"""
+    card = make_rule_card(
+        slot_role_map=[
+            _srole(
+                "SR.scope", "scope.component.covered",
+                qualifiers={"component_type_key": "wall"},
+            )
+        ],
+        obligation_graph={
+            "nodes": [{
+                "obligation_node_id": "N1", "node_kind": "obligation",
+                "actor": "ri", "action": "inspect",
+            }]
+        },
+    )
+    node_obl = [
+        o for o in _obls(
+            card,
+            [make_fact(
+                "F1", slot_id="scope.component.covered", value=True,
+                value_type="boolean", qualifiers={"component_type_key": "beam"},
+            )],
+        ) if o.obligation_node_id == "N1"
+    ][0]
+    assert (node_obl.closure_status, node_obl.blocked_reason_code) == (
+        "blocked", "qualifier_conflict"
+    )
+
+
+def test_trigger_role_and_action_named_fact_cannot_close_node():
+    """trigger 只负责激活；即使事实槽恰与 action 同名，也不能冒充满足证据。"""
+    card = make_rule_card(
+        slot_role_map=[
+            _srole("SR.trigger", "inspect", role="trigger", required=True)
+        ],
+        obligation_graph={
+            "nodes": [{
+                "obligation_node_id": "N1", "node_kind": "obligation",
+                "actor": "ri", "action": "inspect",
+            }]
+        },
+    )
+    node_obl = [
+        o for o in _obls(
+            card,
+            [make_fact("F1", slot_id="inspect", value=True, value_type="boolean")],
+        ) if o.obligation_node_id == "N1"
+    ][0]
+    assert (node_obl.closure_status, node_obl.open_reason_code) == (
+        "open", "missing_satisfaction_binding"
+    )
+
+
+def test_multi_node_card_level_evidence_is_not_guessed_per_node():
+    """卡级 evidence 没有 node 外键时，不能用同一事实同时关闭多个 node。"""
+    card = make_rule_card(
+        slot_role_map=[_srole("SR.shared", "evidence.shared.present")],
+        obligation_graph={
+            "nodes": [
+                {"obligation_node_id": "N1", "node_kind": "obligation",
+                 "actor": "ri", "action": "inspect"},
+                {"obligation_node_id": "N2", "node_kind": "obligation",
+                 "actor": "ri", "action": "report"},
+            ]
+        },
+    )
+    nodes = [
+        o for o in _obls(
+            card,
+            [make_fact("F1", slot_id="evidence.shared.present", value=True,
+                       value_type="boolean")],
+        ) if o.obligation_node_id in {"N1", "N2"}
+    ]
+    assert len(nodes) == 2
+    assert {
+        (o.closure_status, o.open_reason_code) for o in nodes
+    } == {("open", "missing_satisfaction_binding")}

@@ -1,0 +1,62 @@
+{
+  "schema_version": "truth_modeling_gap_adjudications_v1",
+  "purpose": "DEBT-080 可疑真值项的逐条人裁登记。审计器据此把「可疑」拆成「已裁定/未裁定」，让指标可收敛。",
+  "authority_note": "裁定依据一律取中文正文 agent_v1/regulations/markdown/MBIS_CoP_2023.md；英文 source_quote 是译文、无效力证据力。",
+  "scope_note": "本表只登记 reason 的正确性裁定。**没有任何一条改动 applicable（verdict）**——8 条 verdict 经逐条对原文核后全部站得住。",
+  "adjudicated_on": "2026-07-29",
+  "evidence_batch": "phase_f_verify_seed301_20260729",
+  "items": [
+    {
+      "normative_item_id": "mbis.cop2023.s3_2_3.refer_to_op_date_if_no_approved_plans",
+      "verdict_holds": true,
+      "reason_status": "stands",
+      "basis": "原文「如註冊檢驗人員未能取得經批准的圖則，便須參考佔用許可證…」——前件是「能否取得經批准的圖則」。世界 194 个槽逐一核过，无此谓词；最接近的 artifact.plan.annotated 是註冊檢驗人員**自己产出**的注释图则（30 栋 120 条），不是「向屋宇署索取经批准图则是否成功」。"
+    },
+    {
+      "normative_item_id": "mbis.cop2023.s5_1_6.obtain_ba_approval_and_consent",
+      "verdict_holds": true,
+      "reason_status": "stands",
+      "basis": "原文「如屬其他類型的糾正或修葺工程，則須事先獲得建築事務監督批准圖則及同意展開工程」——前件是**工程类型**。世界无工程类型谓词；authorization_status_proxy（7 栋 7 条，取值 unauthorized_like/unknown_authorization/authorized_like）是**僭建物**授权状态，不是工程类型。"
+    },
+    {
+      "normative_item_id": "mbis.cop2023.s5_1_6.ri_coordinate_mbis_requirements",
+      "verdict_holds": true,
+      "reason_status": "stands",
+      "basis": "同 s5_1_6.obtain_ba_approval_and_consent：原文「負責監督修葺工程的註冊檢驗人員仍須作出統籌」中的「仍須」承接同一「如屬其他類型」前件。"
+    },
+    {
+      "normative_item_id": "mbis.cop2023.s2_1_3_t.comply_with_minor_works_or_approval_procedures",
+      "verdict_holds": true,
+      "reason_status": "stands",
+      "basis": "原文「如樓宇修葺工程屬指定的小型工程，或涉及工程須按《建築物條例》事先獲得建築事務監督批准圖則及同意展開工程…」——前件同为工程类型，世界不产。"
+    },
+    {
+      "normative_item_id": "mbis.cop2023.s2_1_3_j.notify_ba_of_nomination_mbi2",
+      "verdict_holds": true,
+      "reason_status": "corrected",
+      "basis": "原 reason 称「世界模型从未产出记录该前件的谓词」与事实不符——世界产出 procedure.temp_ri_nomination.completed，覆盖 30/30 栋。改判依据换成三分判据的另一支：**全批取真楼数 == 0**（30/30 恒假）⇒ 无真负样本 ⇒ 仍属建模缺口 ⇒ verdict 不变。",
+      "corrected_on": "2026-07-29"
+    },
+    {
+      "normative_item_id": "mbis.cop2023.s4_1_1.consider_di_when_extent_or_cause_undeterminable",
+      "verdict_holds": true,
+      "reason_status": "corrected",
+      "basis": "同上形态：世界产出 defect.cause_or_extent.uncertain（30 栋 120 条），但**120/120 恒假** ⇒ 无真负样本 ⇒ 仍属建模缺口 ⇒ verdict 不变。",
+      "corrected_on": "2026-07-29"
+    },
+    {
+      "normative_item_id": "mbis.cop2023.s4_2_3.no_di_before_ba_endorsement",
+      "verdict_holds": true,
+      "reason_status": "corrected",
+      "basis": "原 reason 三处都错：(a) **情形号错**——原标情形 3（条件句·建模缺口），而原文「詳細調查建議在未獲建築事務監督認可前，**不得**進行」是**禁止性规范、恒适用**，属情形 1；(b) 把「註冊檢驗人員有意／決定進行詳細調查」写成前件，而禁止性规范不以行为意向为前提，根本没有这个前件；(c) 世界确实产出意向谓词（artifact.notice.investigation_intention 取真 21/30 栋、procedure.investigation.intention_notified 取真 3/30 栋）。verdict 不变。⚠️ (a) 是既有测试 test_every_reason_has_circumstance_marker 抓出来的——我改 reason 时把情形标记一并丢了，回头看才发现情形号本身也是错的。",
+      "corrected_on": "2026-07-29"
+    },
+    {
+      "normative_item_id": "mbis.cop2023.s4_1_1.consider_di_when_abnormal_defect_threatens_stability_or_health",
+      "verdict_holds": true,
+      "reason_status": "corrected",
+      "basis": "结论成立、论据错。原 reason 把前件归类成「註冊檢驗人員的程序意向／文件可得性」，实际它是**缺陷的物理性质**：原文「如發現欠妥之處並非由正常衰壞產生，且會引致結構不穩或嚴重健康威脅」。世界无精确谓词——A 半（是否正常衰壞）最近载体 mechanism_family/cause_tags 只记劣化机理族、不标注是否正常衰壞；B 半最近载体 risk.building_safety.emergency / risk.public_health.emergency 记的是**緊急情況**，门槛高于「結構不穩」。",
+      "corrected_on": "2026-07-29"
+    }
+  ]
+}

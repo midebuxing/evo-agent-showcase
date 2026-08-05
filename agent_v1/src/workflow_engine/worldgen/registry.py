@@ -1506,6 +1506,77 @@ def _build_registry_bundle() -> RegistryBundle:
                     ],
                     "specialized_domains": [],
                 },
+                # ── 验收③ 队列 1′ 甲-b（2026-07-29）：补上三类**池里实存却无模板**的构件 ──
+                #
+                # 病：`component_type_registry` 有 19 类，而片段模板只覆盖 8 类。
+                # `balcony_slab` / `parapet_wall` / `signboard` 在池里**各有 5 个真实组件**
+                # （分别落在沿海复合塔 ×5、沿海复合塔 ×5、混合用途高层 ×5），
+                # 但没有任何模板 ⇒ **从来产不出片段** ⇒ 针对这些构件类的卡产不出
+                # 作用域内义务 ⇒ 阅卷记漏（实测 15 个 (楼,构件类) 格）。
+                #
+                # ⚠️ 判据仍是「**楼内已存在的构件类**至少产一个片段」这条组件层完整性规则，
+                #    **不是**「按漏掉的规范项补模板」。三类都在守则正文里被明文纳入检验范围：
+                #      · 露台   §3.4.2(B)(a)「簷篷及**露台**等懸臂式伸出構築物均存在高風險，須予以檢驗」
+                #      · 護牆   结构构件清单「(ix) 防護欄障、扶欄、**護牆**及欄杆」；
+                #               另 §3.x「經改動的外牆或**護牆**」
+                #      · 招牌   §1.3「…以及**豎設在樓宇上的招牌**」明列入强制验楼范围
+                #
+                # 取值全部取自池里这些组件的**实测**属性（面积/长度/位置类），不是编的：
+                #   balcony_slab  balcony_line   5.2–46.0 m²  1.1–7.6 m
+                #   parapet_wall  roof_edge     30.3–65.7 m² 12.3–35.6 m
+                #   signboard     external_wall 23.5–160.3 m² 12.2–28.3 m
+                {
+                    "fragment_template_id": "FT_BALCONY_SLAB_V1",
+                    "building_template_id": "BT_HK_COASTAL_COMPOSITE_TOWER_RC_V1",
+                    "component_type": "balcony_slab",
+                    "location_class": "balcony_line",
+                    "area_range": [5.0, 50.0],
+                    "length_range": [1.0, 8.0],
+                    "allowed_driver_profiles": ["DRV_STRUCTURAL_DETERIORATION_V1"],
+                    "allowed_mechanisms": ["corrosion_spall", "structural_crack"],
+                    "measurement_branches": [
+                        "defect_geometry_measurement",
+                        "coverage_sampling_measurement",
+                        "structural_assessment_measurement",
+                    ],
+                    "specialized_domains": [],
+                },
+                {
+                    "fragment_template_id": "FT_PARAPET_WALL_V1",
+                    "building_template_id": "BT_HK_COASTAL_COMPOSITE_TOWER_RC_V1",
+                    "component_type": "parapet_wall",
+                    "location_class": "roof_edge",
+                    "area_range": [30.0, 70.0],
+                    "length_range": [12.0, 36.0],
+                    "allowed_driver_profiles": ["DRV_STRUCTURAL_DETERIORATION_V1"],
+                    "allowed_mechanisms": ["structural_crack", "corrosion_spall"],
+                    "measurement_branches": [
+                        "defect_geometry_measurement",
+                        "structural_assessment_measurement",
+                    ],
+                    "specialized_domains": [],
+                },
+                {
+                    # 招牌：守则把它与「僭建物」放在同一治理面（§1.3 明列入范围；
+                    # §3.4.2(B)(c) 另有「豎設於簷篷之上…的僭建物」），故除结构劣化外
+                    # 允许 ubw 机制；specialized_domains 带 ubw 以接僭建物专项状态。
+                    "fragment_template_id": "FT_SIGNBOARD_V1",
+                    "building_template_id": "BT_HK_MIXED_USE_HIGHRISE_TOWER_RC_V1",
+                    "component_type": "signboard",
+                    "location_class": "external_wall",
+                    "area_range": [20.0, 170.0],
+                    "length_range": [12.0, 30.0],
+                    "allowed_driver_profiles": [
+                        "DRV_STRUCTURAL_DETERIORATION_V1",
+                        "DRV_ALTERATION_AND_FIRE_V1",
+                    ],
+                    "allowed_mechanisms": ["corrosion_spall", "ubw_signal"],
+                    "measurement_branches": [
+                        "defect_geometry_measurement",
+                        "coverage_sampling_measurement",
+                    ],
+                    "specialized_domains": ["ubw"],
+                },
                 {
                     "fragment_template_id": "FT_EXT_WALL_CRACK_COVERED_V1",
                     "building_template_id": "BT_HK_MIXED_USE_HIGHRISE_TOWER_RC_V1",
@@ -2754,6 +2825,15 @@ def _build_registry_bundle() -> RegistryBundle:
                 {
                     "slot_id": "duration.delivery.deadline.to_person",
                     "measurement_family": "procedure_duration",
+                    # 🔴 乙12 甲案（换池捆绑批 2026-08-05；三线全票甲：
+                    # `审核结果_{official,qwen,glm}_期限锚实施_20260805.md`）：
+                    # 「同日送交完工報告副本」是**楼级一次性行政事件**（spec §3.1 形），
+                    # 逐碎片抽是历史建模走样。改楼级前每栋发 7–8 行，#12 的 60 条
+                    # **楼级作用域**义务在主 fact_index 里看到多行同锚 ⇒ 碰撞策略触发
+                    # ⇒ 60/60 落 `blocked / ambiguous_fact_binding`、零确定判定。
+                    # 改楼级后逐（楼,锚）恰 1 行 ⇒ 命中唯一 ⇒ 绑得上。
+                    # ⚠️ 这是**换池级**改动（本槽行数与取值都变），故只许随换池批落。
+                    "granularity": "building",
                     "value_type": "int",
                     "unit": "day",
                     "physical_bounds": [0, 14],
@@ -2765,16 +2845,33 @@ def _build_registry_bundle() -> RegistryBundle:
                     ],
                     "aliases": ["duration.delivery.lag.to_person_after_ba_submission"],
                     # DEBT-020 Round 7 §2 confirmed: same_day_as / ==0 calendar day relative to
-                    # BA submission date (NOT repair completion date). time_anchor =
-                    # repair.completion_report_and_mbi4.submitted_to_ba.
+                    # BA submission date (NOT repair completion date).
+                    # 🔴 R5 对齐（期限锚供给案 2026-08-05，决议 §四.2）：锚名原写
+                    # `repair.completion_report_and_mbi4.submitted_to_ba` —— 该字符串
+                    # **不在** `time_anchor_registry_v1.json` 的 19 条锚点册里，是世界侧孤儿；
+                    # 卡侧 15 个锚点全部在册，其中对应的一条是
+                    # `repair.completion_report.submitted_to_ba`。错的是世界侧这一方，故改这里
+                    # （registry.py 是世界侧代码、不是权威卡包，不触发卡指纹链重建）。
+                    # 该字段在 provenance 绑定通道接上之前不承载任何东西，接上之后失配是**静默**的
+                    # ⇒ 改名与接线同一步落，并由 `worldgen/tests/test_deadline_anchor_emission.py`
+                    # 的静态闸（全部 time_anchor_key ∈ 锚点册）挡住再犯，不靠注意力。
+                    # 同批对齐 `unit`：世界侧原写 `calendar_day`、卡侧写 `day`；
+                    # 通道接上前该不一致隐形，接上后会立刻变成判据分歧。
                     "rule_card_threshold": {
                         "relation": "same_day_as",
                         "operator": "==",
                         "value": 0,
-                        "unit": "calendar_day",
-                        "time_anchor_key": "repair.completion_report_and_mbi4.submitted_to_ba",
+                        "unit": "day",
+                        "time_anchor_key": "repair.completion_report.submitted_to_ba",
                         "recipient_qualifier": {
-                            "actor_role_key": "owner_or_person_for_whom_prescribed_repair_is_carried_out",
+                            # 🔴 2026-08-03 拆合并词：原值 `owner_or_person_for_whom_...`
+                            # 的 `owner_or_` 前缀**无依据**——本条自己引的 §2.1.3(r)
+                            # 只点名「該名由他人代為進行訂明修葺的人」一方，没有「業主」，
+                            # 槽名本身也叫 `to_person`。裁定出处：
+                            # `团队文档/我的笔记/规格_reporting三根轴世界侧补产_v1_20260803.md` §3.6
+                            # （对中文正文逐字核过）。合并词现只存在于
+                            # `actor_role_crosswalk.FORBIDDEN_MERGED_TERMS`（出现即报错）。
+                            "actor_role_key": "person_for_whom_prescribed_repair_is_carried_out",
                         },
                     },
                     "cop_section": "MBIS_CoP_2023 §2.1.3(r)",
@@ -2782,8 +2879,23 @@ def _build_registry_bundle() -> RegistryBundle:
                         "completion report / MBI4 已提交或签发给 BA 的同日, deliver copy / relevant document "
                         "to the person for whom prescribed repair is carried out. "
                         "Round 7 §2 已确认 anchor = BA submission date, NOT repair completion date."
+                        "\n📌 **口径（乙12 甲案落地后重述，决议_分布授权 §二.1）**："
+                        "实测 P(值=0)=0.5161 现在是**每栋楼的合规率**（n=30 ⇒ 期望 15.5 栋合规 ／ "
+                        "14.5 栋违规）；改楼级**之前**的 107/206 是**每行占比**，且那 206 行"
+                        "从未产出过任何判定（60 条义务全落 `ambiguous_fact_binding`）。"
+                        "⛔ 绝不能把「每碎片 52%」乘起来当楼级合规率（0.52⁷≈1%）——"
+                        "碎片行本来就不是这个事件的合法模型，那正是甲案要修的东西。"
+                        "\n📌 **参数一个不改**：0.45/1.15 描述的是「**一次**同日送交事件的已歷日數」，"
+                        "与一栋楼抽几次无关；0.5161 是 clip+round 的**派生结果**，不是被授权的 π0。"
                     ),
-                    "recommended_distribution": "zero_inflated_discrete",  # → normal in normalize
+                    # 🔴 标签修正（决议_分布授权 §二.1，零采样影响）：原写
+                    # `zero_inflated_discrete`，但本条**没有** `calib_zero_prob`
+                    # ⇒ `_sample_typical_distribution` 的零膨胀分支根本不进，
+                    # 实际就是按 `normal` 采的。留着这个标签会让下一个读者第二次得出
+                    # 「本条有 π0=0.52 的零膨胀」这个错误结论（2026-08-05 草案 Q2 已因此错过一次）。
+                    # 两个名字都被 `_normalize_distribution_name` 映射到 `normal` ⇒ 采样值逐字节相同；
+                    # 唯一副作用是发射行 notes 里的 `distribution=<名字>` 文本变化。
+                    "recommended_distribution": "rounded_truncated_normal",
                     "recommended_mean": 0.45,
                     "recommended_sigma": 1.15,
                     "typical_bounds": [0, 3],
@@ -2796,6 +2908,18 @@ def _build_registry_bundle() -> RegistryBundle:
                 {
                     "slot_id": "duration.delivery.deadline.to_ba",
                     "measurement_family": "procedure_duration",
+                    # 🔴 与 `.to_person` **同批楼级化**（换池捆绑批 2026-08-05 裁定）：
+                    # 两槽同属 §2.1.3(r) 的楼级一次性行政事件（呈交完工報告及 MBI4 ／
+                    # 同日送交副本），留半个同类错位没有道理（qwen 审核建议、glm 同意）。
+                    # ⚠️ glm 曾以「#8 碎片作用域会同时看到楼级行 + 本碎片行 ⇒ 命中 2 条
+                    # ⇒ ambiguous」反对——**该理由在代码上不成立**（官方线证伪）：
+                    # `sidecar.py` 对 `granularity=="building"` 的数值槽**直接跳过逐片段路径**
+                    # ⇒ 改楼级后根本不存在碎片行；碎片索引按 `fragment_id in (None, fid)` 过滤，
+                    # 只会看到那 1 条楼级行 ⇒ 命中 1 条 ⇒ 照样绑得上。
+                    # 附带收益：#8 的 93 条碎片作用域义务改绑同一条楼级行后，
+                    # **每栋内判定一致**（原先逐碎片独立采样，机制上允许同一栋楼同一个
+                    # 「送交 BA」事件跨碎片判出不一致）。
+                    "granularity": "building",
                     "value_type": "int",
                     "unit": "day",
                     "physical_bounds": [0, 60],
@@ -2856,6 +2980,370 @@ def _build_registry_bundle() -> RegistryBundle:
                     "recommended_sigma": 1.9,
                     "typical_bounds": [2, 21],
                     "distribution_source": "proagent_engineering_estimate_DEBT020_round3_2026_05_08_audit_finding_rulecard_missing_threshold",
+                },
+                # ============================================================ #
+                # 期限锚 duration 槽（期限锚供给案，2026-08-05，决议 §四.3）
+                # ============================================================ #
+                # 权威依据：`团队文档/我的笔记/决议_期限锚_20260805.md`。
+                #
+                # **量的定义（八条统一）**：「自 `rule_card_threshold.time_anchor_key`
+                # 所指的锚点事件发生起，至本条义务所要求的动作实际完成为止，已歷的日历日数」。
+                # 这正是 sidecar numeric duration 能表达的量——中文守则原文的起算措辞是
+                # 「…**後** N 日內」（过去事件 ⇒ 已歷时长），不是「…前 N 日」（未来事件的提前量，
+                # 那类见 `FORBIDDEN_DEADLINE_ANCHOR_SUPPLY` 丙类禁供）。
+                #
+                # **粒度＝building（形态 C）**：这八个都是**楼级一次性行政事件**
+                # （委任 / 提名 / 終止 / 呈交 / 送交），不随部位变。
+                # 🔴 声明 `granularity: "building"` ⇒ 走 `sidecar.py` 的
+                # `_sample_building_deadline_anchor_facts` 独立追加步骤，
+                # 逐（楼,锚）**恰 1 行**、`qualifiers` 只带 `carrier_domain` + `granularity`，
+                # **绝不打 `aggregation` 标记**。
+                # 打了标记的后果是实测过的（E1 实验 A3 臂，全批 30 栋）：
+                # `validator._fragment_index` 按 §3.2 设计把带标记的行排除出碎片索引，
+                # 碎片作用域的期限义务 **107/107 一条都救不回**。
+                # 且语义上打标记本身就是错用——聚合标记的语义是「派生聚合读数不得冒充
+                # 部位原值」，行政事件根本没有可被冒充的部位原值
+                # （`复核_发射形态C_{official,qwen}_20260805.md` 两线复核「不违背」）。
+                #
+                # **分布已授权定稿**（`团队文档/我的笔记/决议_分布授权_20260805.md` §一，
+                # 2026-08-05 两线商议合成；换池捆绑批同批落）。占位标
+                # `PLACEHOLDER_pending_distribution_authorization_20260805` 已全部撤除。
+                #
+                # 🔴 **档位＝工程估计，不是标定、不是实测**：
+                # 本组合规率（通知/呈交族 ≈85%）继承自 DEBT-020 round3 对同族行政通知时长的
+                # 工程估计，**不反映香港真实合规率**，也**不是标定目标**——本组槽不进 5-bin
+                # 投影层（层一实测 `threshold pass_bool` 逐行差异 0/6707），故
+                # `duration.notification.deadline` 的 S2.5 标定档（4.1/1.9，模拟 96.3%）
+                # **对本组不适用**（照抄它在 n=30 下「六个通知槽至少一槽整批零违规」概率 0.90，
+                # 违反「分布须覆盖合规与违规两侧」约束）。该 85% 唯一承担的功能是
+                # **让合规与违规两侧在 n=30 的楼级样本里都有代表**（P(整批零违规)=0.008）。
+                #
+                # `physical_bounds` **本次一律不动**（甲类 [0,60] ／ 乙11 [0,30]）：
+                # 采样先 clip 到 `typical_bounds` 再 clip 到 physical，typical 上界 20 < 30
+                # ⇒ 两种 physical 上界对采样值逐字节无差别。
+                # ⚠️ 决议 §一表的「typical / physical」列把 physical 写成 [0,30]，与同决议
+                # 委托的逐槽替换文本（官方线商议 §六「physical_bounds 全部不动」）不一致；
+                # 按委托条款取后者，差异对采样零影响（记于实施记录）。
+                #
+                # **不在这里的锚点**（别当遗漏）：
+                # - #5 `inspection.prescribed.completed` / #6 `inspection.report.submitted_to_ba`
+                #   —— §2.1.3(o) 四卡簇挂裁定（决议 §一.5）：`evaluate_deadline` 不读
+                #   `offset_unit`（#6 是全部 25 条 deadline 里唯一的「個月」），且原文
+                #   「以較早者為準」是双锚 min 语义、`deadlines` 契约无此形状——
+                #   单供 #6 而 #15 无供给 ＝ 双锚降单锚 ＝ 造假 satisfied。
+                # - #8 `repair.prescribed.completed` / #12 `repair.completion_report.submitted_to_ba`
+                #   —— 复用既有槽 `duration.delivery.deadline.to_ba` / `.to_person`
+                #   （两槽的 `rule_card_threshold.time_anchor_key` 早已登记，
+                #   本单只把该登记回写进发射的载体，不新增条目、不改既有采样）。
+                # - 丙类三锚 —— 见 `FORBIDDEN_DEADLINE_ANCHOR_SUPPLY`。
+                {
+                    # 甲 #1 ── §2.1.3(i) L858：「於獲委任日期後7日內，以指明的表格
+                    # （表格MBI1）通知建築事務監督其已獲委任為註冊檢驗人員；」
+                    "slot_id": "duration.notification.appointment_ri.to_ba",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 60],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.ri.appointment.completed",
+                    "rule_basis_refs": ["MBIS COP 2023 §2.1.3(i)"],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "within",
+                        "operator": "<=",
+                        "value": 7,
+                        "unit": "day",
+                        "time_anchor_key": "appointment.ri.made",
+                    },
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(i)",
+                    "semantic_note": (
+                        "自 RI 獲委任之日起，至以表格 MBI1 通知建築事務監督為止的已歷日數。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 4.8,
+                    "recommended_sigma": 2.6,
+                    "typical_bounds": [0, 20],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_from_proagent_DEBT020_round3_notification_family_pre_S2_5",
+                },
+                {
+                    # 甲 #2 ── §2.1.3(j)：「於提名日期後7日內」
+                    "slot_id": "duration.notification.nomination_temp_ri.to_ba",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 60],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.temp_ri_nomination.completed",
+                    "rule_basis_refs": ["MBIS COP 2023 §2.1.3(j)"],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "within",
+                        "operator": "<=",
+                        "value": 7,
+                        "unit": "day",
+                        "time_anchor_key": "nomination.temporary_ri.made",
+                    },
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(j)",
+                    "semantic_note": (
+                        "自臨時註冊檢驗人員獲提名之日起，至通知建築事務監督為止的已歷日數。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 4.8,
+                    "recommended_sigma": 2.6,
+                    "typical_bounds": [0, 20],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_from_proagent_DEBT020_round3_notification_family_pre_S2_5",
+                },
+                {
+                    # 甲 #3 ── §2.1.3(k)：「於終止提名日期後7日內」
+                    "slot_id": "duration.notification.nomination_temp_ri_terminated.to_ba",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 60],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.temp_ri_nomination.terminated",
+                    "rule_basis_refs": ["MBIS COP 2023 §2.1.3(k)"],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "within",
+                        "operator": "<=",
+                        "value": 7,
+                        "unit": "day",
+                        "time_anchor_key": "nomination.temporary_ri.terminated",
+                    },
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(k)",
+                    "semantic_note": (
+                        "自終止臨時註冊檢驗人員提名之日起，至通知建築事務監督為止的已歷日數。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 4.8,
+                    "recommended_sigma": 2.6,
+                    "typical_bounds": [0, 20],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_from_proagent_DEBT020_round3_notification_family_pre_S2_5",
+                },
+                {
+                    # 甲 #4 ── §2.1.3(l)：「於終止擔任註冊檢驗人員日期後7日內」
+                    "slot_id": "duration.notification.role_ri_terminated.to_ba",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 60],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.ri_role.terminated",
+                    "rule_basis_refs": ["MBIS COP 2023 §2.1.3(l)"],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "within",
+                        "operator": "<=",
+                        "value": 7,
+                        "unit": "day",
+                        "time_anchor_key": "role.ri.terminated",
+                    },
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(l)",
+                    "semantic_note": (
+                        "自終止擔任註冊檢驗人員之日起，至通知建築事務監督為止的已歷日數。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 4.8,
+                    "recommended_sigma": 2.6,
+                    "typical_bounds": [0, 20],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_from_proagent_DEBT020_round3_notification_family_pre_S2_5",
+                },
+                {
+                    # 甲 #7 ── §2.1.3(p)：「須於該事情顯露或該情況發生後7日內」
+                    "slot_id": "duration.submission.repair_revision.to_ba",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 60],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.repair.revision_required",
+                    "rule_basis_refs": ["MBIS COP 2023 §2.1.3(p)"],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "within",
+                        "operator": "<=",
+                        "value": 7,
+                        "unit": "day",
+                        "time_anchor_key": "repair.revision_need.exposed",
+                    },
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(p)",
+                    "semantic_note": (
+                        "自需要修訂修葺建議的事情顯露／情況發生之日起，"
+                        "至向建築事務監督呈交修訂建議為止的已歷日數。"
+                        "分布归**呈交族**（决议 §一）：取既有 `duration.submission.deadline` "
+                        "注释里早已声明、被 `_normalize_distribution_name` 坍缩掉的 "
+                        "revised-proposal 成分（mean 5.5 / sigma 1.8，语义逐字对应），"
+                        "**不是第七个新工程估值**；模拟 P(≤7 日)=0.8671。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 5.5,
+                    "recommended_sigma": 1.8,
+                    "typical_bounds": [0, 20],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_from_proagent_DEBT020_round3_submission_family_revised_proposal_component",
+                },
+                {
+                    # 甲 #9 ── §6.4.4 L1861：「獲委任的註冊檢驗人員須在有關委任的日期後
+                    # 7天內，通知建築事務監督已獲委任，並呈交監督建議…」
+                    "slot_id": "duration.notification.appointment_supervising_ri.to_ba",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 60],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.repair_supervising_ri.appointment.completed",
+                    "rule_basis_refs": ["MBIS COP 2023 §6.4.4"],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "within",
+                        "operator": "<=",
+                        "value": 7,
+                        "unit": "day",
+                        "time_anchor_key": "appointment.repair_supervising_ri.made",
+                    },
+                    "cop_section": "MBIS_CoP_2023 §6.4.4",
+                    "semantic_note": (
+                        "自監督樓宇修葺的註冊檢驗人員獲委任之日起，"
+                        "至通知建築事務監督並呈交監督建議為止的已歷日數。"
+                        "⚠️ **归族边界例**（决议 §一表注）：守则原文一个期限盖住「通知」＋"
+                        "「呈交監督建議」两个动作，约束动作其实是后者，故归呈交族也说得通。"
+                        "本条按槽名前缀与守则动词首项归**通知族**；两档实测合规率 "
+                        "0.8510 vs 0.8671（n=30 期望违规 4.47 vs 3.99），**该分歧不承重**。"
+                        "⚠️ glm 线提的 3.5/1.6「监督流程更紧」系工程直觉发明的区分，**不采**。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 4.8,
+                    "recommended_sigma": 2.6,
+                    "typical_bounds": [0, 20],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_from_proagent_DEBT020_round3_notification_family_pre_S2_5",
+                },
+                {
+                    # 甲 #10 ── §6.4.6 L1865：「註冊檢驗人員須以書面方式通知建築事務監督
+                    # 有關更換其監督人員隊伍的事宜(於作出變更當日後的7天內)…」
+                    "slot_id": "duration.notification.supervision_team_changed.to_ba",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 60],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.supervision_team.changed",
+                    "rule_basis_refs": ["MBIS COP 2023 §6.4.6"],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "within",
+                        "operator": "<=",
+                        "value": 7,
+                        "unit": "day",
+                        "time_anchor_key": "role.supervision_team.changed",
+                    },
+                    "cop_section": "MBIS_CoP_2023 §6.4.6",
+                    "semantic_note": (
+                        "自作出監督人員隊伍變更當日起，至以書面通知建築事務監督為止的已歷日數。"
+                        "⚠️ **归族边界例**（与甲9 同批裁定）：本条与甲9 同属「監督流程」一线，"
+                        "按槽名前缀与守则动词归**通知族**；glm 线的 3.5/1.6 区分系工程直觉"
+                        "发明，**不采**（不发明规范）。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 4.8,
+                    "recommended_sigma": 2.6,
+                    "typical_bounds": [0, 20],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_from_proagent_DEBT020_round3_notification_family_pre_S2_5",
+                },
+                {
+                    # 乙 #11 ── §2.1.3(p)「該建議亦須於**同日**送交該名由他人代為進行
+                    # 訂明修葺的人」／(q)「須於**向建築事務監督呈交的同一日**，送交註冊承建商」
+                    #
+                    # 🔴 决议 §一.3 吸收 qwen 洞：#11 **世界侧原本没有承载槽**。
+                    # ⚠️ 措辞订正（official 审核 M3①，2026-08-05 实取核实）：先前这里写
+                    # 「只有布尔门 `procedure.repair.revision_proposal.submitted_to_ba`」，
+                    # 那是**把一个不产出的东西陈述成存在的**——该槽只在
+                    # `_build_sidecar_contract` 的 ownership_map 登记（`carrier_slot` FK
+                    # 完整性所需），**不在 `sidecar_bool_slot_registry`（52 条实采清单）里**
+                    # ⇒ 生成器从未产出过它，一行事实都没有。
+                    # （同形：#9 的 `procedure.repair_supervising_ri.appointment.completed`
+                    # 也是 ownership 有、bool registry 无。这正是 CLAUDE.md 记的
+                    # 「140 声明 vs 46 实采、两表之间没有任何东西在对账」那一族。）
+                    # `duration.delivery.deadline{,.to_person}` 承载的是 §2.1.3(r)
+                    # 完工报告语义，**不能拿来判 (p)/(q) 的修訂建議書同日送交**——那是另一个行政事件。
+                    #
+                    # 计数口径（official 审核 M4③，与实施记录 §五.1 统一）：本单新增注册表
+                    # 条目共 **8 条**（甲类真正需要新槽的 7 条 ＋ 本条乙 #11），本条是这 8 条里的
+                    # 第 8 条。**不是「甲 8 之外新增的第 9 条」**——那个说法把挂起的 #6 也算进了
+                    # 甲类、且 #8 复用既有 `.to_ba` 不需新槽，故「甲 8」这个基数本身就不成立。
+                    #
+                    # ⚠️ 已知简化（尾巴，须进分布授权草案）：(p) 的收件人是「該名由他人代為
+                    # 進行訂明修葺的人」、(q) 是「註冊承建商」，是**两个收件人**；
+                    # 而 B6 要求逐（楼,锚）恰 1 行，故本单以**一条量**承载两支。
+                    # 若将来要分收件人判，须拆成两个槽 + 两个锚点，属规则扩展另案。
+                    #
+                    # ⚠️ `== 0` 的判据来源：(p)/(q) 两张卡 `threshold_regimes=[]`，
+                    # 卡侧**没有**登记阈值。判据来自 **deadline relation 的结构性常量**
+                    # ——「同日」的唯一数值读法就是差 0 日（不构成发明规范）。
+                    # 该常量在 `evaluate_deadline` 的 `same_day_as` 分支显式写进 obligation notes，
+                    # 不静默硬编码。
+                    "slot_id": "duration.delivery.repair_revision_proposal",
+                    "measurement_family": "procedure_duration",
+                    "granularity": "building",
+                    "value_type": "int",
+                    "unit": "day",
+                    "physical_bounds": [0, 30],
+                    "precision_steps": {"coarse": 5, "standard": 1, "fine": 1},
+                    "carrier_domain": "procedure",
+                    "carrier_slot": "procedure.repair.revision_proposal.submitted_to_ba",
+                    "rule_basis_refs": [
+                        "MBIS COP 2023 §2.1.3(p)",
+                        "MBIS COP 2023 §2.1.3(q)",
+                    ],
+                    "aliases": [],
+                    "rule_card_threshold": {
+                        "relation": "same_day_as",
+                        "operator": "==",
+                        "value": 0,
+                        "unit": "day",
+                        "time_anchor_key": "repair.revision_proposal.submitted_to_ba",
+                        "threshold_source": (
+                            "deadline_relation_structural_constant "
+                            "(same_day_as ⇒ elapsed == 0 day); "
+                            "卡侧 (p)/(q) threshold_regimes 为空，非卡侧登记值"
+                        ),
+                    },
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(p)(q)",
+                    "semantic_note": (
+                        "自向建築事務監督呈交修訂修葺建議之日起，"
+                        "至把該建議送交下游收件人（(p) 該名由他人代為進行訂明修葺的人／"
+                        "(q) 註冊承建商）為止的已歷日數；守則要求同日，即 0 日。"
+                        "\n🔴 **本槽以一条量承载 §2.1.3(p)/(q) 两个收件人，两支永远同判，"
+                        "「交了承建商没交业主」这类真实偏差不可建模**——属建模保真度缺口"
+                        "（非捏造判定：两支的判定仍由同一条真实量决定）。解法＝拆两锚两槽，"
+                        "属规则扩展另案（决议 §二.3；已登记技术与研究债）。"
+                        "\n📌 **0 值占比 ≈0.5161 是派生结果，不是被授权的参数**："
+                        "参数只有 mean 0.45 / sigma 1.15（与 `.to_person` 逐字段相同，"
+                        "承载同一类量「同日送交的已歷日數」，新增假设 0 个）；"
+                        "0.5161 由 clip+round 派生，尾部 1:0.305 / 2:0.140 / 3:0.038 单调衰减。"
+                        "**不写 `zero_inflated_discrete`**：不补 `calib_zero_prob` 则标签是装饰"
+                        "（代码走同一条正态分支），补上 π0=0.52 则实测 P(0)=0.5568、尾部双峰化"
+                        "——两种写法都会让「授权的 π0」与「实际 0 值占比」对不上。"
+                        "⛔ 弃用槽 `duration.delivery.deadline` 的 88.8% / π0=0.87 一律不引。"
+                    ),
+                    "recommended_distribution": "rounded_truncated_normal",
+                    "recommended_mean": 0.45,
+                    "recommended_sigma": 1.15,
+                    "typical_bounds": [0, 3],
+                    "distribution_source": "engineering_estimate_deadline_anchor_authorization_2026_08_05_same_day_shape_aligned_to_duration_delivery_deadline_to_person",
                 },
                 # DEBT-025 closure (2026-05-06)：5 个 inspection-execution slot 入 sidecar
                 # （非物理世界测量；rule_card 有阈值但 user 审计判定不应入 W0 technical_measurement）
@@ -3417,6 +3905,126 @@ def _build_registry_bundle() -> RegistryBundle:
                     "source_attribution": "proagent_engineering_estimate_DEBT020_round4_2026_05_09",
                     "aliases": [], "notes": "Extra works separated 仅在含改善 / UBW 工程时出现; round4 confidence=low.",
                 },
+                # ===== C2. reporting 三根轴（呈交/送达/签署，2026-08-03 规格 v1）=====
+                # 🔴 与 C 段的 20 个 artifact.* 槽**不同构的一点**：这四槽带
+                # `qualifier_axis_product`——采样器按轴积逐组合独立采样，每组合
+                # 一条事实（qualifiers 带 artifact_key ＋ actor_role_key）。
+                # 轴积从卡侧 45 处引用实取（拒绝拍脑袋），角色取值全部来自
+                # `actor_role_crosswalk.WORLD_ROLE_VOCABULARY`（合并词已拆）。
+                # ⚠️ 只补状态布尔，不补时限（决策门 Q2=C）；加槽即换池（Q3=C）。
+                {
+                    "slot_id": "reporting.artifact.submitted",
+                    "granularity": "building",
+                    "sampling_order": 48,
+                    "value_type": "bool", "enum_values": [],
+                    "prevalence": 0.87,
+                    "conditional_inputs": [],
+                    "conditional_formula": None, "carrier_domain": "artifact",
+                    "source_attribution": "proagent_engineering_estimate_reporting_axes_20260803",
+                    "aliases": [], "notes": "已呈交给某方（MBIS 下呈交对象均为建築事務監督）。",
+                    "qualifier_axis_product": [
+                        {"artifact_key": k, "actor_role_key": "ba"}
+                        for k in [
+                            "report.inspection", "form.mbi3_or_mbi3a",
+                            "notice.ri_appointment", "notice.ri_temporary_nomination",
+                            "proposal.repair_revision", "report.completion",
+                            "form.mbi4", "proposal.supervision", "form.mbi5",
+                            "notice.temporary_ri_nomination_cessation",
+                            "notice.ri_cessation",
+                            "notice.representative_appointment_intended",
+                            "notice.detailed_investigation_intention",
+                        ]
+                    ],
+                },
+                {
+                    "slot_id": "reporting.artifact.delivered",
+                    "granularity": "building",
+                    "sampling_order": 49,
+                    "value_type": "bool", "enum_values": [],
+                    "prevalence": 0.78,
+                    "conditional_inputs": [],
+                    "conditional_formula": None, "carrier_domain": "artifact",
+                    "source_attribution": "proagent_engineering_estimate_reporting_axes_20260803",
+                    "aliases": [], "notes": "已送达给某方（角色按条款各异，组合从卡实取）。",
+                    "qualifier_axis_product": [
+                        {"artifact_key": "record.inspection_log", "actor_role_key": "owner"},
+                        {"artifact_key": "record.inspection_log", "actor_role_key": "occupant_or_resident"},
+                        {"artifact_key": "report.inspection", "actor_role_key": "rc"},
+                        {"artifact_key": "report.inspection", "actor_role_key": "owner"},
+                        {"artifact_key": "form.mbi3_or_mbi3a", "actor_role_key": "rc"},
+                        # §2.1.3(q)：修葺建議修訂须于向監督呈交同日送交註冊承建商
+                        {"artifact_key": "proposal.repair_revision", "actor_role_key": "rc"},
+                        # §2.1.3(r)：完工報告及 MBI4 同日送交該名由他人代為進行訂明修葺的人
+                        {"artifact_key": "report.completion",
+                         "actor_role_key": "person_for_whom_prescribed_repair_is_carried_out"},
+                        {"artifact_key": "form.mbi4",
+                         "actor_role_key": "person_for_whom_prescribed_repair_is_carried_out"},
+                    ],
+                },
+                {
+                    "slot_id": "reporting.record.submitted",
+                    "granularity": "building",
+                    "sampling_order": 50,
+                    "value_type": "bool", "enum_values": [],
+                    "prevalence": 0.84,
+                    "conditional_inputs": [],
+                    "conditional_formula": None, "carrier_domain": "artifact",
+                    "source_attribution": "proagent_engineering_estimate_reporting_axes_20260803",
+                    "aliases": [],
+                    # 🔴 本槽**同时服务两组收件人**（#29 甲案，2026-08-05 决策门裁定）。
+                    #
+                    # 守则文本本身就是这个形状，不是接线的意外——同一节 §3.6.2 内部即两个收件人：
+                    #   · (A)(d) 檢驗日誌「呈交**屋宇署**」；
+                    #   · (B) 引出句「並向**建築事務監督**報告」。
+                    # 全文计数佐证：`屋宇署` 30 处 / `建築事務監督` 102 处，用法有清晰分野。
+                    #
+                    # 实测：引用本槽 `{artifact_key=record.inspection_log}` 的卡**共 10 张**——
+                    #   bd（屋宇署）4 张＝五条平行款中的 §3.3.2(A)(c) / §3.5.2(A)(c) /
+                    #                    §3.6.2(A)(d) / §3.7.1(d)（逐字同文，#29 已改）；
+                    #   ba（建築事務監督）6 张＝§3.6.2(B)(a) / §3.6.2(B)(b) / §3.6.3(b) /
+                    #                    §4.4.3（原文确为建築事務監督，**不该改**）
+                    #                    ＋ §3.6.3(c) 两卡（原文写屋宇署，挂 #29b 独立语义裁定）。
+                    #
+                    # ⚠️ 此处**曾**写过一句「全库没有任何卡要求『檢驗日誌呈交建築事務監督』，
+                    # 保留 ba 组合＝造一条无卡消费的空事实」——**该前提已实测证伪并作废**
+                    # （底稿 §4.2 同步已加作废注记）。删掉 ba 格不是「不造空事实」，
+                    # 而是**删掉上面 6 张卡正在读的那条事实**，会把它们打成
+                    # `blocked/qualifier_conflict`——即把一个**证据力**问题误记成**供给缺口**。
+                    #
+                    # 🔴 ba 格只为保持那 6 张射程外卡的既有供给态；**其证据力未裁，属 #33**。
+                    # 那 6 张卡在 A′ 值消费授权表里**零行** ⇒ 本格结构上无 satisfied 出口
+                    # （见 `test_ba_bd_recipient_alignment.py` 的零行断言＋变异对照）。
+                    "notes": "檢驗日誌／檢驗記錄已呈交。本槽同时服务屋宇署(bd)与"
+                             "建築事務監督(ba)两组收件人：bd 对应 §3.3.2(A)(c) / "
+                             "§3.4.2(A)(b) / §3.5.2(A)(c) / §3.6.2(A)(d) / §3.7.1(d) "
+                             "五条平行款（原文逐字「呈交屋宇署」）；ba 对应 §3.6.2(B) / "
+                             "§3.6.3(b) / §4.4.3 等（原文逐字「建築事務監督」）。",
+                    "qualifier_axis_product": [
+                        # 🔴 ba 格**逐字保持 #29 之前的原样**：`sub_rng` 是纯键派生、
+                        # 键里带 combo_key（`sidecar.py` 轴积分支 → `rng_domains.sub_rng`），
+                        # 键一字不差才谈得上「既有行不位移」。别调整键序或写法。
+                        {"artifact_key": "record.inspection_log", "actor_role_key": "ba"},
+                        # bd 格＝#29 本体（五条平行款的正确收件人）。
+                        # 追加一格**不位移任何其它抽样**（各组合独立键控子流），
+                        # 代价＝每栋 +1 行。⚠️ 底稿 §4.4 末段算的「+14 行／+7.53%」是
+                        # 「两个槽都加 bd」那一档，**与本处（单槽 +1 行）差一个数量级，别错引**。
+                        {"artifact_key": "record.inspection_log", "actor_role_key": "bd"},
+                    ],
+                },
+                {
+                    "slot_id": "reporting.artifact.signed",
+                    "granularity": "building",
+                    "sampling_order": 51,
+                    "value_type": "bool", "enum_values": [],
+                    "prevalence": 0.93,
+                    "conditional_inputs": [],
+                    "conditional_formula": None, "carrier_domain": "artifact",
+                    "source_attribution": "proagent_engineering_estimate_reporting_axes_20260803",
+                    "aliases": [], "notes": "已簽署（§7.2.3；无角色维度）。",
+                    "qualifier_axis_product": [
+                        {"artifact_key": "report.inspection"},
+                    ],
+                },
                 # ===== D. qualifier / categorical (3) =====
                 {
                     "slot_id": "qual.actor_role",
@@ -3457,6 +4065,87 @@ def _build_registry_bundle() -> RegistryBundle:
                     "conditional_formula": None, "carrier_domain": "procedure",  # 长期可改 fire_safety_order
                     "source_attribution": "proagent_engineering_estimate_DEBT020_round4_2026_05_09",
                     "aliases": [], "notes": "BD statutory fire-safety upgrade order 是否仍 open; spec 09 §1.1.2 B 类; round4 confidence=low.",
+                },
+                # ===== F. 条款前件补槽（2026-07-31，缺省等价追加）=====
+                # 背景：33 张法规卡漏掉了条款自身的前件（「如…則須…」的「如」那半），
+                # 对每栋楼无条件开火。把前件映射回世界槽时发现两个前件世界侧无槽——
+                # 本组补的就是这两个。**卡侧接线不在本次范围**（新槽当前无消费者）。
+                #
+                # 为什么 sampling_order 必须比全部既有槽大（46/47 > 既有 max 45）：
+                # sidecar 采样按 (sampling_order, slot_id) 升序遍历同一条 rng 流
+                # （sidecar.py `ordered_records`）。排在最后 ⇒ 既有 45+1 个槽的
+                # rng 消费序列逐位不变。**注意这只保住「同一条 rng 流内的相对顺序」**：
+                # sidecar 子 rng 的种子是 deterministic_key（validation.py），而
+                # deterministic_key ← registry_bundle_hash ← 整个 registry 内容，
+                # 故往本表加记录必然换种子、既有槽的**取值**仍会整体改变。
+                # 世界核心（generate_world_batch）按 `seed` 独立播种，不受影响。
+                #
+                # 两条记录都走 marginal 路径（conditional_formula=None，与
+                # actor.representative.assigned_role 同）：Round6/7 overlay 只 patch
+                # MARGINAL_ANCHORS_ROUND7 键集内的 45 条，本组不在其中，故
+                # sampling_order / prevalence 由本记录自己写死、不会被 overlay 覆盖。
+                {
+                    # MBIS_CoP_2023 §2.1.3(n)（中文正文 page 14）：
+                    # 「以書面通知建築事務監督其有意進行詳細調查，並呈交有關建議給建築事務監督認可」
+                    # ⇒ 义务本体 = 通知 + 呈交；前件 = 「有意進行詳細調查」本身。
+                    # 🔴 不可拿 procedure.investigation.intention_notified 当它的前件：
+                    #    那是本义务的**履行**（已书面通知），拿履行当前提 = 用结论当前提。
+                    #    也不可拿 procedure.investigation.started（已开始 ≠ 有意）。
+                    "slot_id": "procedure.investigation.detailed.intended",
+                    "granularity": "building",  # 行政一次性事件，与 intention_notified /
+                                                # proposal.submitted / proposal.recognized 同粒度
+                    "value_type": "bool", "enum_values": [],
+                    # prevalence 依据（本表内比值反推，非凭空取值）：
+                    #   「有意」是「已書面通知有意」的上游，通知履行率 <100% ⇒ intended > notified(0.30)。
+                    #   本表既有 5 组「事件 → 其法定文书」比值：
+                    #     mbi4/repair.completed=0.9286、report.completion/repair.completed=0.9524、
+                    #     proposal.repair_revision/repair.revision_required=0.9444、
+                    #     mbi3/inspection.completed=0.9730、mbi2/temp_nomination=1.0000
+                    #   （mbi1/ri.appointment=1.1047 本身不自洽，排除）。取最保守的 0.9286 反推：
+                    #     0.30 / 0.9286 = 0.3231 → 0.32（隐含通知履行率 0.30/0.32 = 93.8%）。
+                    "prevalence": 0.32,
+                    # 与 intention_notified 同一组物理驱动（意图源于欠妥成因/范围不确定）。
+                    # 三者都是 world_core 物理槽，不是 sidecar bool 槽 ⇒ 楼级上游解析返回
+                    # None、不触发跨粒度 fail-fast；DAG「上游 order < 本槽」对物理输入不适用。
+                    "conditional_inputs": ["defect.cause_or_extent.uncertain", "defect.class.present", "risk.building_safety.emergency"],
+                    "conditional_formula": None, "carrier_domain": "procedure",
+                    "sampling_order": 46,
+                    "source_attribution": "engineering_estimate_precondition_gap_20260731_ratio_derived_from_in_table_document_compliance",
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(n)",
+                    "aliases": [],
+                    "notes": (
+                        "註冊檢驗人員「有意進行詳細調查」的意图状态；§2.1.3(n) 通知/呈交义务的前件。"
+                        "与 procedure.investigation.intention_notified（该义务的履行）严格区分。"
+                        "prevalence 0.32 = notified 0.30 ÷ 本表最保守的事件→文书比值 0.9286；工程估值。"
+                    ),
+                },
+                {
+                    # MBIS_CoP_2023 §4.3.3(a)（中文正文 page 41）：
+                    # 「註冊檢驗人員須根據詳細調查的結果進行評估，以確定有關結構構件的安全水平，
+                    #   並提出相應的跟行動。」
+                    # ⇒ 前件 = 「已有詳細調查的結果」。世界此前只有「已開始」，无「已有结果」。
+                    "slot_id": "procedure.investigation.detailed.completed",
+                    # granularity 缺省 = fragment：詳細調查针对具体结构构件做，结果按部位存在；
+                    # 与直接上游 procedure.investigation.started、以及
+                    # procedure.repair.prescribed.completed / inspection.prescribed.completed 同粒度。
+                    # 楼级读数由 BUILDING_READING_AGGREGATION[.completed]="any_true" 提供聚合行。
+                    "value_type": "bool", "enum_values": [],
+                    # prevalence 依据：本表**唯一**的同族 started→completed 对是
+                    #   procedure.repair.prescribed.started 0.55 → .completed 0.42，比值 0.7636。
+                    #   套到 procedure.investigation.started 0.20：0.20 × 0.7636 = 0.1527 → 0.15。
+                    #   满足「低于其上游」（0.15 < 0.20）。
+                    "prevalence": 0.15,
+                    "conditional_inputs": ["procedure.investigation.started", "procedure.investigation.proposal.recognized", "defect.cause_or_extent.uncertain"],
+                    "conditional_formula": None, "carrier_domain": "procedure",
+                    "sampling_order": 47,
+                    "source_attribution": "engineering_estimate_precondition_gap_20260731_ratio_derived_from_in_table_started_completed_pair",
+                    "cop_section": "MBIS_CoP_2023 §4.3.3(a)",
+                    "aliases": [],
+                    "notes": (
+                        "詳細調查已完成／結果已得出；§4.3.3(a)「根據詳細調查的結果進行評估」的前件。"
+                        "与 procedure.investigation.started（已開始 ≠ 有結果）严格区分。"
+                        "prevalence 0.15 = started 0.20 × 本表唯一 started→completed 比值 0.7636；工程估值。"
+                    ),
                 },
             ],
         )
@@ -3719,6 +4408,11 @@ def _build_sidecar_contract() -> SidecarContract:
             "procedure.investigation.proposal.submitted",
             "procedure.investigation.proposal.recognized",
             "procedure.investigation.detailed.started",
+            # 2026-07-31 条款前件补槽（sidecar_bool_slot_registry F 组）：
+            # 与 detailed.started 不同，这两个是**真采样**的（bool registry 里有记录），
+            # 不是只在 ownership 里挂个名（CLAUDE.md「140 声明 vs 46 实采」那类空头声明）。
+            "procedure.investigation.detailed.intended",
+            "procedure.investigation.detailed.completed",
             "procedure.investigation.started",
             "procedure.repair.revision_required",
             "procedure.repair.prescribed.started",
@@ -3733,6 +4427,18 @@ def _build_sidecar_contract() -> SidecarContract:
             "duration.delivery.deadline.to_ba",
             # DEBT-020 round5 sub-task 5 — to_person carrier_slot (BA submission anchor，pro 推测)
             "artifact.report_completion_or_mbi4.submitted_to_ba",
+            # 期限锚 duration 槽（期限锚供给案 2026-08-05）——8 条新增，全部楼级发射。
+            # 它们是**真采样**的（sidecar_measurement_registry 里有完整记录 +
+            # `granularity: "building"`），不是只在 ownership 里挂个名的空头声明
+            # （CLAUDE.md「140 声明 vs 46 实采」那类）。
+            "duration.notification.appointment_ri.to_ba",
+            "duration.notification.nomination_temp_ri.to_ba",
+            "duration.notification.nomination_temp_ri_terminated.to_ba",
+            "duration.notification.role_ri_terminated.to_ba",
+            "duration.submission.repair_revision.to_ba",
+            "duration.notification.appointment_supervising_ri.to_ba",
+            "duration.notification.supervision_team_changed.to_ba",
+            "duration.delivery.repair_revision_proposal",
             "duration.site_visit.interval",
             "actor.representative.assigned",
             "actor.representative.qualified_for_assigned_role",
@@ -3874,6 +4580,9 @@ def _build_sidecar_contract() -> SidecarContract:
                         "procedure.investigation.proposal.submitted",
                         "procedure.investigation.proposal.recognized",
                         "procedure.investigation.detailed.started",
+                        # 2026-07-31 条款前件补槽（§2.1.3(n) / §4.3.3(a)）。
+                        "procedure.investigation.detailed.intended",
+                        "procedure.investigation.detailed.completed",
                         "procedure.repair.revision_required",
                         "duration.notification.deadline",
                         "duration.submission.deadline",
@@ -3886,6 +4595,9 @@ def _build_sidecar_contract() -> SidecarContract:
                         "procedure.investigation.proposal.submitted",
                         "procedure.investigation.proposal.recognized",
                         "procedure.investigation.detailed.started",
+                        # 2026-07-31 条款前件补槽（§2.1.3(n) / §4.3.3(a)）。
+                        "procedure.investigation.detailed.intended",
+                        "procedure.investigation.detailed.completed",
                         "procedure.repair.revision_required",
                         "duration.notification.deadline",
                         "duration.submission.deadline",
@@ -4010,6 +4722,12 @@ BUILDING_READING_AGGREGATION: dict = {
     "procedure.repair.prescribed.completed": "all_true",
     "procedure.repair.prescribed.started": "any_true",
     "procedure.investigation.started": "any_true",
+    # 2026-07-31 条款前件补槽：与直接上游 procedure.investigation.started 同粒度
+    # （fragment 采样）、同聚合语义（任一部位有詳細調查結果即楼级成立）。
+    # 登记它有两个作用：①楼级消费者拿得到聚合读数；②将来任何楼级槽把它列为
+    # conditional_input 时不会撞上 _resolve_building_upstream 的「无聚合声明」fail-fast。
+    # 聚合是从已采样值算的，不消费 rng。
+    "procedure.investigation.detailed.completed": "any_true",
     "supervision.site_visit.performed": "any_true",
     "supervision.record.completed": "all_true",
     "supervision.record.retained": "all_true",

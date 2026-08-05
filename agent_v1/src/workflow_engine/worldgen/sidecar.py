@@ -22,6 +22,7 @@ import random
 from contextvars import ContextVar, Token
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from workflow_engine.worldgen import rng_domains
 from workflow_engine.worldgen.conditional_eval import (
     HIDDEN_STATE_PRIOR_MEANS,
     build_evaluator_context,
@@ -116,6 +117,43 @@ _CARRIER_DOMAIN_TO_BUCKET: Dict[str, str] = {
     "completion": "completion_runtime_state",
 }
 
+# 期限锚楼级 duration 槽清单（期限锚供给案 2026-08-05）。
+# 🔴 **不是第二份权威**——它从 `sidecar_measurement_registry` 现算，注册表是唯一权威。
+# 存在的理由只有一个：给测试一个可引用的入口，好断言「清单 == 注册表里
+# granularity=building 的 duration 条目」（`test_deadline_anchor_emission.py`）。
+# 写死一份名字清单会立刻变成第二份权威并开始漂移，那正是本仓反复吃过的亏。
+def _deadline_anchor_duration_slots() -> Tuple[str, ...]:
+    from workflow_engine.worldgen.registry import _build_registry_bundle
+
+    bundle = _build_registry_bundle()
+    for table in bundle.registries:
+        if table.registry_id != "sidecar_measurement_registry":
+            continue
+        return tuple(
+            str(r.get("slot_id"))
+            for r in _building_deadline_anchor_records(table.records)
+        )
+    return ()
+
+
+class _DeadlineAnchorSlots:
+    """惰性求值代理：导入期不建注册表（`registry.py` 反向 import 本模块会循环）。"""
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(_deadline_anchor_duration_slots())
+
+    def __len__(self) -> int:
+        return len(_deadline_anchor_duration_slots())
+
+    def __contains__(self, item: object) -> bool:
+        return item in _deadline_anchor_duration_slots()
+
+    def __repr__(self) -> str:  # pragma: no cover - 诊断用
+        return f"DEADLINE_ANCHOR_DURATION_SLOTS{_deadline_anchor_duration_slots()!r}"
+
+
+DEADLINE_ANCHOR_DURATION_SLOTS = _DeadlineAnchorSlots()
+
 # EXP-011 设计④：程序阶段蕴含约束（后置 gate ⇒ 前置 gate）。依据 MBIS CoP 流程链
 # （提名→终止；调查意向→建议→认可→启动；修葺开工→竣工→完工复验）。后置采样为
 # True 而其已采样前置为 False 时钳为 False——消除"竣工未开工"类矛盾楼。生效前提
@@ -176,11 +214,31 @@ def _collect_sidecar_bool_slots(
     return []
 
 
+def _registry_time_anchor_key(slot_record: Dict[str, Any]) -> Optional[str]:
+    """从注册表条目取时间锚点，回写进发射的 sidecar 行（期限锚供给案 2026-08-05）。
+
+    读的是**生产者自己的登记**（`rule_card_threshold.time_anchor_key`），
+    不是猜 join——闭包侧 `_bind_deadline_fact` 的 provenance 通道据此按
+    本条 deadline 自己的锚点取事实（决议 §三.1）。
+
+    🔴 「回填两例外」就在这里生效：`duration.delivery.deadline.to_ba`（锚
+    `repair.prescribed.completed`）与 `.to_person`（锚
+    `repair.completion_report.submitted_to_ba`）**早就在注册表登记了锚点**，
+    只是从来没写进载体（五处构造点全部硬编码 `time_anchor_key=None`）。
+    本函数只把登记写进载体，不改采样、不改分布、不改行数。
+
+    ⚠️ 弃用槽 `duration.delivery.deadline` 没有 `rule_card_threshold` ⇒ 返回 None
+    ⇒ 它**不会**进期限锚索引（决议：不碰弃用槽）。
+    """
+    threshold = slot_record.get("rule_card_threshold") or {}
+    anchor = threshold.get("time_anchor_key")
+    return str(anchor) if anchor else None
+
+
 def _sample_sidecar_facts_for_fragment(
     building_world_id: str,
     fragment_id: str,
     sidecar_slot_records: List[Dict[str, Any]],
-    rng: random.Random,
 ) -> Dict[str, List[SidecarRuntimeValue]]:
     """spec 09 §1.2：按 sidecar_measurement_registry 派发到 SidecarRuntimeRecord 各桶.
 
@@ -193,6 +251,10 @@ def _sample_sidecar_facts_for_fragment(
     inspection_coverage / inspection_plan）调用 generator._sample_value_for_slot。
     若 slot 含 recommended_distribution → Path A 采样；否则 fallback 走中点
     （sidecar slot 应全部填 distribution 参数；fallback 命中说明 spec 缺数据）。
+
+    🔴 1a-i′（波次二 #22，2026-08-05）：**槽级子流**，`rng` 形参已删。
+    每个 slot 按 `(域串, world_id, fragment_id, slot_id)` 独立派生 ⇒
+    注册表新增一个数值槽是**纯追加**，既有槽一个值都不动。
     """
     # 延迟 import：generator.py 不 import sidecar.py，反向应不会循环；保守起见用延迟 import
     from workflow_engine.worldgen.generator import _sample_value_for_slot
@@ -210,10 +272,21 @@ def _sample_sidecar_facts_for_fragment(
         slot_id = slot_record.get("slot_id")
         if not slot_id:
             continue
+        # 楼级粒度的数值槽不走逐片段路径（期限锚供给案 2026-08-05）：它们由
+        # `_sample_building_deadline_anchor_facts` 独立追加步骤发射，逐（楼,槽）恰 1 行。
+        # 现存 6 个 duration 槽都没有 `granularity` 键 ⇒ 默认 "fragment" ⇒ 本判据对它们
+        # **逐字节无影响**（这是「新槽纯追加」的结构保证，不是靠约定）。
+        if str(slot_record.get("granularity") or "fragment") == "building":
+            continue
         carrier_domain = str(slot_record.get("carrier_domain") or "")
         bucket_key = _CARRIER_DOMAIN_TO_BUCKET.get(carrier_domain, "facts")
 
-        value_num, value_bool, value_enum = _sample_value_for_slot(slot_record, rng)
+        value_num, value_bool, value_enum = _sample_value_for_slot(
+            slot_record,
+            rng_domains.sub_rng(
+                rng_domains.SIDECAR_NUMERIC, building_world_id, fragment_id, str(slot_id)
+            ),
+        )
         if value_num is not None:
             sample_value: Any = value_num
         elif value_bool is not None:
@@ -232,7 +305,7 @@ def _sample_sidecar_facts_for_fragment(
                     "fragment_id": fragment_id,
                     "carrier_domain": carrier_domain,
                 },
-                time_anchor_key=None,
+                time_anchor_key=_registry_time_anchor_key(slot_record),
                 source_refs=refs,
                 notes=[
                     "sidecar 派生层采样 (spec 09 §1.2 + sidecar_measurement_registry); "
@@ -242,6 +315,90 @@ def _sample_sidecar_facts_for_fragment(
         )
 
     return buckets
+
+
+def _building_deadline_anchor_records(
+    sidecar_slot_records: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """注册表里声明楼级粒度的数值槽（＝期限锚 duration 槽），按 slot_id 稳定排序。"""
+    return sorted(
+        (
+            r
+            for r in sidecar_slot_records
+            if r.get("slot_id")
+            and str(r.get("granularity") or "fragment") == "building"
+        ),
+        key=lambda r: str(r.get("slot_id")),
+    )
+
+
+def _sample_building_deadline_anchor_facts(
+    building_world_id: str,
+    sidecar_slot_records: List[Dict[str, Any]],
+    building_buckets: Dict[str, List[SidecarRuntimeValue]],
+) -> None:
+    """期限锚 duration 槽的楼级发射（形态 C，期限锚供给案 2026-08-05 决议 §二/§四.3）。
+
+    ## 形状（每一条都是承重的，不是风格）
+
+    - **独立追加步骤**：不改共享的逐片段采样路径 ⇒ 结构上是纯追加，
+      既有单元逐字节不变由 `verify_rng_isolation_pairing.py --step deadline` 验。
+      🔴 调用点必须排在**全部既有楼级发射之后**——`seq_no` 是按 (runtime_id, bucket)
+      的列表下标，插在中间会把既有楼级行的 `fact_id` 整体位移。
+    - **逐（楼,槽）恰 1 行**：这些是楼级一次性行政事件（委任/提名/呈交/送交），
+      不随部位变。唯一性是形态 C 合法性的**承重前置**（`复核_发射形态C_qwen` §四5）：
+      「同楼同槽多行 ＋ 无限定符消费者」才是需要聚合标记消歧的场景；
+      本步一槽一行 ⇒ 结构上排除该歧义。断言见
+      `worldgen/tests/test_deadline_anchor_emission.py::test_b6_one_building_row_per_anchor`。
+    - **绝不打 `aggregation` 标记**：标记的设计语义是「派生聚合读数不得冒充部位原值」
+      （spec 草案·流程槽粒度语义 §3.2），而行政事件**没有部位原值可冒充**——
+      打标记是把它虚报成碎片读数的聚合。工程后果也是实测过的：带标记的行被
+      `validator._fragment_index` 排除出碎片索引，碎片作用域的期限义务
+      **107/107 一条都救不回**（E1 实验 A3 臂，全批 30 栋）。
+      同形先例：本文件 §3.1 行政槽分支、reporting 三根轴行。
+    - **槽级子 rng**（1a-i′ 同款）：键 = (域串, world_id, slot_id)。
+      注册表新增一个槽 ⇒ 既有槽一个值都不动。
+
+    就地写进 `building_buckets`，无返回值（与 `_emit_scope_declaration_rows` 同形）。
+    """
+    from workflow_engine.worldgen.generator import _sample_value_for_slot
+
+    for slot_record in _building_deadline_anchor_records(sidecar_slot_records):
+        slot_id = str(slot_record.get("slot_id"))
+        carrier_domain = str(slot_record.get("carrier_domain") or "")
+        bucket_key = _CARRIER_DOMAIN_TO_BUCKET.get(carrier_domain, "facts")
+        value_num, value_bool, value_enum = _sample_value_for_slot(
+            slot_record,
+            rng_domains.sub_rng(
+                rng_domains.SIDECAR_DEADLINE_ANCHOR, building_world_id, slot_id
+            ),
+        )
+        if value_num is not None:
+            sample_value: Any = value_num
+        elif value_bool is not None:
+            sample_value = value_bool
+        elif value_enum is not None:
+            sample_value = value_enum
+        else:
+            continue
+        building_buckets[bucket_key].append(
+            SidecarRuntimeValue(
+                slot_id=slot_id,
+                value=sample_value,
+                unit=slot_record.get("unit") or None,
+                qualifiers={
+                    "carrier_domain": carrier_domain,
+                    "granularity": "building",
+                },
+                time_anchor_key=_registry_time_anchor_key(slot_record),
+                source_refs=[building_world_id],
+                notes=[
+                    "期限锚楼级发射 (决议_期限锚_20260805 §四.3 形态 C); "
+                    f"anchor={_registry_time_anchor_key(slot_record)}; "
+                    f"distribution={slot_record.get('recommended_distribution', 'fallback_midpoint')}"
+                ],
+            )
+        )
 
 
 def _sample_one_bool_slot(
@@ -338,7 +495,6 @@ def _sample_sidecar_bool_slots_for_building(
     building_world_id: str,
     fragment_ids: List[str],
     sidecar_bool_slot_records: List[Dict[str, Any]],
-    rng: random.Random,
     per_fragment_contexts: Dict[str, Optional[Dict[str, float]]],
     building_context: Optional[Dict[str, float]] = None,
 ) -> tuple:
@@ -353,6 +509,21 @@ def _sample_sidecar_bool_slots_for_building(
     返回 (bool_buckets_by_fragment, building_values_by_bucket)。
     既有钳制语义保持：completed_and_retained 联合上界 / assigned_role planned 钳
     ——prereq 读数走 fragment 本地 + 楼级缓存合并视图。
+
+    🔴 1a-i′（波次二 #22，2026-08-05）：三个消费点各自换**槽级子流**，`rng` 形参已删。
+
+    - 楼级槽：`(域串, world_id, slot_id)`
+    - 片段级槽：`(域串, world_id, fragment_id, slot_id)`
+    - 轴积槽：`(域串, world_id, slot_id, 规范化 combo)` —— 🔴 **combo 这一维必须有**。
+      只到 `slot_id` 一级的话，同一槽的多个组合共用一条流、按 `axis_product` 顺序推进 ⇒
+      改轴值域（如把 `actor_role_key` 的 `ba` 换成 `bd`）就让**其余组合全部移位**。
+      实测 `sidecar_bool_slot_registry` 里带轴积的槽有 4 个 / 共 23 个组合，
+      其中 3 个槽的轴含 `actor_role_key` —— 这不是假想分叉，是波次二在册的一件。
+      规范化取 `"|".join(sorted(f"{k}={v}"))`，让 dict 遍历序不进键。
+
+    ⚠️ 一条不变的语义边界（键稳 ≠ 样本稳）：条件路径把**上游已采值**喂进公式，
+    故上游值一变，下游即便键稳、阈值 p 也变。「槽级键 ⇒ 加槽是纯追加」
+    **只对不进任何既有槽 `conditional_inputs` 的新槽成立**。
     """
     from .registry import AGGREGATE_ROW_SLOTS, BUILDING_READING_AGGREGATION
 
@@ -426,7 +597,10 @@ def _sample_sidecar_bool_slots_for_building(
                 slot_id=str(slot_record.get("slot_id")),
                 value=sample_value,
                 qualifiers=qualifiers,
-                time_anchor_key=None,
+                # bool/categorical 槽今天没有一个带 `rule_card_threshold` ⇒ 恒 None
+                # ⇒ 输出逐字节不变。接线在这里是为了「注册表登记 = 载体所载」这条
+                # 不变量对两条发射路径同时成立，而不是留一条靠"恰好没有"维持的缺口。
+                time_anchor_key=_registry_time_anchor_key(slot_record),
                 source_refs=refs,
                 notes=[
                     "sidecar 派生层 bool/categorical 采样 (spec 09 §1.2 + 粒度两相分派); "
@@ -444,6 +618,41 @@ def _sample_sidecar_bool_slots_for_building(
         carrier_domain = str(slot_record.get("carrier_domain") or "")
         granularity = granularity_by_slot.get(slot_id, "fragment")
 
+        # ==== reporting 三根轴（2026-08-03 规格 v1）：带轴积的槽逐组合独立采样 ====
+        # 每个 (artifact_key, actor_role_key) 组合一条事实、各自独立 Bernoulli——
+        # 「report.inspection 已呈交」与「form.mbi4 已呈交」是两件独立的事。
+        # 语义是**楼级**（呈交/送达/签署是整栋楼流程的事件，不随 fragment 变），
+        # 故只发楼级行、不逐 fragment 展开。
+        # 🔴 不写 building_state：轴槽一槽多值，塞进按槽名索引的上游表会静默覆盖；
+        # 它们是叶子（无下游依赖），不进上游表是正确形状。
+        # ⚠️ 本分支消耗共享随机流 ⇒ 后续采样位移 ⇒ **换池**（决策门 Q3 已裁）。
+        # ⚠️ 首版曾把这段插进 `_sample_sidecar_bool_slots_for_fragment`（527 行起）
+        # ——那是**旧路径**，生产走的是本函数自带的 `_emit` 循环。同仓「同名坑」又一例。
+        axis_product = slot_record.get("qualifier_axis_product")
+        if axis_product:
+            for combo in axis_product:
+                combo_key = "|".join(f"{k}={v}" for k, v in sorted(combo.items()))
+                v = _marginal_sample(
+                    str(slot_record.get("value_type") or "bool").lower(),
+                    slot_record.get("prevalence"), slot_record,
+                    rng_domains.sub_rng(
+                        rng_domains.SIDECAR_AXIS_COMBO,
+                        building_world_id, slot_id, combo_key,
+                    ),
+                )
+                if v is None:
+                    continue
+                _emit(
+                    building_buckets, slot_record, v, "axis_marginal",
+                    qualifiers={
+                        "carrier_domain": carrier_domain,
+                        "granularity": "building",
+                        **{k: str(vv) for k, vv in combo.items()},
+                    },
+                    refs=[building_world_id],
+                )
+            continue
+
         if granularity == "building":
             # 楼级上游 context：building base + 已采楼级槽 + fragment 上游聚合值。
             upstream: Dict[str, Any] = dict(building_state)
@@ -455,7 +664,10 @@ def _sample_sidecar_bool_slots_for_building(
                 if resolved is not None:
                     upstream[str(up_id)] = resolved
             sampled = _sample_one_bool_slot(
-                slot_record, building_base_ctx, upstream, rng
+                slot_record, building_base_ctx, upstream,
+                rng_domains.sub_rng(
+                    rng_domains.SIDECAR_BOOL_BUILDING, building_world_id, slot_id
+                ),
             )
             if sampled is None:
                 continue
@@ -478,7 +690,11 @@ def _sample_sidecar_bool_slots_for_building(
                 upstream = dict(building_state)
                 upstream.update(frag_states[fid])
                 sampled = _sample_one_bool_slot(
-                    slot_record, per_fragment_contexts.get(fid), upstream, rng
+                    slot_record, per_fragment_contexts.get(fid), upstream,
+                    rng_domains.sub_rng(
+                        rng_domains.SIDECAR_BOOL_FRAGMENT,
+                        building_world_id, fid, slot_id,
+                    ),
                 )
                 if sampled is None:
                     continue
@@ -528,7 +744,6 @@ def _sample_sidecar_bool_slots_for_fragment(
     building_world_id: str,
     fragment_id: str,
     sidecar_bool_slot_records: List[Dict[str, Any]],
-    rng: random.Random,
     evaluator_context: Optional[Dict[str, float]] = None,
 ) -> Dict[str, List[SidecarRuntimeValue]]:
     """spec 09 §1.2 + sidecar_bool_slot_registry：bool / categorical slot 采样.
@@ -588,14 +803,25 @@ def _sample_sidecar_bool_slots_for_fragment(
         slot_id = slot_record.get("slot_id")
         if not slot_id:
             continue
+        # 🔴 轴积槽只在楼级编排器（`_sample_sidecar_bool_slots_for_building`）采样；
+        # 本旧路径产不出正确形状（会发一条**无轴限定符**的单行，语义是错的且不报错），
+        # **宁可不发也不发错行**。2026-08-03 审核门 grok 点名的静默退化。
+        if slot_record.get("qualifier_axis_product"):
+            continue
         carrier_domain = str(slot_record.get("carrier_domain") or "")
         bucket_key = _CARRIER_DOMAIN_TO_BUCKET.get(carrier_domain, "facts")
         value_type = str(slot_record.get("value_type") or "bool").lower()
         prevalence = slot_record.get("prevalence")
         conditional_formula = slot_record.get("conditional_formula")
 
+        # 🔴 1a-i′：与楼级编排器的片段级槽**同域同键**（`(域, world_id, fragment_id, slot_id)`），
+        # 保证这条旧路径与生产路径对同一 (楼, 片段, 槽) 取到同一条流。
         sampled = _sample_one_bool_slot(
-            slot_record, base_evaluator_ctx, sidecar_upstream_state, rng
+            slot_record, base_evaluator_ctx, sidecar_upstream_state,
+            rng_domains.sub_rng(
+                rng_domains.SIDECAR_BOOL_FRAGMENT,
+                building_world_id, fragment_id, str(slot_id),
+            ),
         )
         if sampled is None:
             continue
@@ -707,7 +933,6 @@ def _build_sidecar_record_for_fragment(
     fragment_id: str,
     sidecar_slot_records: List[Dict[str, Any]],
     sidecar_bool_slot_records: List[Dict[str, Any]],
-    rng: random.Random,
     projection_id: str = "",
     expected_interface_ids: Optional[List[str]] = None,
     evaluator_context: Optional[Dict[str, float]] = None,
@@ -729,7 +954,6 @@ def _build_sidecar_record_for_fragment(
         building_world_id=building_world_id,
         fragment_id=fragment_id,
         sidecar_slot_records=sidecar_slot_records,
-        rng=rng,
     )
     # 粒度两相分派（spec 草案·流程槽粒度语义 §3.4）：主管线由楼级编排器预采
     # bool 槽后传入；未传（旧调用/单测路径）退回 per-fragment 采样（全槽按
@@ -741,7 +965,6 @@ def _build_sidecar_record_for_fragment(
             building_world_id=building_world_id,
             fragment_id=fragment_id,
             sidecar_bool_slot_records=sidecar_bool_slot_records,
-            rng=rng,
             evaluator_context=evaluator_context,
         )
     _merge_buckets(numeric_buckets, bool_buckets)
@@ -1124,7 +1347,6 @@ def _emit_scope_declaration_rows(
 def _build_sidecar_runtime_bundle_for_buildings(
     building_worlds: List[Any],  # List[WorldBundle] — Any 避免 module 顶层 circular import
     registries: Optional[RegistryBundle] = None,
-    rng: Optional[random.Random] = None,
     projection_ids_by_fragment: Optional[Dict[str, str]] = None,
     interface_ids_by_fragment: Optional[Dict[str, List[str]]] = None,
 ) -> SidecarRuntimeBundle:
@@ -1139,10 +1361,17 @@ def _build_sidecar_runtime_bundle_for_buildings(
         building_worlds: List[WorldBundle]
         registries: RegistryBundle，从中提 sidecar_measurement_registry；为 None 时
             所有 record 桶为空（仅供测试便利，生产 pipeline 必传）
-        rng: deterministic 采样 RNG；为 None 时用 random.Random()（非 deterministic，
-            仅供测试便利）
         projection_ids_by_fragment: per-fragment projection_id 注入
         interface_ids_by_fragment: per-fragment expected interface_ids 注入
+
+    🔴 1a-i′（波次二 #22，2026-08-05）：`rng` 形参已删——整条批级 sidecar 流退役，
+    全部采样改由 `rng_domains.sub_rng` 按槽级稳定键派生。
+
+    这连带把 1a-0 的解绑**结构化**了：1a-0 只是把批级流的种子从 `deterministic_key`
+    换成 worldgen seed（改注册表不再重掷）；到这一步**根本不存在批级流**，
+    于是「第 i 栋片段数一变、第 i+1..n 栋全部移位」这条跨栋顺序依赖也一并消失
+    ——那是 1a-0 治不了的另一半。缺省 `random.Random()`（非确定性，
+    历史上「仅供测试便利」）也随之消失：确定性从此是构造性的，不靠调用方记得传 rng。
 
     （历史 trailing note：早期 sidecar_inputs / SidecarInput 外部注入接口
     已 2026-05-09 spec 09 §1.2 修订统一移除，函数签名不再接收外部 admin record。）
@@ -1152,8 +1381,6 @@ def _build_sidecar_runtime_bundle_for_buildings(
 
     sidecar_slot_records = _collect_sidecar_measurement_slots(registries)
     sidecar_bool_slot_records = _collect_sidecar_bool_slots(registries)
-    if rng is None:
-        rng = random.Random()
 
     records: List[SidecarRuntimeRecord] = []
     for building_world in building_worlds:
@@ -1246,7 +1473,6 @@ def _build_sidecar_runtime_bundle_for_buildings(
             building_world_id=building_world.world_id,
             fragment_ids=[f.fragment_id for f in fragments],
             sidecar_bool_slot_records=sidecar_bool_slot_records,
-            rng=rng,
             per_fragment_contexts=per_fragment_contexts,
             building_context=building_context,
         )
@@ -1280,7 +1506,6 @@ def _build_sidecar_runtime_bundle_for_buildings(
                 fragment_id=fragment.fragment_id,
                 sidecar_slot_records=sidecar_slot_records,
                 sidecar_bool_slot_records=sidecar_bool_slot_records,
-                rng=rng,
                 projection_id=projection_ids_by_fragment.get(fragment.fragment_id, ""),
                 expected_interface_ids=interface_ids_by_fragment.get(fragment.fragment_id),
                 evaluator_context=per_fragment_contexts[fragment.fragment_id],
@@ -1290,7 +1515,14 @@ def _build_sidecar_runtime_bundle_for_buildings(
         # 范围声明楼级行（spec 草案·第一波 §5；fragment 行已在记录组装前发射——
         # 二轮对账修正：原发射点在桶消费之后，行全丢）。
         _emit_scope_declaration_rows(building_world, registries, building_buckets)
-        # 楼级记录（行政槽主行 + §3.2 聚合行），有值才落。
+        # 期限锚楼级 duration 行（期限锚供给案 2026-08-05，形态 C）。
+        # 🔴 必须排在**全部既有楼级发射之后**：`seq_no` 是 (runtime_id, bucket) 内的
+        #    列表下标，插在中间会把既有楼级行的 `fact_id` 整体位移，
+        #    「新槽是纯追加行」这条字节锚就不成立了。
+        _sample_building_deadline_anchor_facts(
+            building_world.world_id, sidecar_slot_records, building_buckets
+        )
+        # 楼级记录（行政槽主行 + §3.2 聚合行 + 期限锚行），有值才落。
         if any(building_buckets[b] for b in building_buckets):
             records.append(SidecarRuntimeRecord(
                 runtime_id=f"SCR-BLDG-{building_world.world_id}",

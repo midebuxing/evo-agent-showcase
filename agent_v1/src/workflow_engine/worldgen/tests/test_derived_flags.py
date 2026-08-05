@@ -71,11 +71,31 @@ class PopulateDerivedFlagsTests(unittest.TestCase):
             self.assertEqual(set(assessment.keys()), expected_assessment)
 
     def test_risk_index_values_populated(self) -> None:
-        """spec §11 索引值（max_danger / fsp_estimate）写入 risk_index_values."""
+        """spec §11 索引值（max_danger / fsp_estimate）写入 risk_index_values.
+
+        🔴 1b（波次二 #31）后 `index.fsp.estimate` 是**有条件写**的：它等于该片段自己的
+        `ratio.fsp.structural_performance` 量测，没做过结构评估的片段该键**缺席**
+        （`risk_index_values` 是 Dict[str, float]，写不下 not_applicable；写默认值等于
+        把"没评估过"伪装成"评估过"）。故这里按量测在否分账断言，
+        逐值相等由 `test_fsp_fragment_scope.py` 的断言 ① 守。
+        """
         world = generate_world_bundle({}, self.registries, seed=42, building_index=0)
+        measured = {
+            m.target_ref
+            for m in world.measurements
+            if m.slot_id == "ratio.fsp.structural_performance"
+            and m.value_num is not None
+            and m.value_enum != "not_applicable"
+        }
         for condition in world.conditions:
             self.assertIn("index.public_danger", condition.derived_outcomes.risk_index_values)
-            self.assertIn("index.fsp.estimate", condition.derived_outcomes.risk_index_values)
+            has_index = "index.fsp.estimate" in condition.derived_outcomes.risk_index_values
+            self.assertEqual(
+                has_index,
+                condition.fragment_id in measured,
+                f"{condition.fragment_id}: index.fsp.estimate 在否 ({has_index}) "
+                f"须与该片段有无 fsp 量测一致",
+            )
 
     def test_severe_condition_triggers_repair_required(self) -> None:
         """spec §11 行 4 repair_required 当 severity >= 0.33（moderate band 起点）."""

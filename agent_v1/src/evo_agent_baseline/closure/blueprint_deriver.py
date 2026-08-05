@@ -104,6 +104,7 @@ from .obligation_deriver import (
     _SLOT_ROLE_TO_KIND,
     _card_clause_ids,
     _card_quote_ids,
+    _node_satisfaction_slot_refs,
     refine_action_kind,
 )
 from .schema import ObligationEdgeDTO, ObligationNodeDTO
@@ -1385,6 +1386,12 @@ def _card_is_fragment_scoped(card: Any, slot_domain: Dict[str, str]) -> bool:
     `slot_domain`：slot_id → semantic_domain 映射（源 `rule_slice.semantic_slots`，
     catalog 侧由调用方传入以与判定读径同源）。卡内任一 slot_role_map ref 的 slot_id 的
     semantic_domain ∈ `_FRAGMENT_DOMAINS` → True。
+
+    🔧 **DEBT-085 件二·声明读取路径的空转钩位（第一步声明期，此处不接线）**：
+    显式声明落在两张绑定表的 `granularity_declaration` 行字段。
+    **声明期只登记不消费**，本镜像与 `validator._card_is_fragment_scoped`
+    今天仍逐字节同源、行为逐位不变。第二步接线时**两处必须同批改**——
+    只改一处会让过渡期产出按镜像不同的两套判定（kimi 过渡期风险点名项）。
     """
     for ref in card.slot_role_map or []:
         sid = str(_safe(ref, "slot_id") or "")
@@ -1800,6 +1807,20 @@ def build_obligation_node_blueprint(
         else ObligationNodeDTO.from_dict(dict(node_raw))
     )
     base_kind = refine_action_kind(node.node_kind, node.action)
+    satisfaction_slot_refs = _node_satisfaction_slot_refs(card, node)
+    satisfaction_slot_bindings = _finalize_bindings(
+        [
+            _make_binding(
+                "slot",
+                str(ref.get("slot_ref_id") or ""),
+                ref.get("slot_id"),
+                qualifier_fp=_qualifier_fp(dict(ref.get("qualifiers") or {})),
+            )
+            for ref in satisfaction_slot_refs
+        ],
+        registry=registry,
+        channel="obligation_graph",
+    )
     art_multi = _card_artifact_multimap(card)
     artifact_bindings_raw: List[Optional[_RawBinding]] = []
     artifact_local_ids: List[str] = []
@@ -1850,7 +1871,7 @@ def build_obligation_node_blueprint(
         actor=nfc(str(node.actor or "")),
         action=nfc(str(node.action or "")),
         recipient_ids=tuple(sorted(nfc(str(r)) for r in node.recipient_ids)),
-        slot_bindings=(),
+        slot_bindings=satisfaction_slot_bindings,
         artifact_bindings=artifact_bindings,
         measure_bindings=(),
         deadline_bindings=deadline_bindings,
@@ -1865,6 +1886,11 @@ def build_obligation_node_blueprint(
     provenance = _provenance(
         meta,
         card,
+        slot_ref_ids=tuple(
+            str(ref.get("slot_ref_id"))
+            for ref in satisfaction_slot_refs
+            if ref.get("slot_ref_id")
+        ),
         artifact_local_ids=tuple(artifact_local_ids),
         trigger_dependency_ids=tuple(
             nfc(str(t)) for t in node.trigger_condition_ids if t

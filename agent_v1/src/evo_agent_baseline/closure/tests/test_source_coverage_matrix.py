@@ -6,7 +6,7 @@ sentinel」矩阵 + **源 DTO 字段穷尽测试**（`set(DTO.model_fields) == �
 
 母病（threshold_regime_id 当初漏接）= 「字段在 RuleCard 存在却没进 identity」。断根
 两向：
-- 向 A（源 → DTO）：`test_typed_dtos_ingest_all_397_cards`——真实 397 卡逐源经 typed DTO
+- 向 A（源 → DTO）：`test_typed_dtos_ingest_all_398_cards`——真实 398 卡逐源经 typed DTO
   `**dict` 构造（extra=forbid），新 JSON 键 → ValidationError（不静默丢）。
 - 向 B（DTO → 矩阵）：`test_each_source_dto_exhaustively_covered`——`set(model_fields)
   == set(矩阵行)`，DTO 新增字段未登记矩阵 → 红。
@@ -18,7 +18,7 @@ sentinel」矩阵 + **源 DTO 字段穷尽测试**（`set(DTO.model_fields) == �
 - 阻断#6：移除未授权 `nested` 伪 transform/category（父子结构改由 `FieldRule.child`
   结构标记表达，不塞进封闭词表）；target 校验改**逐个**断言每 target ∈ 声明 category
   的合法叶子（非 `any(...)` 命中即过），复合行每 target 都验。
-- 阻断#7：bundle 缺失 **hard-fail 非 skip**；卡数断言 **精确 == 397**；obligation_graph
+- 阻断#7：bundle 缺失 **hard-fail 非 skip**；卡数断言 **精确 == 398**；obligation_graph
   外层键 **穷尽校验**（不 `.get` 绕过）；`QualifierSetDTO` 及全部源 DTO 纳入
   **自动发现等集断言**（`test_all_source_dtos_registered_in_matrix`）。
 - 阻断#2：Node/Edge `from_dict` 现全键透传，未知键 → ValidationError；本测试断言其真拦
@@ -792,13 +792,13 @@ def test_applicability_has_no_state_field():
 
 
 # =========================================================================== #
-# 向 A：真实 397 卡逐源经 typed DTO ingest（extra=forbid 不误伤 + 捕获新键）
+# 向 A：真实 398 卡逐源经 typed DTO ingest（extra=forbid 不误伤 + 捕获新键）
 # =========================================================================== #
 
-EXPECTED_CARD_COUNT = 397  # 真实卡数（精确锚，非 >=300）
+EXPECTED_CARD_COUNT = 469  # 真实卡数（精确锚，非 >=300）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
 
-# 阻断#1b：九源容器**每卡必存在**（真卡枚举 9/9 全 397/397 存在为键，即使 list 为空亦带键）。
-# 缺任一 → fail（母病闸不 `.get` 静默兜过）。当前语料无 optional 容器（全 397/397 present）。
+# 阻断#1b：九源容器**每卡必存在**（真卡枚举 9/9 全 398/398 存在为键，即使 list 为空亦带键）。
+# 缺任一 → fail（母病闸不 `.get` 静默兜过）。当前语料无 optional 容器（全 398/398 present）。
 REQUIRED_CONTAINERS = (
     "applicability",
     "trigger_conditions",
@@ -827,15 +827,15 @@ CONTAINER_TO_DTOS = {
 
 # ---- 母病闸真漏修：卡顶层键白名单（非九容器的顶层键 = provenance 类顶层源）---------- #
 # 病灶：旧 ingest 测试只验九容器「存在」，**不验每卡完整顶层键集**——卡顶层加
-# `brand_new_top_source` → 397 测仍过（新顶层源容器静默漏进）。修：读真卡枚举**每卡真实
+# `brand_new_top_source` → 398 测仍过（新顶层源容器静默漏进）。修：读真卡枚举**每卡真实
 # 顶层键的并集**，建白名单，ingest 对每卡断言 `set(card.keys()) ⊆ ALLOWED_TOP_LEVEL_KEYS`；
 # 白名单外的顶层键 → 红。
 #
-# 真卡枚举（397/397 全 present）：九容器 + 下列九个 provenance 类顶层源。spec 草案 v4 A.6
+# 真卡枚举（398/398 全 present）：九容器 + 下列九个 provenance 类顶层源。spec 草案 v4 A.6
 # 矩阵行显式列 `source_section/source_quote/version.*/provenance.*/normalized_rule_text/
 # neighbor_families/family_id`（provenance / explicitly_ignored，`family_id`→
 # `provenance.source_family_id`）；`rule_card_id`/`source_document_id` 未在该行逐字枚举，
-# 但真卡 397/397 present、语义即 provenance（primary 卡 id / 源文档 id），据实登记 provenance。
+# 但真卡 398/398 present、语义即 provenance（primary 卡 id / 源文档 id），据实登记 provenance。
 # 每键显式登记 category（provenance / explicitly_ignored），杜绝「新顶层源静默放行」。
 PROVENANCE_TOP_LEVEL_SOURCES = {
     "rule_card_id": "provenance",       # primary 卡 id
@@ -881,8 +881,8 @@ def _load_cards():
     return data["cards"]
 
 
-def test_typed_dtos_ingest_all_397_cards():
-    """真实 397 卡逐源经 typed DTO `**dict` 构造：extra=forbid 不误伤现有语料。
+def test_typed_dtos_ingest_all_398_cards():
+    """真实 398 卡逐源经 typed DTO `**dict` 构造：extra=forbid 不误伤现有语料。
 
     向 A 母病断根：若某源出现新 JSON 键而 DTO 未收录，`**dict` 构造抛 ValidationError。
     本测试证明当前语料被 DTO 完全覆盖（无新键漏网），且反向证明 typed DTO 字段名 /
@@ -901,7 +901,7 @@ def test_typed_dtos_ingest_all_397_cards():
         for cont in REQUIRED_CONTAINERS:
             assert cont in c, (
                 f"卡 {c.get('rule_card_id')!r} 缺源容器 {cont!r}"
-                "（母病闸：该容器应全 397/397 存在，缺失 → fail 不静默兜过）"
+                "（母病闸：该容器应全 398/398 存在，缺失 → fail 不静默兜过）"
             )
 
         # 母病闸真漏修：卡**完整顶层键集** ⊆ 白名单——顶层冒出白名单外的新键（新顶层源
@@ -959,16 +959,29 @@ def test_typed_dtos_ingest_all_397_cards():
 
     # 与真实枚举锚对齐（防 ingest 静默丢源）
     assert counts["applicability"] == len(cards)
-    assert counts["trigger_items"] == 376
-    assert counts["recipients"] == 62
-    assert counts["artifacts"] == 326
+    # 2026-08-05 换池捆绑批·乙路 #30 重锚 428→429：意向卡
+    # `…s2_1_3_n_investigation_intention_to_ba.c01` 新增卡级触发项 `trg01`
+    # （引用新 sr02 = 真前件槽 `procedure.investigation.detailed.intended`）。
+    # 「未变的项即证据」：本件只碰这一张卡的 `trigger_conditions` 与 `slot_role_map`，
+    # 故只有 trigger_items(+1) 与 slot_roles(+1) 动，其余十项逐位不变。
+    assert counts["trigger_items"] == 429
+    assert counts["recipients"] == 75  # 2026-07-28 补 64 张缺卡后重锚
+    # 2026-07-28 补 64 张缺卡后重锚（卡 398→462）。增量逐项归因于新卡：
+    #   artifacts 326→336(+10) / slot_roles 771→872(+101) / nodes 402→480(+78)
+    #   recipients 62→73(+11) / trigger_items 377→426(+49)
+    # **未变的项恰恰是证据**：deadlines/thresholds/formulas/evidence/definitions/edges
+    # 全部零变化 ⇒ 新卡没有污染既有源通道。
+    # 2026-08-04 件四批 1 退役 §3.2.6 重复卡（该卡：trigger 1 / artifacts 1 / slot_roles 2 /
+    # nodes 1，其余七个容器全空）⇒ 只有这四项各减对应数，deadlines/thresholds/formulas/
+    # evidence/definitions/edges/exceptions/recipients 八项**逐位不变**——同样是「未变的项即证据」。
+    assert counts["artifacts"] == 335
     assert counts["deadlines"] == 25
-    assert counts["slot_roles"] == 769
+    assert counts["slot_roles"] == 878  # 2026-08-05 乙路 #30：意向卡 +sr02（trigger 角色）877→878
     assert counts["thresholds"] == 41
     assert counts["formulas"] == 3
     assert counts["evidence"] == 370  # 三组合计（for_matching+for_submission+for_completion）
     assert counts["definitions"] == 1
-    assert counts["nodes"] == 401
+    assert counts["nodes"] == 487
     assert counts["edges"] == 4
     assert counts["exceptions"] == 0
 
@@ -978,7 +991,7 @@ def test_allowed_top_level_keys_exhaustive():
 
     真卡冒出**新顶层源**（新容器 / 新 provenance 源）而未登记白名单 → 红（卡多出）；
     白名单含真卡不存在的幻影键 → 红（白名单多出）。这堵死「新顶层源静默漏进」的口，
-    与 `test_typed_dtos_ingest_all_397_cards` 的逐卡 ⊆ 断言互补（并集精确锚）。
+    与 `test_typed_dtos_ingest_all_398_cards` 的逐卡 ⊆ 断言互补（并集精确锚）。
     """
     cards = _load_cards()
     real_union = set()
@@ -1162,7 +1175,7 @@ def test_strict_rejects_type_wrong_source():
 
 
 def test_required_fields_reject_missing():
-    """阻断#3 required 闸真生效：397 全量存在字段去默认改 required——缺 → ValidationError。
+    """阻断#3 required 闸真生效：398 全量存在字段去默认改 required——缺 → ValidationError。
 
     直接证据：applicability 缺 exclusions（曾有 default_factory）、evidence req 缺
     artifact_ids（曾有 default）、workflow 缺 method_keys_allowed（曾有 default）皆被拒。
@@ -1222,7 +1235,7 @@ def test_edge_id_derived_on_direct_construction_forgery_discarded():
 
     病灶：from_dict 已丢弃源注入并派生，但 `ObligationEdgeDTO(source_node_id="a",
     target_node_id="b", relation="r", obligation_edge_id="FORGED")` **直构**曾保留
-    FORGED——而 397 卡 ingest 测试恰走 `ObligationEdgeDTO(**e)` 直构，故加 edge_id 亦全过。
+    FORGED——而 398 卡 ingest 测试恰走 `ObligationEdgeDTO(**e)` 直构，故加 edge_id 亦全过。
     修：`model_validator(mode="before")` 无条件从三元组重派生，直构与 from_dict 统一。
 
     直接证据：直构注入 FORGED → obligation_edge_id 为派生值（非 FORGED）。

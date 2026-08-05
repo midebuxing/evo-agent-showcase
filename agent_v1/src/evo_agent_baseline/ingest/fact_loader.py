@@ -570,6 +570,14 @@ def _expand_condition(
             "ManifestationFlag", "manifestation_flag_id", flag_id,
         ))
         # REALIZES_SLOT 桥接边：slot 在 registry 存在时由写入期 MATCH 决定是否建。
+        # ⚠️ 未归一（2026-07-27 注）：这里的 `slot_id` 是**世界侧名**，而
+        # `SemanticSlot.slot_id` 是**卡侧名**——命中别名表的槽（如世界侧
+        # `procedure.repair.prescribed.started` vs 卡侧 `repair.prescribed.started`）
+        # 写入期 MATCH 不命中、这条桥边**结构上不存在**。当前不修的理由：全仓没有
+        # 任何查询消费 `REALIZES_SLOT`（闭包走 FactPack 的 FactIndex、检索走
+        # SlotRef→SemanticSlot，都不经这条边），故是死边、补不补都不改行为。
+        # 若将来有人接线消费它，必须先在此过 slot_alias_policy 正向归一，否则
+        # 别名槽的桥边永远缺席、且会静默（MATCH 不命中不报错）。
         batch.add_edge(EdgeSpec(
             "ManifestationFlag", "manifestation_flag_id", flag_id,
             "REALIZES_SLOT",

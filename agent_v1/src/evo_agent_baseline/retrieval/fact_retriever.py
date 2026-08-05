@@ -616,6 +616,27 @@ _SLOT_TARGET_FALLBACKS: Dict[str, List[str]] = {
 }
 
 
+def _assert_slot_target_fallback_members_are_artifact_slots() -> None:
+    """第三锚结构性前提：回退表成员必须全是产物齐备槽。
+
+    闭包侧 `is_artifact_state_fact` 认 `derivation=slot_target_fallback` 为产物齐备布尔，
+    **不**按目标槽名白名单。若有人往表里塞非产物成员，派生事实会被误认 ——
+    故在生产者侧锁死「成员 ⊆ W0_09_ARTIFACT_SLOTS」。延迟导入避免循环依赖。
+    """
+    # 🔴 2026-07-27 终审 P2：原从 `closure.obligation_deriver` 取，构成
+    # `retrieval → closure` 反向依赖，违反规格 v0.4:4739（只允许闭包层消费检索数据对象）。
+    # 延迟 import **不改变分层关系**。改从中立纯数据层取（权威源已移至那里）。
+    from evo_agent_baseline.rulecard_assets import W0_09_ARTIFACT_SLOTS
+
+    for target, members in _SLOT_TARGET_FALLBACKS.items():
+        bad = set(members) - W0_09_ARTIFACT_SLOTS
+        if bad:
+            raise AssertionError(
+                f"_SLOT_TARGET_FALLBACKS[{target!r}] 含非产物槽 {sorted(bad)}；"
+                "第三锚认 derivation=slot_target_fallback，成员必须 ⊆ W0_09_ARTIFACT_SLOTS"
+            )
+
+
 def infer_method_class_for_verification_flags(
     atoms: List[FactAtom],
 ) -> None:
@@ -650,6 +671,7 @@ def derive_slot_target_fallback_facts(
     true → 目标槽 true；有成员事实但全非 true → false（封闭世界）；该 fragment
     无任何成员事实 → 不出事实（维持 missing 诚实缺量）。
     """
+    _assert_slot_target_fallback_members_are_artifact_slots()
     by_frag: Dict[str, Dict[str, List[FactAtom]]] = {}
     for f in facts:
         frag = f.qualifiers.get("fragment_id")
@@ -723,6 +745,272 @@ def derive_slot_target_fallback_facts(
                 f"{building_id}::slot_target::{target}",
                 target, any_hit, "building", building_id,
                 {"aggregation": "building"},
+            ))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# slot_targets.lookup_rule 通用派生（"登记了从没接线"修复，2026-07-27）
+#
+# 卡包 projection_runtime_mapping_v1.json 的 slot_targets 段共 27 条登记，其中 5 条
+# 带 lookup_rule。本实现【只消费 lookup_rule】；【未消费 owning_interfaces /
+# owning_interface_mode】——后者（如 procedure.investigation.detailed.started 的
+# all_of 双接口供证）语义比 lookup_rule 更严，两者关系规格里没说清，待裁定。
+#
+# lookup_rule 求值语义来源（非猜测）：归档 MVP
+# agent_mvp_已归档/src/workflow_engine/regulation_projection_executor.py 的
+# _lookup_via_rule——"被请求的限定符"= 卡侧 slot_ref 的 qualifiers（归档实现
+# requested_qualifiers = target.get("qualifiers")）。两点有意偏离，均偏保守：
+# ① 形态二 containment 未命中时【不出事实】而非判 false——当前世界 qual.actor_role
+#    词表（registered_inspector 等行为者类）与卡侧被请求词表（ri_rep_lvl1/lvl2
+#    代表等级）不交，无法区分"角色确缺席"与"世界词表不含所请键"，宁缺勿错；
+# ② 形态二子句在被请求限定符值缺失时【目标槽整体跳过】，不做归档的 vacuous 通过
+#   （生产侧无卡侧请求上下文，防"任一 qual.actor_role 事实在即算角色合格"假阳性）。
+# 未登记的 mode / qualifiers_mode / value_mode 取值一律 ValueError，不静默当 ignore。
+# ---------------------------------------------------------------------------
+
+
+def _parsed_json_value(value_json: Any) -> Any:
+    try:
+        return json.loads(value_json)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_value_list(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def harvest_slot_target_requested_qualifiers(
+    rule_cards_doc: Dict[str, Any],
+) -> Dict[str, List[Dict[str, Any]]]:
+    """从规则卡文档采集各槽的"被请求限定符"组合（形态二求值的输入，纯函数）。
+
+    遍历每张卡的 slot_ref（同时带 slot_ref_id 与 slot_id 的 dict），按 slot_id
+    归集其 qualifiers 组合并去重，顺序确定（按 JSON 排序）。"被请求的"即卡侧
+    义务节点声明的限定符——与归档 _lookup_via_rule 的 requested_qualifiers 同源。
+    """
+    combos: Dict[str, set] = {}
+
+    def _walk(node: Any) -> None:
+        if isinstance(node, dict):
+            slot_id = node.get("slot_id")
+            if isinstance(slot_id, str) and "slot_ref_id" in node:
+                quals = node.get("qualifiers")
+                quals = quals if isinstance(quals, dict) else {}
+                key = json.dumps(quals, ensure_ascii=False, sort_keys=True)
+                combos.setdefault(slot_id, set()).add(key)
+            for v in node.values():
+                _walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                _walk(v)
+
+    cards = rule_cards_doc.get("cards") if isinstance(rule_cards_doc, dict) else None
+    for card in cards or []:
+        _walk(card)
+    return {
+        slot: [json.loads(k) for k in sorted(keys)]
+        for slot, keys in sorted(combos.items())
+    }
+
+
+
+def _slot_aliases_for_lookup_rule(client: Any, building_id: str) -> Dict[str, Any]:
+    """取 `slot_aliases`（卡侧名→世界侧名），供 lookup_rule 派生两侧同口径比较。
+
+    **复用** `RULE_PROJECTION_RUNTIME_MAPPING`（DEBT-040 已建的别名运输查询），
+    不新造第二条——保证与闭包侧 `canonical_slot` 读的是**同一条运输链、同一张表**。
+    读不到就返回空表 ⇒ `_canon_slot` 退化为恒等 ⇒ **行为与修复前一致**，
+    不会因为取不到别名而少派生或多派生（诚实降级，非 fail-open 判定）。
+    """
+    try:
+        rows = client.read(queries.RULE_PROJECTION_RUNTIME_MAPPING)
+        if rows:
+            parsed = json.loads(rows[0].get("slot_aliases_json") or "{}")
+            if isinstance(parsed, dict):
+                return parsed
+    except (AttributeError, TypeError, ValueError, KeyError) as exc:
+        _warn_mapping_degraded("slot_aliases", exc, building_id)
+    return {}
+
+def derive_slot_target_lookup_rule_facts(
+    facts: List[FactAtom],
+    slot_targets: Dict[str, Any],
+    requested_qualifiers: Dict[str, List[Dict[str, Any]]],
+    world_id: str,
+    building_id: str,
+    slot_aliases: Optional[Dict[str, Any]] = None,
+) -> List[FactAtom]:
+    """slot_targets.lookup_rule 通用楼级派生（纯函数可单测）。
+
+    对 slot_targets 中每个带 lookup_rule 的目标槽、每个被请求限定符组合
+    （requested_qualifiers 缺该槽时退化为单无限定符组合）：
+
+    - 直接事实优先：目标槽已有 qualifiers 涵盖该组合的事实 → 跳过（归档
+      _resolve_target_facts 的 direct-wins）；
+    - mode=all_of 完整合取（【绝不简化成单项别名】）：全部子句满足 → 派生 true；
+      全部子句可判但未全满足 → 派生 false（封闭世界双极）；任一子句不可判
+      （槽整体无事实，或形态二 containment 未命中）→ 不出事实（诚实缺量）；
+    - 子句形态一（qualifiers_mode=ignore、无 value_mode）：该槽任一显式 true 即满足，
+      该槽有事实即可判；
+    - 子句形态二（value_mode=contains_requested_qualifier）：子句槽存在事实、其
+      值列表包含被请求限定符键的全部值即满足；未命中不可判（偏离归档，见文件头
+      注）；组合里没有被请求限定符键 → 该组合跳过（生产侧传空 map ⇒ 形态二
+      目标槽整体不派生）。
+
+    派生事实为楼级行（carrier=building + aggregation=building 标记 + 组合限定符），
+    provenance.derivation="slot_target_lookup_rule"。
+
+    ⚠️ **别名归一在当前数据下是空操作（2026-07-27 agy 独立复核实测）**：
+    带 `lookup_rule` 的 5 个目标槽及其子句 `slot_id`，与 `slot_aliases` 的键**交集为空**；
+    而**是**别名表键的那 10 个 `slot_targets` 条目**全都没有 `lookup_rule`**、
+    在 `if rule is None: continue` 处就跳出了。
+    ⇒ 归一三处（去重 / 子句收集 / 派生结果 `slot_id`）当前全部退化为恒等。
+    **保留归一是为口径一致**，不是为当下的行为——别把它读成"正在生效的修复"。
+    🔴 codex 审核门原判「10 个键恒不命中导致重复派生」**不成立**（它们走不到那两处比较）；
+    若确实想让这 10 个可派生，**要查的是卡包为何没给它们配 `lookup_rule`**，不是比较语义。
+    """
+    out: List[FactAtom] = []
+    # 卡侧名 → 世界侧规范名（两侧同口径比较；缺表则退化为恒等，不改行为）。
+    from evo_agent_baseline.slot_alias_policy import slot_aliases_from_policy
+
+    # 🔴 codex 二审 P2（实测坐实）：`slot_aliases_from_policy` 收的是
+    # **`retrieval_policy` 那层包裹结构**（读 `policy["slot_aliases"]` 与
+    # `policy["projection_runtime_mapping_v1"]["slot_aliases"]`），而这里拿到的是
+    # **裸别名表**。直接喂 → 实测 15 条变 **0 条** ⇒ `_alias` 恒空 ⇒ 归一恒等
+    # ⇒ **整个修复静默失效**。故须包一层。
+    # ⚠️ 这正是本项目反复吃亏的形状：接口两侧形状不一致，且**不报错、只是恒空**。
+    _alias = slot_aliases_from_policy({"slot_aliases": slot_aliases or {}})
+
+    def _canon_slot(name: str) -> str:
+        return _alias.get(name, name)
+
+    for target in sorted(slot_targets):
+        if target.startswith("_"):
+            continue
+        entry = slot_targets[target]
+        if not isinstance(entry, dict):
+            continue
+        rule = entry.get("lookup_rule")
+        if rule is None:
+            continue  # 27 条里 22 条只有 owning_interfaces、无推导规则——无事可做
+        if not isinstance(rule, dict) or rule.get("mode") != "all_of":
+            raise ValueError(
+                f"slot_targets[{target}].lookup_rule 未登记的 mode: "
+                f"{rule.get('mode') if isinstance(rule, dict) else rule!r}"
+            )
+        clauses = rule.get("clauses")
+        if not isinstance(clauses, list) or not clauses:
+            raise ValueError(
+                f"slot_targets[{target}].lookup_rule.clauses 缺失或为空"
+            )
+        for clause in clauses:
+            if not isinstance(clause, dict) or not clause.get("slot_id"):
+                raise ValueError(
+                    f"slot_targets[{target}] 子句缺 slot_id: {clause!r}"
+                )
+            qmode = clause.get("qualifiers_mode", "ignore")
+            if qmode != "ignore":
+                raise ValueError(
+                    f"slot_targets[{target}] 未登记的 qualifiers_mode: {qmode!r}"
+                )
+            vmode = clause.get("value_mode")
+            if vmode is not None and vmode != "contains_requested_qualifier":
+                raise ValueError(
+                    f"slot_targets[{target}] 未登记的 value_mode: {vmode!r}"
+                )
+
+        combos = requested_qualifiers.get(target) or [{}]
+        for combo in combos:
+            if not isinstance(combo, dict):
+                continue
+            # 形态二子句需要组合里带被请求限定符键，否则该组合无法求值（跳过）。
+            if any(
+                c.get("value_mode") == "contains_requested_qualifier"
+                and not _as_value_list(combo.get(c.get("requested_qualifier_key")))
+                for c in clauses
+            ):
+                continue
+            # 直接事实优先（qualifiers 涵盖组合即命中）。
+            # 🔴 2026-07-27 codex 审核门 P1：此处与下面子句收集处原本都是**裸比**
+            # （`f.slot_id == target`），而 `target` / `clause["slot_id"]` 是**卡侧名**、
+            # `f.slot_id` 是**世界侧名**。27 个 slot_targets 键里 **10 个正是别名表的键**
+            # （`repair.prescribed.{started,completed}` / `procedure.appointment.completed`
+            # / `reporting.*` 等）⇒ 去重检查对这 10 个**恒不命中**（重复派生），
+            # 子句收集则**把合法事实当作缺失而跳过派生**（后者更糟：少产事实）。
+            # 修法：两侧同口径——都归一到世界侧规范名再比。
+            # ⚠️ 教训在先：同日「半边归一比不归一更糟」已实证一次
+            # （只归一查询侧使 `scope.component.inspection_included` 26→0）。
+            if any(
+                _canon_slot(f.slot_id) == _canon_slot(target)
+                and all(f.qualifiers.get(k) == v for k, v in combo.items())
+                for f in facts
+            ):
+                continue
+            clause_states: List[tuple] = []  # (satisfied, decidable)
+            for clause in clauses:
+                _cslot = _canon_slot(clause["slot_id"])
+                cfacts = [f for f in facts if _canon_slot(f.slot_id) == _cslot]
+                if clause.get("value_mode") == "contains_requested_qualifier":
+                    requested_values = _as_value_list(
+                        combo.get(clause["requested_qualifier_key"]))
+                    satisfied = any(
+                        all(
+                            v in _as_value_list(_parsed_json_value(f.value_json))
+                            for v in requested_values
+                        )
+                        for f in cfacts
+                    )
+                    # containment 未命中不可判（词表缺口与真缺席不可分），宁缺勿错。
+                    clause_states.append((satisfied, satisfied))
+                else:
+                    satisfied = any(
+                        _parsed_json_value(f.value_json) is True for f in cfacts
+                    )
+                    clause_states.append((satisfied, bool(cfacts)))
+            if all(s for s, _ in clause_states):
+                hit: Optional[bool] = True
+            elif all(d for _, d in clause_states):
+                hit = False
+            else:
+                hit = None
+            if hit is None:
+                continue
+            suffix = "" if not combo else "::" + ",".join(
+                f"{k}={v}" for k, v in sorted(combo.items()))
+            fact_id = f"{building_id}::slot_target_lookup::{target}{suffix}"
+            out.append(FactAtom(
+                fact_id=fact_id,
+                world_id=world_id,
+                building_id=building_id,
+                carrier_type="building",
+                carrier_id=building_id,
+                target_ref=None,
+                # 🔴 第三处不对称（2026-07-27 agy 独立复核挖出，codex 那条 P1 没提）：
+                # 前两处修的是「读」的口径，这里是「写」的口径。若派生结果仍以**卡侧名**
+                # 落 slot_id，而去重/子句收集已归一到世界侧名，三者口径就不一致；
+                # 下游闭包若按世界侧名查，这条派生事实**查不到**。
+                # 当前数据下三处都退化为恒等（见函数头注释），但口径必须一致，
+                # 否则等哪天某个带 lookup_rule 的键进了别名表，这是最难查的一处。
+                slot_id=_canon_slot(target),
+                measure_key=None,
+                value_json="true" if hit else "false",
+                value_type="boolean",
+                unit=None,
+                qualifiers={**combo, "aggregation": "building"},
+                confidence_index=None,
+                source_path="sidecar_entries.parquet",
+                source_node_id=fact_id,
+                provenance={
+                    "carrier_label": "Building",
+                    "derivation": "slot_target_lookup_rule",
+                    "slot_target": target,
+                },
             ))
     return out
 
@@ -1208,7 +1496,7 @@ def retrieve_fact_pack(
     # ProjectionRuntimeMapping 节点无 method_aliases_json → null → 空展开表 → identity 归一
     # （现网零漂移）；缺失/坏 JSON 不阻断。CCTV 三拼法桥入 U4/U5 gate、暗部署期展开表不含
     # drainage_cctv→cctv_survey。
-    from evo_agent_baseline.closure.fact_binding import build_method_canonical_map
+    from evo_agent_baseline.slot_alias_policy import build_method_canonical_map
     method_alias_map: Dict[str, str] = {}
     try:
         rows = client.read(queries.FACT_METHOD_ALIASES)
@@ -1271,6 +1559,51 @@ def retrieve_fact_pack(
     # slot_targets 回退派生（reporting.artifact.prepared 等，enrich 盖完 fragment 戳后跑）。
     facts.extend(derive_slot_target_fallback_facts(facts, world_id, building_id))
 
+    # slot_targets.lookup_rule 通用派生（2026-07-27 接线；与上面的硬编码回退两条
+    # 通道并存——reporting.artifact.prepared 的 any_of 成员折叠不是 lookup_rule 语义，
+    # 仍走旧通道、行为逐位不变）。本实现只消费 lookup_rule，未消费
+    # owning_interfaces / owning_interface_mode（两者关系规格未说清，待裁定）。
+    # 节点属性缺席 → 空表 → 无操作（暗部署模式，同 method_aliases）。
+    slot_targets: Dict[str, Any] = {}
+    try:
+        rows = client.read(queries.FACT_SLOT_TARGETS)
+        if rows:
+            parsed = json.loads(rows[0].get("slot_targets_json") or "{}")
+            if isinstance(parsed, dict):
+                slot_targets = parsed
+    except (TypeError, ValueError) as exc:
+        slot_targets = {}
+        _warn_mapping_degraded("slot_targets", exc, building_id)
+    # 🔴 2026-07-27 codex 审核门 P1-C：卡侧「被请求限定符」组合表。
+    # 此前这里**固定传 `{}`**，注释还把它写成设计（"生产侧无卡侧请求上下文"）——
+    # 实际后果两条：①形态二子句（contains_requested_qualifier）永远因缺
+    # `requested_qualifier_key` 被跳过；②形态一目标槽退化成"单个无限定符组合"，
+    # 而「直接事实优先」里空组合被**任何**已有事实涵盖 ⇒ 只要该槽已有一条直接事实，
+    # 卡真正要的那些**带限定符**的组合就一条都不派生（实测：真实批 30 栋里
+    # `supervision.record.{completed,retained}` 因此 0 派生，接通后 +90 条）。
+    # 采集函数 `harvest_slot_target_requested_qualifiers` 早已写好并导出，全仓只有
+    # 测试在调（第九个「登记了没接线」）。现由 loader 经同一节点属性运输过来。
+    # ⚠️ 诚实边界：接通后 `actor.representative.*` 两个目标槽**仍派生 0 条**——
+    # 卡侧请求 `actor_role_key=ri_rep_lvl1/lvl2`（代表等级），世界侧 `qual.actor_role`
+    # 只有 4 类行为者类型，两个词表结构上不相交。那是卡包 authoring 问题，不是接线问题
+    # （`tests/test_slot_targets_lookup_rule_wiring.py` 把它钉成显式断言）。
+    requested_qualifiers: Dict[str, Any] = {}
+    try:
+        rows = client.read(queries.FACT_SLOT_TARGET_REQUESTED_QUALIFIERS)
+        if rows:
+            parsed = json.loads(
+                rows[0].get("slot_target_requested_qualifiers_json") or "{}")
+            if isinstance(parsed, dict):
+                requested_qualifiers = parsed
+    except (TypeError, ValueError) as exc:
+        requested_qualifiers = {}
+        _warn_mapping_degraded("slot_target_requested_qualifiers", exc, building_id)
+    if slot_targets:
+        facts.extend(derive_slot_target_lookup_rule_facts(
+            facts, slot_targets, requested_qualifiers, world_id, building_id,
+            slot_aliases=_slot_aliases_for_lookup_rule(client, building_id),
+        ))
+
     return build_fact_pack(
         run_id=run_id,
         world_id=world_id,
@@ -1284,7 +1617,9 @@ __all__ = [
     "FactRetrievalRaw",
     "derive_category_membership_facts",
     "derive_combination_bridge_facts",
+    "derive_slot_target_lookup_rule_facts",
     "facts_from_raw",
+    "harvest_slot_target_requested_qualifiers",
     "retrieve_fact_raw",
     "retrieve_fact_pack",
 ]

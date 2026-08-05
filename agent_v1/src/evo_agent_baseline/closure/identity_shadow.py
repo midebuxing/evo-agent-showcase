@@ -217,6 +217,7 @@ def run_shadow_closure(
     *,
     config: Any = None,
     measure_aliases: Optional[Dict[str, str]] = None,
+    applicability_bundle: Any = None,
 ) -> ShadowClosureRun:
     """步 5：先建 run catalog + 双读径核对，再跑影子现网路径拿 pre-dedup 义务 + 绑定（判定语义零改）。
 
@@ -247,6 +248,7 @@ def run_shadow_closure(
         config,
         identity_blueprint_catalog=catalog,
         pre_dedup_out=pre_dedup,
+        applicability_bundle=applicability_bundle,
     )
 
     return ShadowClosureRun(

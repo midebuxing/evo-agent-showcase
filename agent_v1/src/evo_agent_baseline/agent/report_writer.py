@@ -27,15 +27,19 @@ spec→code 单向：报告骨架与字段照 spec §7.4 / 附录 C + 报告契�
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from functools import lru_cache
+from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 from evo_agent_baseline.contracts import (
     ClosureValidationResult,
     FactPack,
     RuleSlice,
 )
+from evo_agent_baseline.ingest import zh_authority
+from evo_agent_baseline.rulecard_assets import DEFAULT_AUTHORITATIVE_BUNDLE_PATH
 
 
 # ===========================================================================
@@ -95,6 +99,68 @@ def _fmt_value(value: Any) -> str:
     return str(value)
 
 
+def _field(value: Any, key: str, default: Any = "") -> Any:
+    """同时读取字典与契约对象，且把 None 归一为缺省值。"""
+    if isinstance(value, dict):
+        found = value.get(key, default)
+    else:
+        found = getattr(value, key, default)
+    return default if found is None else found
+
+
+@lru_cache(maxsize=1)
+def _rulecard_clause_index() -> Dict[str, Tuple[str, ...]]:
+    """只从权威卡包的结构化来源锚构造「卡号 → 条款号」索引。
+
+    本索引刻意只读 `rule_card_id` 与 `source_section[].section_id`；卡包读取失败时
+    返回空映射，由消费者渲染层保留原卡号，绝不猜造条款号。
+    """
+    try:
+        bundle = json.loads(
+            DEFAULT_AUTHORITATIVE_BUNDLE_PATH.read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+
+    index: Dict[str, Tuple[str, ...]] = {}
+    for card in bundle.get("cards", []) or []:
+        card_id = str(card.get("rule_card_id") or "").strip()
+        if not card_id:
+            continue
+        clause_ids = {
+            str(section.get("section_id") or "").strip().lstrip("§")
+            for section in card.get("source_section", []) or []
+            if str(section.get("section_id") or "").strip().lstrip("§")
+        }
+        if clause_ids:
+            index[card_id] = tuple(sorted(clause_ids))
+    return index
+
+
+def _source_clause_tuple(obligation: Any) -> Tuple[str, ...]:
+    """取义务自身条款号并归一为确定性元组；缺失时返回空元组。"""
+    raw_clause_ids = _field(obligation, "source_clause_ids", []) or []
+    if isinstance(raw_clause_ids, str):
+        raw_clause_ids = [raw_clause_ids]
+    clause_ids = {
+        str(clause_id).strip().lstrip("§")
+        for clause_id in raw_clause_ids
+        if str(clause_id).strip().lstrip("§")
+    }
+    return tuple(sorted(clause_ids))
+
+
+def _rule_reference(obligation: Any = None, card_id: str = "") -> str:
+    """按「义务条款 → 卡包条款 → 原卡号」优先级生成消费者引用。"""
+    clause_ids = _source_clause_tuple(obligation) if obligation is not None else ()
+    clean_card_id = str(card_id or "").strip()
+    if not clause_ids and clean_card_id:
+        clause_ids = _rulecard_clause_index().get(clean_card_id, ())
+    if clause_ids:
+        return "、".join(f"§{clause_id}" for clause_id in clause_ids)
+    return clean_card_id or "—"
+
+
 def _obligation_target(ob: Dict[str, Any]) -> str:
     """从义务 dict 拼一个可读的 target 描述（fragment / component 维度）。"""
     frag = _g(ob, "fragment_id")
@@ -113,6 +179,41 @@ def _obligation_evidence(ob: Dict[str, Any]) -> str:
     if quotes:
         chunks.append("quote:" + ",".join(str(q) for q in quotes))
     return "; ".join(chunks) if chunks else "—"
+
+def _mirror_verdict_counts(result: Any) -> Tuple[int, int]:
+    """DEBT-083 丁护栏②消费端（2026-08-02 codex 终审硬条件）：镜像一致性副本计数。
+
+    哨兵边界修复的丁（消灭双轨）会让槽角色触发器副本镜像真触发器的判定，notes 带
+    `consistency_mirror_of=trigger_slot_ref:<id>`。这些副本**不是独立法规判断**——
+    报告须分「原生判定」与「镜像一致性副本」两账，否则同一触发器判定被消费者
+    重复计数（批 I 实测 820 条镜像里 `reporting.artifact.prepared` 一槽就 512 条）。
+    返回 (mirror_satisfied, mirror_violated)。开关关闭的产物无该标记 ⇒ 恒 (0,0)，
+    渲染逐字节不变。
+    """
+    sat = vio = 0
+    try:
+        obligations = result.obligation_set.obligations
+    except AttributeError:
+        return 0, 0
+    for o in obligations:
+        if "consistency_mirror_of=" in (str(getattr(o, "notes", "") or "")):
+            status = str(getattr(o, "satisfaction_status", ""))
+            if status == "satisfied":
+                sat += 1
+            elif status == "violated":
+                vio += 1
+    return sat, vio
+
+
+def _verdict_count_line(label: str, total: int, mirror: int) -> str:
+    """判定计数行：有镜像时分账（原生 + 镜像一致性副本），无镜像时与旧格式逐字节同。"""
+    if mirror:
+        return (
+            f"- {label}: {total}（原生 {total - mirror} ＋ 镜像一致性副本 {mirror}；"
+            "镜像与来源触发器同判，不构成独立法规判断）"
+        )
+    return f"- {label}: {total}"
+
 
 def render_authoritative_closure_overview(
     result: ClosureValidationResult,
@@ -145,8 +246,11 @@ def render_authoritative_closure_overview(
         f"- open: {summary.open_count}",
         f"- blocked: {summary.blocked_count}",
         f"- closed: {summary.closed_count}",
-        f"- satisfied: {summary.satisfied_count}",
-        f"- violated: {summary.violated_count}",
+        # DEBT-083 丁护栏②：镜像一致性副本分账（无镜像时与旧格式逐字节同）。
+        _verdict_count_line("satisfied", summary.satisfied_count,
+                            _mirror_verdict_counts(result)[0]),
+        _verdict_count_line("violated", summary.violated_count,
+                            _mirror_verdict_counts(result)[1]),
         f"- unknown: {summary.unknown_count}",
         f"- allow_stop: {result.allow_stop}",
         f"- open reason top-5: {top_five(summary.open_reason_counts)}",
@@ -188,6 +292,119 @@ def render_incomplete_closure_notice(
     lines.append("")
     lines.append("本次资料闭包验证未通过，不能生成完整辅助审查报告。")
     lines.append("")
+
+    # 🔴🔴 「你该做什么」必须排在最前（2026-07-30）
+    #
+    # 改这一处的理由是实测出来的，不是风格偏好：
+    # 单栋 49 KB / 约 460 行的文档里，**对专业审查员有行动价值的只有 4 项 / 17 条**，
+    # 而它们原先埋在**第 266 行**——前面 235 行是未闭合项逐组穷举、
+    # 13 个归因分节，讲的全是**系统自己哪里不知道**（5,071 条，占 99.7%）。
+    #
+    # 审查员打开文档第一眼看到的是 `run_id` / `allow_stop` / `stop_reason`
+    # 和 `artifact_state_not_valid_evidence` 这类原因码——**开发者语言**。
+    # 而他要问的只有一句：「这栋楼我现在该去看什么、补什么」。
+    #
+    # ⚠️ 这不是把系统自述删掉——**一条都没删**，只是换了顺序：
+    # 行动项在最前，系统自述与机器标识挪到文末「诊断信息」。
+    # 「系统对自己诚实」与「对使用者好用」是两件事，本项目此前只做到了前者。
+    obligation_index = _index_unclosed_obligations(open_items, blocked_items)
+    _action_first = _render_professional_action_items(
+        result.unknown_attribution_by_obligation_id or {},
+        obligation_index=obligation_index,
+        building_id=str(_g(mr, "building_id") or ""),
+    )
+    if _action_first:
+        lines.extend(_action_first)
+        lines.append("")
+    lines.append(
+        "> 以下为诊断明细。**若你只想知道该做什么，看完上面一节即可**——"
+        "其余内容说明系统自身在哪些地方无法给出结论，不需要你补录。"
+    )
+    lines.append("")
+
+    # 未闭合项 —— 分组聚合，不再逐条穷举
+    #
+    # 🔴 2026-07-28 改：原实现把每一条 open / blocked 义务各占一行铺出来，
+    # 实测**单栋 1,060 KB**（open 182.8 KB / 844 行、blocked 576.7 KB / 2,638 行、
+    # 建议 286.8 KB / 1,394 行；而真正有用的归因分节只有 14 KB）。
+    # 专业审查员无法把 1 MB 的文档当文档用——这直接违背「消费者优雅可用」。
+    #
+    # **明细一条都没丢**：全部 open_items / blocked_items 原样在同目录的
+    # `closure_validation_result.json` → `machine_readable_report.{open_items,blocked_items}`。
+    # 本节只做分组聚合并指路，**不做截断**：每组给出完整计数，
+    # 组内示例封顶但**显式写明"另有 N 条"**，绝不静默省略。
+    lines.append("## 未闭合项")
+    lines.append("")
+    lines.append(
+        "> 下表先按原因码、再按条款依据聚合。"
+        "**逐条明细未省略**，完整清单见同目录 `closure_validation_result.json` 的 "
+        "`machine_readable_report.open_items` / `blocked_items`。"
+    )
+    lines.append("")
+    lines.extend(_render_unclosed_group_table(
+        "open obligations（资料缺失，待补充）", open_items, "open_reason_code"))
+    lines.extend(_render_unclosed_group_table(
+        "blocked obligations（验证器无法处理，需人工介入）",
+        blocked_items, "blocked_reason_code"))
+
+    # unknown 归因（消费者验收标准落点；老产物的 None / 空映射显式降级）
+    attribution_mapping = result.unknown_attribution_by_obligation_id
+    if attribution_mapping:
+        # skip_action_items=True：本函数已在文首渲染过行动项（消费者轴改造），
+        # 不传这个参数会让整节出现两遍。另两个调用点（辅助审查报告 / v3-v4 组合报告）
+        # 文首没有这一节，保持缺省 False。
+        lines.extend(render_unknown_attribution_section(
+            result, skip_action_items=True))
+    else:
+        lines.extend(_unknown_attribution_missing_lines())
+
+    # 补充建议：有归因时只做交叉引用，不把文首行动项重复一遍。
+    lines.append("## 建议补充 / 检查资料")
+    lines.append("")
+    if attribution_mapping:
+        action_buckets = _collect_professional_action_buckets(
+            attribution_mapping,
+            obligation_index,
+            building_id=str(_g(mr, "building_id") or ""),
+        )
+        professional_count = sum(
+            bucket["obligation_count"] for bucket in action_buckets.values()
+        )
+        system_count = sum(
+            1
+            for attr in attribution_mapping.values()
+            if _field(attr, "responsibility") != "professional_input_required"
+        )
+        lines.append(
+            "需要你补充的资料已列在文首「需要你补充的资料」一节"
+            f"（共 {len(action_buckets)} 项 / {professional_count} 条义务）。"
+        )
+        lines.append("")
+        lines.append(
+            f"其余 **{system_count}** 条未闭合项属**系统侧缺口**"
+            "（规则卡未绑定核验通道、上游触发器未求值等），"
+            "**不需要你补录资料**，已记录待维护方处理；"
+            "分布见上节「unknown 归因」，逐条明细见 "
+            "`closure_validation_result.json`。"
+        )
+    else:
+        lines.append(
+            "（本次结果未带归因映射，以下按未闭合项原样列出，"
+            "其中部分可能属系统侧缺口。）"
+        )
+        lines.append("")
+        suggestions = _collect_suggestions(open_items, blocked_items)
+        if suggestions:
+            for suggestion in suggestions:
+                lines.append(f"- {suggestion}")
+        else:
+            lines.append("- 本次没有可列出的未闭合项。")
+    lines.append("")
+    # 文首注释承诺的「诊断信息」节——机器标识从文首挪到这里，不是删除。
+    # run_id / stop_reason 是跨批对账键（审计与复现都靠它们定位产物），
+    # 2026-08-04 提交前审核实测发现「行动项前置」改造时此节漏建、字段实际丢失，补回。
+    lines.append("## 诊断信息（机器标识，供对账与复现）")
+    lines.append("")
     lines.append(f"- run_id: {result.run_id}")
     lines.append(f"- world_id: {_g(mr, 'world_id')}")
     lines.append(f"- building_id: {_g(mr, 'building_id')}")
@@ -195,57 +412,7 @@ def render_incomplete_closure_notice(
     lines.append(f"- stop_reason: {_g(mr, 'stop_reason', summary.stop_reason)}")
     lines.append(
         f"- open: {summary.open_count}　blocked: {summary.blocked_count}"
-        f"　closed: {summary.closed_count}"
     )
-    lines.append("")
-
-    # 未闭合项 —— open
-    lines.append("## 未闭合项")
-    lines.append("")
-    lines.append("### open obligations（资料缺失，待补充）")
-    lines.append("")
-    if open_items:
-        lines.append("| obligation_id | target | rule_card | kind | open_reason |")
-        lines.append("|---|---|---|---|---|")
-        for ob in open_items:
-            lines.append(
-                f"| {_fmt_value(_g(ob, 'obligation_id'))} "
-                f"| {_obligation_target(ob)} "
-                f"| {_fmt_value(_g(ob, 'source_rule_card_id'))} "
-                f"| {_fmt_value(_g(ob, 'kind'))} "
-                f"| {_fmt_value(_g(ob, 'open_reason_code'))} |"
-            )
-    else:
-        lines.append("（无 open obligations）")
-    lines.append("")
-
-    # 未闭合项 —— blocked
-    lines.append("### blocked obligations（验证器无法处理，需人工介入）")
-    lines.append("")
-    if blocked_items:
-        lines.append("| obligation_id | target | rule_card | kind | blocked_reason |")
-        lines.append("|---|---|---|---|---|")
-        for ob in blocked_items:
-            lines.append(
-                f"| {_fmt_value(_g(ob, 'obligation_id'))} "
-                f"| {_obligation_target(ob)} "
-                f"| {_fmt_value(_g(ob, 'source_rule_card_id'))} "
-                f"| {_fmt_value(_g(ob, 'kind'))} "
-                f"| {_fmt_value(_g(ob, 'blocked_reason_code'))} |"
-            )
-    else:
-        lines.append("（无 blocked obligations）")
-    lines.append("")
-
-    # 补充建议
-    lines.append("## 建议补充 / 检查资料")
-    lines.append("")
-    suggestions = _collect_suggestions(open_items, blocked_items)
-    if suggestions:
-        for s in suggestions:
-            lines.append(f"- {s}")
-    else:
-        lines.append("- 请人工审查员复核上表未闭合项并补充对应建筑事实 / 法规依据。")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -256,26 +423,126 @@ def render_incomplete_closure_notice(
     return "\n".join(lines)
 
 
+_REFERENCES_PER_REASON = 10  # 每个原因码下列几个条款依据；超出时显式写明余量
+_SUGGESTION_CAP = 40         # 老产物降级条目上限；超出**显式写明**，不静默截断
+
+
+def _render_unclosed_group_table(
+    title: str, items: List[Dict[str, Any]], reason_field: str,
+) -> List[str]:
+    """把未闭合义务聚合成两级：先原因码，再按条款依据合并。"""
+    out: List[str] = ["", f"### {title}", ""]
+    if not items:
+        out += [f"（无 {title.split('（')[0].strip()}）", ""]
+        return out
+
+    by_reason: Dict[str, List[Dict[str, Any]]] = {}
+    for obligation in items:
+        by_reason.setdefault(
+            _fmt_value(_g(obligation, reason_field)), []
+        ).append(obligation)
+
+    references = {
+        _rule_reference(
+            obligation,
+            str(_g(obligation, "source_rule_card_id") or ""),
+        )
+        for obligation in items
+    }
+    out.append(
+        f"共 **{len(items)}** 条，涉及 **{len(references)}** 个条款依据、"
+        f"**{len(by_reason)}** 个原因码。"
+    )
+    out.append("")
+    out.append("| 条数 | 原因码 | 涉及条款数 |")
+    out.append("|---:|---|---:|")
+    for reason, obligations in sorted(
+        by_reason.items(), key=lambda item: -len(item[1])
+    ):
+        reason_references = {
+            _rule_reference(
+                obligation,
+                str(_g(obligation, "source_rule_card_id") or ""),
+            )
+            for obligation in obligations
+        }
+        out.append(f"| {len(obligations)} | {reason} | {len(reason_references)} |")
+    out.append("")
+
+    for reason, obligations in sorted(
+        by_reason.items(), key=lambda item: -len(item[1])
+    ):
+        per_reference: Dict[str, int] = {}
+        first_id: Dict[str, str] = {}
+        for obligation in obligations:
+            reference = _rule_reference(
+                obligation,
+                str(_g(obligation, "source_rule_card_id") or ""),
+            )
+            per_reference[reference] = per_reference.get(reference, 0) + 1
+            first_id.setdefault(
+                reference, _fmt_value(_g(obligation, "obligation_id"))
+            )
+        ranked = sorted(
+            per_reference.items(), key=lambda item: (-item[1], item[0])
+        )
+        out.append(
+            f"<details><summary>{reason}（{len(obligations)} 条 / "
+            f"{len(ranked)} 个条款依据）</summary>"
+        )
+        out.append("")
+        # 本表在**折叠块内**（机器下钻面），保留 `示例 obligation_id` 是有意的：
+        # 消费者验收 A 门只对**主视图**要求哈希数=0，折叠内不计；
+        # 而 `test_incomplete_closure_notice_lists_open_and_blocked` 明确要求
+        # 义务 id 出现在文档里——删它会伤可追溯性、换不来任何门禁收益。
+        # （2026-07-31 曾误删一次：那 10 个主视图哈希其实来自「继承根聚合」表，
+        #   不是本表；改前没定位就动手，数字纹丝不动还断了测试。）
+        out.append("| 条数 | 法规依据 | 示例 obligation_id |")
+        out.append("|---:|---|---|")
+        for reference, count in ranked[:_REFERENCES_PER_REASON]:
+            out.append(
+                f"| {count} | {reference} | {first_id.get(reference, '')} |"
+            )
+        if len(ranked) > _REFERENCES_PER_REASON:
+            rest = sum(count for _, count in ranked[_REFERENCES_PER_REASON:])
+            out.append(
+                f"| … | **另有 {len(ranked) - _REFERENCES_PER_REASON} 个条款依据"
+                f"、合计 {rest} 条**（完整清单见结果 JSON） | — |"
+            )
+        out.append("")
+        out.append("</details>")
+        out.append("")
+    return out
+
+
 def _collect_suggestions(
     open_items: List[Dict[str, Any]],
     blocked_items: List[Dict[str, Any]],
 ) -> List[str]:
-    """从 open / blocked 义务的 notes 与原因码汇总补充建议（去重保序）。"""
-    seen: set = set()
-    out: List[str] = []
-    for ob in list(open_items) + list(blocked_items):
-        note = str(_g(ob, "notes")).strip()
-        rule = _fmt_value(_g(ob, "source_rule_card_id"))
-        reason = _fmt_value(
-            _g(ob, "open_reason_code") or _g(ob, "blocked_reason_code")
+    """老产物缺归因映射时按「条款依据 × 原因码」聚合，绝不渲染 notes。"""
+    counts: Dict[tuple, int] = {}
+    for obligation in list(open_items) + list(blocked_items):
+        reference = _rule_reference(
+            obligation,
+            str(_g(obligation, "source_rule_card_id") or ""),
         )
-        if note:
-            msg = f"[{rule} / {reason}] {note}"
-        else:
-            msg = f"[{rule}] 待补充资料以闭合 {reason}。"
-        if msg not in seen:
-            seen.add(msg)
-            out.append(msg)
+        reason = _fmt_value(
+            _g(obligation, "open_reason_code")
+            or _g(obligation, "blocked_reason_code")
+        )
+        key = (reference, reason)
+        counts[key] = counts.get(key, 0) + 1
+
+    ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    out: List[str] = []
+    for (reference, reason), count in ordered[:_SUGGESTION_CAP]:
+        out.append(f"[{reference} / {reason}] 共 {count} 条待补充。")
+    if len(ordered) > _SUGGESTION_CAP:
+        rest = sum(count for _, count in ordered[_SUGGESTION_CAP:])
+        out.append(
+            f"…另有 **{len(ordered) - _SUGGESTION_CAP}** 组（合计 {rest} 条）未在此列出，"
+            "完整清单见 `closure_validation_result.json`。"
+        )
     return out
 
 
@@ -375,8 +642,10 @@ def render_auxiliary_review_report(
     lines.append(f"- closed: {summary.closed_count}")
     lines.append(f"- open: {summary.open_count}")
     lines.append(f"- blocked: {summary.blocked_count}")
-    lines.append(f"- satisfied: {summary.satisfied_count}")
-    lines.append(f"- violated: {summary.violated_count}")
+    # DEBT-083 丁护栏②：镜像一致性副本分账（无镜像时与旧格式逐字节同）。
+    _m_sat, _m_vio = _mirror_verdict_counts(result)
+    lines.append(_verdict_count_line("satisfied", summary.satisfied_count, _m_sat))
+    lines.append(_verdict_count_line("violated", summary.violated_count, _m_vio))
     lines.append(f"- not_applicable: {summary.not_applicable_count}")
     lines.append("")
     # spec §7.4.1 要求 6：open/blocked 为 0 的确认
@@ -447,6 +716,9 @@ def render_auxiliary_review_report(
     lines.append(f"- forbidden_sources: {src_guard.get('forbidden_sources', [])}")
     lines.append("")
 
+    # --- 7.5 unknown 归因（与另一条报告入口共用同一渲染实现，杜绝两条路各说各话）---
+    lines.extend(render_unknown_attribution_section(result))
+
     # --- 8 建议人工复核点 ---
     lines.append("## 8. 建议人工复核点")
     lines.append("")
@@ -493,6 +765,776 @@ def _collect_review_points(
             seen.add(msg)
             out.append(msg)
     return out
+
+
+# ===========================================================================
+# 三·五、unknown 归因渲染（消费者验收标准「有故 unknown 须说清为什么」的落点）
+# ===========================================================================
+#
+# 用户拍板：「不是判定系统……**但是也不能无故 unknown，这是两码事**」。归因本身由
+# 闭包验证器的旁路映射 `ClosureValidationResult.unknown_attribution_by_obligation_id`
+# 产出，**本层只渲染、绝不自行计算**（自算必然与权威映射分叉——本文件有两条报告
+# 入口 + 一处证据包截断，任何一处自算都会各说各话）。
+#
+# 🔴 三条硬约束：
+# 1. **只读映射**：本节全部文字来自映射里的 `explanation` / `cause_code` /
+#    `responsibility`，本层不做任何归因判断。
+# 2. **模型零参与**：本节属程序确定性骨架，模型可以在分析节复述，但权威文本在这里。
+# 3. **缺映射或映射不全 → 显式失败/显式告知，绝不静默降级**成旧的不分家 unknown。
+
+
+class UnknownAttributionRenderError(RuntimeError):
+    """归因映射与义务集不一致时抛出（fail-closed，绝不静默按旧格式渲染）。"""
+
+
+# 主视图聚合封顶（与下方 v4 聚合表同口径；此处先定义供本节默认参数用）。
+_AGG_TOP_N = 10
+
+
+# 责任 → (给专业人员看的名字, 这意味着他要做什么)
+_UNKNOWN_RESPONSIBILITY_LABELS: Dict[str, tuple] = {
+    "professional_input_required": (
+        "需要专业人员提供",
+        "系统已定位到具体缺口，请补录对应资料后重跑",
+    ),
+    "system_unresolved": (
+        "系统未能确定",
+        "系统自身的缺口，不需要你补录资料，已记录待维护方处理",
+    ),
+}
+
+# cause_code → 一句话说明（表头用；逐项细节仍用映射里的 explanation 原文）
+# 🔴 每条文案声称的事实必须对该码 100% 义务为真（见
+# `test_cause_label_structural_truth_on_batch`）。
+_UNKNOWN_CAUSE_LABELS: Dict[str, str] = {
+    "inherited_from_root": "上游义务未闭合，本条在等根因",
+    "upstream_trigger_blocked": "卡级触发器堵死，本条从未进入求值",
+    "no_slot_declared": "义务图节点未绑定事实槽，且无更具体的验证器原因码",
+    "non_slot_handle": "句柄不是事实槽（不是漏查，这类义务不走事实槽轴）",
+    "qualifier_mismatch": "世界侧有数据，但规则卡按现有条件取不到",
+    "slot_not_supplied": "世界侧未供给该项数据",
+    "diagnostic_binding_not_valid_evidence": "读数已取得，但这类读数经裁定不能证明本义务已履行（有意的保守设计）",
+    "artifact_state_not_valid_evidence": "查到了文件，但「文件在」不足以证明义务已履行（有意的保守设计）",
+    "missing_artifact_evidence": "事实包中没有义务要求的证据文件记录",
+    "missing_time_anchor": "缺期限锚点，系统无法核验期限",
+    "ambiguous_fact_binding": "候选事实不唯一，系统拒绝任取其一下结论",
+    "observed_false_without_violation_basis": (
+        "已取得完整聚合读数，正向条件尚未成立；无期限或终局违约依据，"
+        "程序不判违反，交由专业人员复核"),
+    "binding_requires_adjudication_authorization": (
+        "读数在，但该义务绑定未获消费此类读数下判定的裁定授权，"
+        "程序不给结论（待维护方逐绑定裁定）"),
+    "missing_rule_edge": "规则边或引用缺失（非卡级触发器堵死）",
+    "missing_satisfaction_binding": "缺满足通道绑定，无法沿事实槽核验",
+    "artifact_not_modeled_upstream": "产物键未在上游世界模型建模",
+    "missing_measurement": "缺量测值，无法核验阈值或比较",
+    "missing_fact": "事实包中查不到本条所需事实",
+    "missing_required_field_group": "缺必填字段组",
+    "unit_mismatch": "单位不一致，系统拒绝比较",
+    "attribution_input_missing": "归因层未能判别原因，待维护方跟进",
+}
+
+# 渲染顺序：先给"要你做的"，再给"不要你做的"；同组内按可操作性排。
+_UNKNOWN_CAUSE_ORDER = (
+    "slot_not_supplied",
+    "inherited_from_root",
+    "upstream_trigger_blocked",
+    "qualifier_mismatch",
+    "missing_satisfaction_binding",
+    "observed_false_without_violation_basis",
+    "binding_requires_adjudication_authorization",
+    "no_slot_declared",
+    "non_slot_handle",
+    "artifact_state_not_valid_evidence",
+    "diagnostic_binding_not_valid_evidence",
+    "missing_artifact_evidence",
+    "artifact_not_modeled_upstream",
+    "missing_time_anchor",
+    "missing_measurement",
+    "missing_fact",
+    "missing_required_field_group",
+    "unit_mismatch",
+    "ambiguous_fact_binding",
+    "missing_rule_edge",
+    "attribution_input_missing",
+)
+
+_UNKNOWN_SECTION_TITLE = "## unknown 归因（这些项为什么还没有结论）"
+
+
+def _unknown_attribution_missing_lines() -> List[str]:
+    """映射为 None（旧产物 / 本次未计算）时的**显式告知**。
+
+    刻意**不**回退成旧的不分家 unknown：静默回退会让读者以为"系统说不清"，
+    而真相是"这一版根本没算"。两者对使用者的含义完全不同。
+    """
+    return [
+        _UNKNOWN_SECTION_TITLE,
+        "",
+        "> 本次运行**未计算** unknown 归因（产物早于归因功能，或本次未启用）。",
+        "> 因此下方 unknown 项**未作分类**，无法区分「需要你补录资料」与"
+        "「系统自身未能确定」。如需分类，请用当前版本重跑。",
+        "",
+    ]
+
+
+_SCOPE_RELATION_LABELS: Dict[str, str] = {
+    "same": "类型相同",
+    "category_compatible": "类目相容",
+    "authorized_disjoint": "经授权且显式互斥",
+    "different_unresolved": "关系尚未证成",
+    "card_unconstrained": "卡侧未限定构件类型",
+    "identity_unavailable": "片段权威身份不可用",
+}
+
+_SCOPE_RELATION_ORDER = (
+    "same",
+    "category_compatible",
+    "authorized_disjoint",
+    "different_unresolved",
+    "card_unconstrained",
+    "identity_unavailable",
+)
+
+
+def _scope_values(values: List[str], *, empty_label: str) -> str:
+    cleaned = sorted({str(value) for value in values if str(value)})
+    if not cleaned:
+        return empty_label
+    return "、".join(f"`{value}`" for value in cleaned)
+
+
+def render_scope_relation_diagnostic_section(
+    result: ClosureValidationResult,
+) -> List[str]:
+    """Render the orthogonal scope relation axis without recomputing it."""
+    title = "## 作用域关系诊断"
+    mapping = result.unknown_attribution_by_obligation_id
+    if mapping is None:
+        return [title, "", "> 本次运行未计算作用域关系诊断。", ""]
+    if not mapping:
+        return [title, "", "> 本次没有 unknown 项。", ""]
+    if any(_field(attr, "scope_relation", None) is None for attr in mapping.values()):
+        return [
+            title,
+            "",
+            "> 本次归因载荷不含完整的结构化作用域关系；本节不作推测。",
+            "",
+        ]
+
+    buckets: Dict[str, Dict[str, Any]] = {}
+    for attr in mapping.values():
+        scope = _field(attr, "scope_relation", None)
+        if scope is None:
+            continue
+        bucket = buckets.setdefault(
+            scope.relation,
+            {
+                "count": 0,
+                "card_types": [],
+                "fragment_types": [],
+                "causes": [],
+                "authorization_statuses": [],
+                "policy_versions": [],
+            },
+        )
+        bucket["count"] += 1
+        bucket["card_types"].extend(scope.card_component_type_keys)
+        if scope.fragment_component_type:
+            bucket["fragment_types"].append(scope.fragment_component_type)
+        bucket["causes"].append(attr.cause_code)
+        bucket["authorization_statuses"].append(
+            scope.target_authorization_status
+        )
+        bucket["policy_versions"].append(scope.relation_policy_version)
+
+    lines = [
+        title,
+        "",
+        "> 本表是 unknown 归因的正交诊断轴；现有原因表继续完整保留。",
+        "",
+        "| 条数 | 作用域观察 | 精确目标授权状态 | 关系策略版本锚 |",
+        "|---:|---|---|---|",
+    ]
+    for relation in _SCOPE_RELATION_ORDER:
+        bucket = buckets.get(relation)
+        if not bucket:
+            continue
+        card_types = _scope_values(
+            bucket["card_types"], empty_label="（未限定）"
+        )
+        fragment_types = _scope_values(
+            bucket["fragment_types"], empty_label="（不可用）"
+        )
+        causes = "、".join(sorted({
+            _UNKNOWN_CAUSE_LABELS.get(code, code)
+            for code in bucket["causes"]
+        }))
+        observation = (
+            "**状态仍为未知，判定未改变。** 作用域观察：本卡引用的事实限定含 "
+            f"{card_types}，本片段的权威构件身份为 {fragment_types}；"
+            f"两者关系为【{_SCOPE_RELATION_LABELS[relation]}】。"
+            "**本记录不等于 `not_applicable`，也不能据此免除该条款评估。** "
+            f"当前直接阻塞机制仍为【{causes}】。"
+        )
+        if relation == "authorized_disjoint":
+            observation += (
+                " 若要据此改判不适用，仍须另行通过规格、召回及漏项审查；"
+                "本次只记录诊断证据。"
+            )
+        authorization_statuses = "、".join(sorted(set(
+            bucket["authorization_statuses"]
+        )))
+        policy_versions = "、".join(sorted(set(bucket["policy_versions"])))
+        lines.append(
+            f"| {bucket['count']} | {_escape_markdown_cell(observation)} | "
+            f"{_escape_markdown_cell(authorization_statuses)} | "
+            f"{_escape_markdown_cell(policy_versions)} |"
+        )
+    lines.append("")
+    return lines
+
+
+def render_unknown_attribution_section(
+    result: ClosureValidationResult,
+    *,
+    max_rows: int = _AGG_TOP_N,
+    collapsible: bool = False,
+    display_ref_map: Optional[Dict[str, str]] = None,
+    skip_action_items: bool = False,
+    action_items_relocated: bool = False,
+) -> List[str]:
+    """渲染 unknown 归因节（程序确定性；两条报告入口共用同一实现）。
+
+    入参 `result` 的归因映射：
+    - `None`            → 显式告知"本次未计算归因"（不静默按旧格式渲染）；
+    - 键集与 unknown 义务集不一致 → 抛 `UnknownAttributionRenderError`（fail-closed）；
+    - 一致             → 渲染责任计数 + cause_code 分项计数 + 逐项解释 + 行动指引。
+
+    `inherited_from_root` **按根聚合**：不逐条列继承项，只把**根义务**列为行动项，
+    附"受影响义务 N 条"——继承项自身无病，逐条列只会把行动清单淹掉。
+    """
+    obligations = result.obligation_set.obligations
+    unknown_ids = {
+        o.obligation_id for o in obligations if o.satisfaction_status == "unknown"
+    }
+    mapping = result.unknown_attribution_by_obligation_id
+
+    if mapping is None:
+        return _unknown_attribution_missing_lines()
+
+    actual = set(mapping)
+    if actual != unknown_ids:
+        raise UnknownAttributionRenderError(
+            "unknown 归因映射与义务集不一致，拒绝渲染（缺 "
+            f"{len(unknown_ids - actual)} 条 / 多 {len(actual - unknown_ids)} 条）；"
+            "报告层不得自行归因、也不得静默降级成未分类 unknown。"
+        )
+
+    lines: List[str] = [_UNKNOWN_SECTION_TITLE, ""]
+    if not mapping:
+        lines.append("> 本次没有 unknown 项——全部义务都已得出闭包结论。")
+        lines.append("")
+        lines.extend(render_scope_relation_diagnostic_section(result))
+        return lines
+
+    lines.append(
+        "> 本节由系统确定性渲染，逐条归因取自闭包验证器的归因映射；模型不参与。"
+        "归因解释**为什么**还没有结论，本身不是合规结论。"
+    )
+    lines.append("")
+
+    by_id = {o.obligation_id: o for o in obligations}
+    resp_counts: Dict[str, int] = {}
+    cause_counts: Dict[str, int] = {}
+    for attr in mapping.values():
+        resp_counts[attr.responsibility] = resp_counts.get(attr.responsibility, 0) + 1
+        cause_counts[attr.cause_code] = cause_counts.get(attr.cause_code, 0) + 1
+
+    # --- 责任划分（消费者最先要看的一格）---
+    lines.append(f"unknown 共 {len(mapping)} 条，按责任划分：")
+    lines.append("")
+    lines.append("| 责任 | 条数 | 这对你意味着什么 |")
+    lines.append("|---|---:|---|")
+    for key in ("professional_input_required", "system_unresolved"):
+        label, meaning = _UNKNOWN_RESPONSIBILITY_LABELS[key]
+        lines.append(f"| {label} | {resp_counts.get(key, 0)} | {meaning} |")
+    lines.append("")
+
+    # --- 专业人员行动项（按「条款 × 行动说明」聚合；不逐义务列）---
+    #
+    # 🔴 `skip_action_items`：调用方**已在文首渲染过**这一节时传 True，否则整节会出现两遍。
+    # 缺省 False ⇒ 对不传参的调用方（v3 组合报告 / 辅助审查报告）行为逐字节不变。
+    # `action_items_relocated`：仅在 skip_action_items=True 时生效——v4 文首已渲染，
+    # 原位置留一行指回，不让读者以为这节丢了（v1 告知书有自己的交叉引用节，不传此参）。
+    #
+    # 这个洞是 2026-07-31 实测撞出来的：把行动项提到文首（消费者轴改造）时，
+    # 只看了「它现在在第 7 行了」，没查「原来那份还在不在」——结果同一份文档里
+    # 两份完全相同的行动项表，把 A 门重复行率从 4.6% 顶到 7.8%（判据 ≤5%），
+    # 一个本来通过的子判据被改成了不通过。单测全绿，因为**没有一条断言「只出现一次」**。
+    mr = result.machine_readable_report or {}
+    obligation_index = _index_unclosed_obligations(
+        mr.get("open_items", []) or [],
+        mr.get("blocked_items", []) or [],
+    )
+    if not skip_action_items:
+        lines.extend(
+            _render_professional_action_items(
+                mapping,
+                obligation_index=obligation_index,
+                building_id=str(_g(mr, "building_id") or ""),
+                max_rows=max_rows,
+            )
+        )
+    elif action_items_relocated:
+        lines.append("> 需要你补充的资料已提前列于文首。")
+        lines.append("")
+
+    # --- cause_code 分项计数：消费者说明在前，机器对账键降到末列 ---
+    lines.append("| 说明 | 条数 | 原因码 |")
+    lines.append("|---|---:|---|")
+    for code in _UNKNOWN_CAUSE_ORDER:
+        if code not in cause_counts:
+            continue
+        lines.append(
+            f"| {_UNKNOWN_CAUSE_LABELS.get(code, '—')} | {cause_counts[code]} "
+            f"| <small><code>{code}</code></small> |"
+        )
+    for code in sorted(set(cause_counts) - set(_UNKNOWN_CAUSE_ORDER)):
+        lines.append(
+            f"| 其他未分类原因 | {cause_counts[code]} "
+            f"| <small><code>{code}</code></small> |"
+        )
+    lines.append("")
+
+    detail_lines: List[str] = []
+
+    # --- 逐项解释：先"要你做的"，再"不要你做的" ---
+    for code in _UNKNOWN_CAUSE_ORDER + tuple(
+        sorted(set(cause_counts) - set(_UNKNOWN_CAUSE_ORDER))
+    ):
+        items = [(oid, a) for oid, a in mapping.items() if a.cause_code == code]
+        if not items:
+            continue
+        detail_lines.append(
+            f"### {_UNKNOWN_CAUSE_LABELS.get(code, code)}（{len(items)} 条）"
+        )
+        detail_lines.append("")
+        if code == "inherited_from_root":
+            detail_lines.extend(
+                _render_inherited_by_root(items, mapping, by_id, max_rows, display_ref_map)
+            )
+        else:
+            detail_lines.extend(_render_cause_group(items, by_id, max_rows))
+        detail_lines.append("")
+
+    if collapsible and detail_lines:
+        lines.append("<details>")
+        lines.append("<summary>unknown 归因逐项说明（程序渲染，点击展开）</summary>")
+        lines.append("")
+        lines.extend(detail_lines)
+        lines.append("</details>")
+        lines.append("")
+    else:
+        lines.extend(detail_lines)
+    lines.extend(render_scope_relation_diagnostic_section(result))
+    return lines
+
+
+def _index_unclosed_obligations(
+    open_items: List[Dict[str, Any]],
+    blocked_items: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    """按义务编号索引机器报告中的 open / blocked 项。"""
+    indexed: Dict[str, Dict[str, Any]] = {}
+    for obligation in list(open_items) + list(blocked_items):
+        obligation_id = str(_g(obligation, "obligation_id") or "").strip()
+        if obligation_id:
+            indexed[obligation_id] = obligation
+    return indexed
+
+
+
+def _short_fragment_id(fragment_id: str, building_id: str) -> str:
+    """剥掉同栋恒定的 `FRG-<building_id>-` 前缀，只保留部位尾段。"""
+    fragment_id = str(fragment_id or "").strip()
+    building_id = str(building_id or "").strip()
+    if not fragment_id or not building_id:
+        return fragment_id
+
+    building_candidates = [building_id]
+    if building_id.startswith("BLD-"):
+        building_candidates.append(building_id[len("BLD-"):])
+    for candidate in building_candidates:
+        prefix = f"FRG-{candidate}-"
+        if fragment_id.startswith(prefix):
+            return fragment_id[len(prefix):]
+    return fragment_id
+
+
+def _type_incompatible_obligation_ids(
+    result: ClosureValidationResult,
+) -> FrozenSet[str]:
+    """行动项部位过滤集（纯呈现，不碰判定）：只收「显式互斥」的义务。
+
+    判据直接读闭包验证器挂上的结构化作用域关系旁路（`scope_relation`），
+    报告层不重算：只有 `authorized_disjoint`（卡侧唯一授权目标叶型与片段叶型
+    落在类型关系表的 disjoint 对里）才剔；`same` / `category_compatible`
+    （子型相容，如片段 external_wall 属于卡侧 external_component）以及
+    判不出关系的（未登记 / 非叶型 / 身份缺失 / 旁路缺席）一律保留——
+    缺省保守，绝不按「字符串不等」剔。本函数不改任何义务状态与计数，
+    只决定行动项「涉及 N 处」列表里哪些部位不列出。
+    """
+    mapping = result.unknown_attribution_by_obligation_id or {}
+    incompatible: set = set()
+    for obligation_id, attr in mapping.items():
+        scope = _field(attr, "scope_relation", None)
+        if scope is None:
+            continue
+        if _field(scope, "relation", "") == "authorized_disjoint":
+            incompatible.add(str(obligation_id))
+    return frozenset(incompatible)
+
+
+def _render_professional_action_items(
+    mapping: Dict[str, Any],
+    obligation_index: Optional[Dict[str, Dict[str, Any]]] = None,
+    *,
+    building_id: str = "",
+    max_rows: int = _AGG_TOP_N,
+    type_incompatible_obligation_ids: Optional[FrozenSet[str]] = None,
+) -> List[str]:
+    """把需专业人员补录的义务按「条款元组 × 行动说明」聚合。
+
+    义务索引是可选增强项：缺省时仍稳定渲染，但明确写出条款和部位未标注。
+    超出 `max_rows` 时显式写「另有 M 项、合计 N 条」，绝不静默截断。
+
+    `type_incompatible_obligation_ids`：与卡侧要求类型**显式互斥**的义务集合
+    （由 `_type_incompatible_obligation_ids` 从验证器作用域关系旁路读出）。
+    这些义务的部位不进「涉及 N 处」列表，但**不静默消失**——每项下显式写
+    「另有 N 处因构件类型与本条款不相容未列出」。缺省 None = 不过滤（v1 / v3
+    调用面行为逐字节不变）。
+    """
+    obligation_index = obligation_index or {}
+    incompatible_ids = frozenset(type_incompatible_obligation_ids or ())
+
+    # 「提供了会怎样」——可行动四要素的第四个（2026-08-03 补）。
+    # 前三个（哪栋楼哪个部位 / 哪条守则 / 要提供什么）此前已有，第四个**全批零条**：
+    # 审查员看完不知道补了这一项能换来什么，于是这份报告对他不产生优先级。
+    #
+    # 唯一诚实且可算的答案是「连带解开多少条正在等它的义务」：
+    # 反向索引 `root_dependency_ids`（谁把这条列为根依赖）。
+    # 批 I 实测 488 条待补项里 **229 条（47%）**有下游在等，最多一条带 7 个。
+    #
+    # 🔴 措辞红线：只写「解除阻塞并重新求值」，**绝不写「补了就会判合规」**——
+    # 解除本项阻塞不蕴含该义务随后能得出确定判定（可能还有别的缺口）。
+    # 对审查员承诺一个我们保证不了的结果，与本轮要修的「假合格」是同一种不诚实。
+    downstream_by_root: Dict[str, int] = {}
+    for attr in mapping.values():
+        for root in (getattr(attr, "root_dependency_ids", None) or []):
+            downstream_by_root[str(root)] = downstream_by_root.get(str(root), 0) + 1
+
+    buckets: Dict[Tuple[Tuple[str, ...], str], Dict[str, Any]] = {}
+    for obligation_id, attr in mapping.items():
+        if attr.responsibility != "professional_input_required":
+            continue
+        action = (
+            (attr.professional_action or "").strip()
+            or "（登记表未给出具体交件说明）"
+        )
+        obligation = obligation_index.get(str(obligation_id), {})
+        clause_ids = _source_clause_tuple(obligation)
+        key = (clause_ids, action)
+        bucket = buckets.setdefault(
+            key,
+            {
+                "obligation_count": 0,
+                "fragment_ids": set(),
+                "unlocated_count": 0,
+                "incompatible_fragment_ids": set(),
+                "downstream_count": 0,
+            },
+        )
+        bucket["obligation_count"] += 1
+        bucket["downstream_count"] += downstream_by_root.get(str(obligation_id), 0)
+        fragment_id = str(_g(obligation, "fragment_id") or "").strip()
+        if fragment_id:
+            short_fragment_id = _short_fragment_id(fragment_id, building_id)
+            if str(obligation_id) in incompatible_ids:
+                bucket["incompatible_fragment_ids"].add(short_fragment_id)
+            else:
+                bucket["fragment_ids"].add(short_fragment_id)
+        else:
+            bucket["unlocated_count"] += 1
+
+    lines: List[str] = [
+        "### 需要你补充的资料",
+        "",
+    ]
+    if not buckets:
+        lines.append("> 本次没有需要你补充的资料（责任二分「需要专业人员提供」为 0）。")
+        lines.append("")
+        return lines
+
+    def _scope_count(bucket: Dict[str, Any]) -> int:
+        fragment_count = len(bucket["fragment_ids"])
+        if fragment_count:
+            return fragment_count + bucket["unlocated_count"]
+        return bucket["obligation_count"]
+
+    ranked = sorted(
+        buckets.items(),
+        key=lambda item: (
+            -_scope_count(item[1]),
+            item[0][0],
+            item[0][1],
+        ),
+    )
+    total_obligations = sum(
+        bucket["obligation_count"] for _, bucket in ranked
+    )
+    lines.append(
+        f"共 **{len(ranked)} 项**，涉及 **{total_obligations} 条义务**。"
+        "以下每项都注明了法规依据，可据此判断是否适用。"
+    )
+    lines.append("")
+
+    shown = ranked[:max_rows]
+    for item_number, ((clause_ids, action), bucket) in enumerate(shown, start=1):
+        lines.append(f"**{item_number}. {action}**")
+        lines.append("")
+        if clause_ids:
+            rendered_clauses = "、".join(f"§{clause_id}" for clause_id in clause_ids)
+            lines.append(f"- 依据：守则 {rendered_clauses}")
+        else:
+            lines.append("- 依据：（本项未标注条款，见结果 JSON）")
+
+        fragment_ids = sorted(bucket["fragment_ids"])
+        # 显式互斥被剔的部位不静默消失：同一片段若另有相容义务仍列出，
+        # 则不算「未列出」，只在真正从列表里消失时计数（B3）。
+        hidden_fragment_ids = sorted(
+            bucket["incompatible_fragment_ids"] - set(fragment_ids)
+        )
+        if fragment_ids:
+            shown_fragments = fragment_ids[:8]
+            rendered_fragments = "、".join(
+                f"`{fragment_id}`" for fragment_id in shown_fragments
+            )
+            if len(fragment_ids) > 8:
+                rendered_fragments += (
+                    f"、…（共 {len(fragment_ids)} 处，完整清单见结果 JSON）"
+                )
+            lines.append(
+                f"- 涉及 **{len(fragment_ids)} 处**：{rendered_fragments}"
+            )
+            if bucket["unlocated_count"]:
+                lines.append(
+                    f"- 另有 **{bucket['unlocated_count']} 条义务**"
+                    "未定位到具体部位"
+                )
+        elif not hidden_fragment_ids:
+            lines.append(
+                f"- 涉及 **{bucket['obligation_count']} 条义务**"
+                "（未定位到具体部位）"
+            )
+        if hidden_fragment_ids:
+            lines.append(
+                f"<sub>另有 {len(hidden_fragment_ids)} 处因构件类型与本条款"
+                "不相容未列出（诊断见结果 JSON）</sub>"
+            )
+        # 第四要素「提供了会怎样」。措辞红线见函数开头：只说解除阻塞与重新求值。
+        downstream = int(bucket.get("downstream_count") or 0)
+        if downstream:
+            lines.append(
+                f"- 补录后：解除本项 **{bucket['obligation_count']} 条**义务的阻塞，"
+                f"并连带解开 **{downstream} 条**正在等它的义务，随后重新求值"
+            )
+        else:
+            lines.append(
+                f"- 补录后：本项 **{bucket['obligation_count']} 条**义务解除阻塞、"
+                "重新求值"
+            )
+        lines.append("")
+
+    if len(ranked) > max_rows:
+        rest = ranked[max_rows:]
+        rest_obligations = sum(
+            bucket["obligation_count"] for _, bucket in rest
+        )
+        lines.append(
+            f"**另有 {len(rest)} 项、合计 {rest_obligations} 条义务未在此展开；"
+            "完整清单见结果 JSON。**"
+        )
+        lines.append("")
+    return lines
+
+
+def _collect_professional_action_buckets(
+    mapping: Dict[str, Any],
+    obligation_index: Dict[str, Dict[str, Any]],
+    *,
+    building_id: str = "",
+) -> Dict[Tuple[Tuple[str, ...], str], Dict[str, Any]]:
+    """复用行动项的分组口径，供文首清单与尾部交叉引用精确对账。"""
+    buckets: Dict[Tuple[Tuple[str, ...], str], Dict[str, Any]] = {}
+    for obligation_id, attr in mapping.items():
+        if _field(attr, "responsibility") != "professional_input_required":
+            continue
+        action = (
+            str(_field(attr, "professional_action") or "").strip()
+            or "（登记表未给出具体交件说明）"
+        )
+        obligation = obligation_index.get(str(obligation_id), {})
+        clause_ids = _source_clause_tuple(obligation)
+        key = (clause_ids, action)
+        bucket = buckets.setdefault(
+            key,
+            {"obligation_count": 0, "fragment_ids": set(), "unlocated_count": 0},
+        )
+        bucket["obligation_count"] += 1
+        fragment_id = str(_field(obligation, "fragment_id") or "").strip()
+        if fragment_id:
+            bucket["fragment_ids"].add(
+                _short_fragment_id(fragment_id, building_id)
+            )
+        else:
+            bucket["unlocated_count"] += 1
+    return buckets
+
+
+def _render_inherited_by_root(
+    items: List[tuple],
+    mapping: Dict[str, Any],
+    by_id: Dict[str, Any],
+    max_rows: int,
+    display_ref_map: Optional[Dict[str, str]],
+) -> List[str]:
+    """继承型**按根聚合**：只列根义务作为行动项，附受影响条数。
+
+    继承项自身无病（上游 trigger 卡住传下来），逐条列会把真正的行动项淹掉；
+    解决一个根义务即连带解开它下面全部受影响义务。
+    """
+    root_hits: Dict[str, int] = {}
+    for _oid, attr in items:
+        for root in attr.root_dependency_ids or []:
+            root_hits[root] = root_hits.get(root, 0) + 1
+    if not root_hits:
+        return ["（归因未给出根义务编号）", ""]
+
+    lines = [
+        f"这些义务自身无缺陷，是上游未闭合传下来的；共涉及 **{len(root_hits)} 个根义务**，"
+        "解决根义务即连带解开下面全部受影响义务。",
+        "",
+        # 🔴 不列根义务的运行期 id：24 位裸哈希对审查员零价值，
+        # 而消费者验收 A 门要求主视图哈希数 = 0（`check_report_usability.py`）。
+        # 实测这一列是主视图里**唯一**的哈希来源（单栋 10 个）。
+        # 审查员要的是「哪条条款、连带几条、根因是什么」；逐条 id 在结果 JSON 里下钻。
+        "| 受影响义务 | 根义务法规依据 | 根义务自身的原因 |",
+        "|---:|---|---|",
+    ]
+    ordered = sorted(root_hits.items(), key=lambda kv: (-kv[1], kv[0]))
+    for root, count in ordered[:max_rows]:
+        ref = (display_ref_map or {}).get(root) or root
+        root_obl = by_id.get(root)
+        card_id = (
+            str(_field(root_obl, "source_rule_card_id") or "")
+            if root_obl is not None
+            else ""
+        )
+        reference = _rule_reference(root_obl, card_id)
+        root_attr = mapping.get(root)
+        root_cause = (
+            _UNKNOWN_CAUSE_LABELS.get(root_attr.cause_code, root_attr.cause_code)
+            if root_attr is not None
+            else "根义务已闭合或不在本次义务集内"
+        )
+        lines.append(f"| {count} | {reference} | {root_cause} |")
+    rest = ordered[max_rows:]
+    if rest:
+        lines.append(
+            f"| {sum(n for _, n in rest)} | （其余 {len(rest)} 个根义务） | — |"
+        )
+    return lines
+
+
+def _render_cause_group(
+    items: List[tuple], by_id: Dict[str, Any], max_rows: int
+) -> List[str]:
+    """非继承型：按**解释原文**分组计数，主视图列前 N 组，其余折成一行。
+
+    解释文本直接来自归因映射（人话已在归因层写好），本层不改写、不生成。
+    """
+    groups: Dict[str, List[str]] = {}
+    for oid, attr in items:
+        groups.setdefault(attr.explanation, []).append(oid)
+    ordered = sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+
+    # 同一原因码下各组解释**只差开头那段**（形如「这条义务（kind / action）」），
+    # 其余是逐字相同的样板。整段重复打进每一行会让单节膨胀到十几 KB
+    # （实测 `ambiguous_fact_binding` 58 条占了 12.3 KB / 全文 21%）。
+    # ⇒ 抽出公共后缀，在表上方**说一次**；行里只留真正变化的部分。
+    # 🔴 这是去重不是截断——一个字都没丢。
+    # ⚠️ 只在**实际会渲染出来的**那些组上算公共后缀。
+    # 第一版在全部 `ordered` 上算，结果任何一个没被渲染的离群组都会把公共后缀
+    # 打没——实测只省下 0.2 KB，等于白改。
+    shown_groups = ordered[:max_rows]
+    shared = _longest_common_suffix([e for e, _ in shown_groups])
+    lines: List[str] = []
+    if len(shared) >= _SHARED_SUFFIX_MIN:
+        lines += [f"> {_escape_markdown_cell(shared.strip())}", ""]
+
+    lines += ["| 条数 | 法规依据 | 说明（系统原文，公共部分见上） |", "|---:|---|---|"]
+    for explanation, oids in ordered[:max_rows]:
+        references = sorted(
+            {
+                _rule_reference(
+                    by_id[obligation_id],
+                    str(_field(by_id[obligation_id], "source_rule_card_id") or ""),
+                )
+                for obligation_id in oids
+                if obligation_id in by_id
+            }
+        )
+        reference_text = "、".join(references) or "—"
+        shown = explanation
+        if len(shared) >= _SHARED_SUFFIX_MIN and explanation.endswith(shared):
+            shown = explanation[: -len(shared)].rstrip() or "（同上）"
+        lines.append(
+            f"| {len(oids)} | {reference_text} | {_escape_markdown_cell(shown)} |"
+        )
+    rest = ordered[max_rows:]
+    if rest:
+        lines.append(
+            f"| {sum(len(v) for _, v in rest)} | — | （其余 {len(rest)} 组同类说明） |"
+        )
+    return lines
+
+
+# 公共后缀短于这个长度就不值得抽（抽了反而多两行）。
+_SHARED_SUFFIX_MIN = 40
+
+
+def _longest_common_suffix(texts: List[str]) -> str:
+    """一组解释文本的最长公共后缀；少于 2 条或无公共部分时返回空串。"""
+    if len(texts) < 2:
+        return ""
+    ref = texts[0]
+    n = len(ref)
+    for t in texts[1:]:
+        m = 0
+        # 🔴 索引 ref 必须始终从 len(ref) 末尾数——第一版写成 ref[n-1-m]，
+        # 而 n 每轮都在缩，第二轮起就从错误位置比，公共后缀恒被算成 0（实测省 0 KB）。
+        while m < n and m < len(t) and ref[len(ref) - 1 - m] == t[len(t) - 1 - m]:
+            m += 1
+        n = m
+        if n == 0:
+            return ""
+    return ref[len(ref) - n:]
+
+
+def _escape_markdown_cell(text: str) -> str:
+    """表格单元格转义：竖线与换行会撑破表格。"""
+    return str(text).replace("|", "\\|").replace("\n", " ")
 
 
 # ===========================================================================
@@ -622,16 +1664,14 @@ class NarrativeEvidencePack:
 
 
 def _first_quote_for_card(rule_slice: Optional[RuleSlice], card: Any) -> Optional[str]:
-    """取 rule card 的第一条法规原文短引文（RuleSlice.source_quotes 优先）。"""
-    if rule_slice is not None:
-        for sq in rule_slice.source_quotes:
-            if sq.rule_card_id == card.rule_card_id and (sq.text or "").strip():
-                return sq.text.strip()
-    for quote in getattr(card, "source_quote", None) or []:
-        if isinstance(quote, dict) and str(quote.get("text") or "").strip():
-            return str(quote["text"]).strip()
-    text = (getattr(card, "normalized_rule_text", "") or "").strip()
-    return text or None
+    """只取中文权威正文；缺失时宁可不附规则文本，也不回退到派生译文。
+
+    卡包译文已实测存在大规模内容失真，不能生成任何面向消费者的主张。调用方仍可用
+    条款号与页码作引用；本函数没有中文权威正文时返回 ``None``。
+    """
+    del rule_slice  # 保留既有调用签名；RuleSlice 中的引文同样属于禁用译文层。
+    zh = zh_authority.zh_text_for_card(getattr(card, "rule_card_id", ""))
+    return zh.strip() if zh and zh.strip() else None
 
 
 def _copyable_evidence_handle(
@@ -981,6 +2021,56 @@ def render_structured_narrative_points(
         lines.append(f"- {rendered_text}{suffix}")
     return "\n".join(lines)
 
+_NARRATIVE_REASON_LABELS: Dict[str, str] = {
+    **_UNKNOWN_CAUSE_LABELS,
+    "missing_obligation_edge_target": "缺少义务边目标",
+    "unsupported_obligation_edge_relation": "义务边关系暂不支持",
+    "unsupported_predicate_kind": "谓词类型暂不支持",
+    "unsupported_operator": "比较运算暂不支持",
+    "unsupported_formula": "计算公式暂不支持",
+    "unsupported_deadline_relation": "期限关系暂不支持",
+    "schema_contract_violation": "数据结构不符合契约",
+    "target_unresolved": "核验目标无法定位",
+    "qualifier_conflict": "限定条件互相冲突",
+    "missing_artifact_mapping": "缺少产物映射",
+    "internal_error": "系统内部处理异常",
+    "null_observed_value": "实测值为空",
+    "missing_sidecar_entry": "缺少补充数据项",
+    "missing_required_qualifier": "缺少必需限定条件",
+    "applicability_uncertain": "适用性尚未确定",
+    "depends_on_open_trigger": "所依赖的触发义务尚未闭合",
+}
+
+
+def _narrative_reason_label(reason_code: Any) -> str:
+    """把验证器原因码翻译为叙述标签；未知码不进入消费者叙述。"""
+    code = str(reason_code or "").strip()
+    return _NARRATIVE_REASON_LABELS.get(code, "原因码见未闭合项表")
+
+
+def _narrative_value(value: Any) -> str:
+    """确定性渲染叙述中的实测值或阈值，并保留假值与零值。"""
+    if value is None or value == "":
+        return "—"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return str(value)
+
+
+def _narrative_item_aliases(items: List[Dict[str, Any]]) -> str:
+    """列出聚合项的全部义务别名，并保留已有规则卡证据别名。"""
+    rendered: List[str] = []
+    for item in items:
+        alias = f"[{item['alias']}]"
+        rule_alias = item.get("rule_card_alias")
+        if rule_alias:
+            alias += f"（规则卡 [{rule_alias}]）"
+        rendered.append(alias)
+    return "、".join(rendered)
+
+
 def render_deterministic_narrative(pack: NarrativeEvidencePack) -> str:
     """确定性叙述槽位模板（契约 v2 修订 4；两条 allow_stop 分支各一形态）。
 
@@ -989,36 +2079,67 @@ def render_deterministic_narrative(pack: NarrativeEvidencePack) -> str:
     - 输出守卫：禁止话术只以否定前缀（“非”）形态出现；
     - 叙述节闸：key_items 存在时每个要点都带证据别名；key_items 为空时
       alias_map 也为空，证据把手检查按定义跳过。
+    消费者形态由 agent_v1/scripts/check_report_usability.py 审计，本函数不复制其判据。
     """
     lines = ["### 确定性叙述（程序模板，未采用模型分析）", ""]
     if pack.key_items:
+        grouped: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
         for item in pack.key_items:
-            alias = f"[{item['alias']}]"
-            rc = (
-                f"（rule card [{item['rule_card_alias']}]）"
-                if item.get("rule_card_alias")
-                else ""
-            )
             category = item["category"]
             if category == "violated":
-                lines.append(
-                    f"- {alias}{rc} 疑似未满足：observed="
-                    f"{item.get('observed') or '—'}，threshold="
-                    f"{item.get('threshold') or '—'}；建议人工审查员优先复核该项证据链。"
-                )
-            elif category == "open":
-                lines.append(
-                    f"- {alias}{rc} 未闭合（open，原因码 "
-                    f"{item.get('reason_code') or '—'}）：建议人工补充相关资料后重新评估。"
+                key = (
+                    category,
+                    _narrative_value(item.get("observed")),
+                    _narrative_value(item.get("threshold")),
                 )
             else:
-                lines.append(
-                    f"- {alias}{rc} 验证器无法处理（blocked，原因码 "
-                    f"{item.get('reason_code') or '—'}）：需人工介入检查资料与规则适用性。"
+                key = (
+                    category,
+                    _narrative_reason_label(item.get("reason_code")),
+                    "",
                 )
+            grouped.setdefault(key, []).append(item)
+
+        for (category, detail, threshold), items in grouped.items():
+            aliases = _narrative_item_aliases(items)
+            count = len(items)
+            if category == "violated":
+                if count > 1:
+                    lines.append(
+                        f"- 以下 {count} 项疑似未满足（实测值 {detail}，阈值 "
+                        f"{threshold}）：{aliases}；"
+                        "建议人工审查员优先复核证据链。"
+                    )
+                else:
+                    lines.append(
+                        f"- {aliases} 疑似未满足：实测值 {detail}，阈值 "
+                        f"{threshold}；建议人工审查员优先复核证据链。"
+                    )
+            elif category == "open":
+                if count > 1:
+                    lines.append(
+                        f"- 以下 {count} 项未闭合（原因：{detail}）：{aliases}；"
+                        "建议人工补充相关资料后重新评估。"
+                    )
+                else:
+                    lines.append(
+                        f"- {aliases} 未闭合（原因：{detail}）："
+                        "建议人工补充相关资料后重新评估。"
+                    )
+            else:
+                if count > 1:
+                    lines.append(
+                        f"- 以下 {count} 项验证器无法处理（原因：{detail}）："
+                        f"{aliases}；需人工介入检查资料与规则适用性。"
+                    )
+                else:
+                    lines.append(
+                        f"- {aliases} 验证器无法处理（原因：{detail}）："
+                        "需人工介入检查资料与规则适用性。"
+                    )
     elif pack.allow_stop:
         lines.append(
-            "- 闭包验证器确认 open=0、blocked=0，资料闭包已完成；"
+            "- 闭包验证器确认开放项为 0、阻断项为 0，资料闭包已完成；"
             "满足性计数以上文权威闭包概览为准，本节为辅助说明，非最终裁决。"
         )
     else:
@@ -1037,9 +2158,6 @@ def render_deterministic_narrative(pack: NarrativeEvidencePack) -> str:
 # v2 分析节槽位节名（契约 v2 §7.4.1 / §7.4.2 固定）
 ANALYSIS_SECTION_TITLE_ALLOW_STOP = "分析与建议（模型生成）"
 ANALYSIS_SECTION_TITLE_INCOMPLETE = "未闭合原因与补充资料建议（模型生成）"
-
-
-_AGG_TOP_N = 10
 
 # 只匹配 O 别名的运行期 24 位哈希，前后允许分组边界（`[O1:hash, R1:..]` 也命中），
 # 不含 R/F（其展开是语义 id，非运行期哈希，且避免伪映射行）。
@@ -1210,6 +2328,42 @@ def render_contract_v2_report(
         return "、".join(f"{reason}={count}" for reason, count in rows) or "无"
 
     lines: List[str] = [title, ""]
+    deferred_detail_blocks: List[List[str]] = []
+
+    def _defer_latest_detail(start_index: int) -> None:
+        """v4 把刚渲染的完整台账移到主视图之后；v3 保持原位。"""
+        if contract_version < 4:
+            return
+        block = lines[start_index:]
+        if not block or block[0] != "<details>" or "</details>" not in block:
+            raise RuntimeError("v4 详细台账边界不完整，拒绝静默重排")
+        deferred_detail_blocks.append(block)
+        del lines[start_index:]
+
+    def _extend_with_deferred_details(section_lines: List[str]) -> None:
+        """保留节内主视图行，抽出顶层折叠块并按原顺序延后。"""
+        if contract_version < 4:
+            lines.extend(section_lines)
+            return
+        detail: List[str] = []
+        depth = 0
+        for line in section_lines:
+            if depth == 0 and line == "<details>":
+                detail = [line]
+                depth = 1
+            elif depth:
+                detail.append(line)
+                if line == "<details>":
+                    depth += 1
+                elif line == "</details>":
+                    depth -= 1
+                    if depth == 0:
+                        deferred_detail_blocks.append(detail)
+                        detail = []
+            else:
+                lines.append(line)
+        if depth:
+            raise RuntimeError("v4 节内详细台账未闭合，拒绝静默重排")
     lines.append(f"> {_DISCLAIMER}")
     lines.append(
         "> 本报告骨架（标题 / 计数 / 表格 / 引用）由程序确定性渲染"
@@ -1219,6 +2373,33 @@ def render_contract_v2_report(
     lines.append("")
     if not allow_stop:
         lines.append("本次资料闭包验证未通过，不能生成完整辅助审查报告。")
+        lines.append("")
+
+    # --- 行动项前置（v4 消费者轴，2026-08-01 与 v1 告知书同一改造同步）---
+    # v1（render_incomplete_closure_notice）2026-07-30 已把「需要你补充的资料」
+    # 提到文首——审查员打开文档首先要回答的是「这栋楼我现在该去看什么、补什么」，
+    # 不是 run_id / stop_reason 这类开发者语言。v4 当时没同步（同一个改动只做了
+    # 一半），行动项埋在 unknown 归因节里。此处只换顺序、不删内容：归因节原位置
+    # 留一行指回（见 render_unknown_attribution_section 的 skip_action_items 注释）。
+    # 行动项的「涉及 N 处」按验证器作用域关系旁路剔显式互斥部位（纯呈现）。
+    if contract_version >= 4:
+        _mr_v4 = result.machine_readable_report or {}
+        lines.extend(
+            _render_professional_action_items(
+                result.unknown_attribution_by_obligation_id or {},
+                obligation_index=_index_unclosed_obligations(
+                    _mr_v4.get("open_items", []) or [],
+                    _mr_v4.get("blocked_items", []) or [],
+                ),
+                building_id=str(_g(_mr_v4, "building_id") or ""),
+                type_incompatible_obligation_ids=(
+                    _type_incompatible_obligation_ids(result)
+                ),
+            )
+        )
+        lines.append(
+            "> 以下为诊断明细。**若你只想知道该做什么，看完上面一节即可**。"
+        )
         lines.append("")
 
     # --- 评估范围（run / building / source scope）---
@@ -1238,6 +2419,7 @@ def render_contract_v2_report(
     lines.append(f"- 运行时间戳: {generated_at}")
     lines.append("")
     if rule_families:
+        family_detail_start: Optional[int] = None
         # v4 收官形态把 40+ 行 family 明细表折进 <details>（2026-07-23 codex 聚合
         # 设计商议：不折叠时 v4 主视图压不进 A 门 180 行预算）；v3 保持原样。
         if contract_version >= 4:
@@ -1247,6 +2429,7 @@ def render_contract_v2_report(
                 f"- 适用法规切片：{len(rule_families)} 个 family、"
                 f"{total_cards} 张 rule card（明细见下折叠表）")
             lines.append("")
+            family_detail_start = len(lines)
             lines.append("<details>")
             lines.append("<summary>family 明细表（程序渲染，点击展开）</summary>")
             lines.append("")
@@ -1262,6 +2445,8 @@ def render_contract_v2_report(
             lines.append("")
             lines.append("</details>")
         lines.append("")
+        if family_detail_start is not None:
+            _defer_latest_detail(family_detail_start)
 
     # --- 权威闭包概览 ---
     lines.append("## 权威闭包概览")
@@ -1272,8 +2457,10 @@ def render_contract_v2_report(
     lines.append(f"- open: {summary.open_count}")
     lines.append(f"- blocked: {summary.blocked_count}")
     lines.append(f"- closed: {summary.closed_count}")
-    lines.append(f"- satisfied: {summary.satisfied_count}")
-    lines.append(f"- violated: {summary.violated_count}")
+    # DEBT-083 丁护栏②：镜像一致性副本分账（无镜像时与旧格式逐字节同）。
+    _m_sat, _m_vio = _mirror_verdict_counts(result)
+    lines.append(_verdict_count_line("satisfied", summary.satisfied_count, _m_sat))
+    lines.append(_verdict_count_line("violated", summary.violated_count, _m_vio))
     lines.append(f"- unknown: {summary.unknown_count}")
     lines.append(f"- not_applicable: {summary.not_applicable_count}")
     lines.append(f"- allow_stop: {result.allow_stop}")
@@ -1323,6 +2510,7 @@ def render_contract_v2_report(
             lines.append("")
 
         # --- 完整台账:折叠(spec §7.4.4 E-4.1,骨架第 5 项,逐条一字不少)---
+        unclosed_detail_start = len(lines)
         lines.append("<details>")
         lines.append("<summary>未闭合项完整台账（逐条，程序渲染，点击展开）</summary>")
         lines.append("")
@@ -1350,17 +2538,39 @@ def render_contract_v2_report(
         lines.append("")
         lines.append("</details>")
         lines.append("")
+        _defer_latest_detail(unclosed_detail_start)
 
     # display_ref 映射(spec §7.4.4 E-4.2):由权威 canonical_identity_hash 派生,
     # 供本节高风险表、分析节、复核提示节统一使用,运行期哈希移出人读主视图。
     identity_manifest = getattr(result.obligation_set, "identity_manifest", None)
     display_ref_map, cano_by_oid = _build_display_ref_map(obligations, identity_manifest)
 
+    # --- unknown 归因（消费者验收标准落点）---
+    # 与 `render_incomplete_closure_notice` / `render_auxiliary_review_report`
+    # 共用同一渲染实现：两条报告入口只要有一条自算，就必然与权威映射分叉。
+    # v4 主视图有行数预算，故 v4+ 把逐项说明折进 <details>（计数表仍在主视图）。
+    _extend_with_deferred_details(render_unknown_attribution_section(
+        result,
+        collapsible=contract_version >= 4,
+        display_ref_map=display_ref_map,
+        # v4 文首已渲染行动项（消费者轴改造）：原位置不重复渲染、只留指回行——
+        # 重复会把 A 门重复行率顶过 5%（2026-07-31 v1 改造时实测撞过一次）。
+        # v3 保持缺省 False，行为逐字节不变。
+        skip_action_items=contract_version >= 4,
+        action_items_relocated=contract_version >= 4,
+    ))
+
     # --- violated / high-risk 项与程序计数 ---
     lines.append("## 疑似未满足 / 高风险项")
     lines.append("")
+    # DEBT-083 丁护栏②：violated 里的镜像副本单列，不计独立法规判断。
+    _pc_mirror_vio = _mirror_verdict_counts(result)[1]
+    _pc_mirror_note = (
+        f"（其中镜像一致性副本 {_pc_mirror_vio} 条，与来源触发器同判、"
+        "不构成独立法规判断）" if _pc_mirror_vio else ""
+    )
     lines.append(
-        f"程序计数：violated = {summary.violated_count}，"
+        f"程序计数：violated = {summary.violated_count}{_pc_mirror_note}，"
         f"high_risk = {len(result.high_risk_items)}。"
         "下表所列为闭包验证显示的疑似未满足项，建议人工复核；"
         "本表不构成最终不合规结论。"
@@ -1371,12 +2581,14 @@ def render_contract_v2_report(
         if o.closure_status == "closed" and o.satisfaction_status == "violated"
     ]
     # 主视图:violated 按 rule_card 聚合 top-N（spec §7.4.4 E-4.1）
+    violated_detail_start: Optional[int] = None
     if violated_items:
         lines.append("**疑似未满足聚合（按规则卡，主视图；完整逐条见下方折叠块）**")
         lines.append("| rule_card | 条数 |")
         lines.append("|---|---:|")
         lines.extend(_violated_agg_rows(violated_items, guard_safe_data))
         lines.append("")
+        violated_detail_start = len(lines)
         lines.append("<details>")
         lines.append("<summary>疑似未满足完整台账（逐条，程序渲染，点击展开）</summary>")
         lines.append("")
@@ -1396,7 +2608,15 @@ def render_contract_v2_report(
     if violated_items:
         lines.append("</details>")
         lines.append("")
+        if violated_detail_start is not None:
+            _defer_latest_detail(violated_detail_start)
     if result.high_risk_items:
+        high_risk_detail_start = len(lines)
+        if contract_version >= 4:
+            lines.append("<details>")
+            lines.append(
+                "<summary>额外高风险项完整台账（程序渲染，点击展开）</summary>"
+            )
         lines.append("额外高风险项（verifier high_risk_items，top-10）：")
         lines.append("| display_ref | family | severity | reason |")
         lines.append("|---|---|---|---|")
@@ -1415,9 +2635,19 @@ def render_contract_v2_report(
         remaining = len(result.high_risk_items) - 10
         if remaining > 0:
             lines.append(f"其余高风险项 {remaining} 条，详见 closure_validation_result.json。")
+        if contract_version >= 4:
+            lines.append("</details>")
         lines.append("")
+        if contract_version >= 4:
+            _defer_latest_detail(high_risk_detail_start)
 
     # --- 法规引用与证据（程序辑录，别名↔真实 ID 对照供人工回查）---
+    evidence_detail_start = len(lines)
+    if contract_version >= 4:
+        lines.append("<details>")
+        lines.append(
+            "<summary>法规引用与证据完整台账（程序辑录，点击展开）</summary>"
+        )
     lines.append("## 法规引用与证据（程序辑录）")
     lines.append("")
     if evidence_pack is not None and (
@@ -1447,7 +2677,11 @@ def render_contract_v2_report(
                 lines.append(f"- {note}")
     else:
         lines.append("（本次无重点证据项）")
+    if contract_version >= 4:
+        lines.append("</details>")
     lines.append("")
+    if contract_version >= 4:
+        _defer_latest_detail(evidence_detail_start)
 
     # --- 唯一分析节槽位 ---
     # display_ref(spec §7.4.4 E-4.2):把分析文本里 O 别名展开的运行期
@@ -1489,6 +2723,7 @@ def render_contract_v2_report(
         if str(item.get("severity") or "").lower() in {"medium", "high", "critical"}
         and str(item.get("obligation_id") or "") not in violated_ids
     ]
+    review_detail_start: Optional[int] = None
     if violated_items or reviewable_high_risk:
         from collections import Counter
         rc_counts = Counter(ob.source_rule_card_id for ob in violated_items)
@@ -1524,6 +2759,7 @@ def render_contract_v2_report(
             lines.append(f"- （其余 {total_actions - shown} 项见下方折叠逐条清单）")
         lines.append("")
         # 完整逐条折叠,用 display_ref 而非运行期哈希
+        review_detail_start = len(lines)
         lines.append("<details>")
         lines.append("<summary>逐条复核清单（程序渲染，点击展开）</summary>")
         lines.append("")
@@ -1547,6 +2783,8 @@ def render_contract_v2_report(
     else:
         lines.append("- 闭包验证未发现疑似未满足项；建议人工审查员按常规流程抽检。")
     lines.append("")
+    if review_detail_start is not None:
+        _defer_latest_detail(review_detail_start)
 
     # --- display_ref → obligation_id → canonical_identity_hash 映射(折叠,供下钻)---
     # 覆盖**报告里所有出现 display_ref 的义务**(分析节引用 ∪ 复核逐条 ∪ 高风险 top-10),
@@ -1560,6 +2798,7 @@ def render_contract_v2_report(
     # 映射块只含 id/hash（非敏感字段值），guard_safe_data 下**仍输出**——否则
     # display_ref 显示了却无法下钻（2026-07-23 codex 复审）。
     if shown_oids:
+        display_map_detail_start = len(lines)
         lines.append("<details>")
         lines.append("<summary>展示编号 → obligation_id → canonical_identity_hash 映射（下钻回查用，覆盖本报告全部展示编号）</summary>")
         lines.append("")
@@ -1571,6 +2810,16 @@ def render_contract_v2_report(
         lines.append("")
         lines.append("</details>")
         lines.append("")
+        _defer_latest_detail(display_map_detail_start)
+
+    if contract_version >= 4 and deferred_detail_blocks:
+        lines.append(
+            "> 以下为完整逐条台账，默认收起、可逐块展开。"
+            "PDF/打印导出前须先展开全部折叠块；Markdown 源文件与 JSON 产物"
+            "始终保留完整逐条内容。"
+        )
+        for detail_block in deferred_detail_blocks:
+            lines.extend(detail_block)
 
     lines.append("---")
     lines.append("")
@@ -1589,6 +2838,7 @@ __all__ = [
     "render_incomplete_closure_notice",
     "render_auxiliary_review_report",
     "render_authoritative_closure_overview",
+    "render_scope_relation_diagnostic_section",
     "write_report",
     # 报告契约 v2
     "NarrativeEvidencePack",

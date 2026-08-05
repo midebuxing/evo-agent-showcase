@@ -89,7 +89,17 @@ def _compute_additional_after_failure_count(
 
 
 def _compute_max_condition_severity(conditions: List[ConditionState]) -> float:
-    """spec 06 §10 max_severity = max(condition.severity_index)."""
+    """spec 06 §10 max_severity = max(condition.severity_index)，**作用域由入参决定**。
+
+    🔴 作用域必须由调用方显式给对（1b / 波次二 #31 的入口教训，2026-08-05）：
+    本函数只对**传进来的那个列表**取 max，它自己看不出该列表是"某个片段的 conditions"
+    还是"全楼 conditions"。历史上正是同一个语义被两处按两种作用域使用——
+    Step 8 量测通路传 `conditions_by_fragment[fragment_id]`（正确，片段级），
+    而派生 flag 通路曾直接内联 `max(c.severity_index for c in world.conditions)`（楼级，已删）。
+    ⇒ **唯一合法作用域是片段级**：spec 06 §10 的 fsp 公式服务的是 per-fragment
+    measurement 通路（`ratio.fsp.structural_performance`），守则 §4.3.3(c) 亦把结构表现
+    系数定义在結構構件上。传全楼列表进来会得到一个法规里不存在的"全楼 FSP"。
+    """
     if not conditions:
         return 0.0
     return max(condition.severity_index for condition in conditions)

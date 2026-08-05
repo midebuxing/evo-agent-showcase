@@ -553,6 +553,48 @@ def test_authoritative_closure_overview_uses_verifier_counts():
     assert "- 运行时间戳: 2026-07-11T00:00:00Z" in text
 
 
+def test_verdict_counts_split_mirror_consistency_copies():
+    """DEBT-083 丁护栏②消费端：satisfied 计数分「原生 + 镜像一致性副本」两账。
+
+    镜像副本（notes 带 `consistency_mirror_of=`）与来源触发器同判、不构成独立
+    法规判断——报告不分账会让消费者把同一触发器判定重复计数（批 I 实测
+    `reporting.artifact.prepared` 一槽 512 条镜像）。无镜像时行格式逐字节不变。
+    """
+    native = _make_obligation(
+        obligation_id="OBL-NATIVE-SAT",
+        closure_status="closed",
+        satisfaction_status="satisfied",
+    )
+    mirror = _make_obligation(
+        obligation_id="OBL-MIRROR-SAT",
+        closure_status="closed",
+        satisfaction_status="satisfied",
+        notes="satisfaction_binding=slot_ref:sr02; "
+              "consistency_mirror_of=trigger_slot_ref:sr02",
+    )
+    result = _make_closure_result(
+        allow_stop=False, obligations=[native, mirror])
+    result.closure_summary.satisfied_count = 2
+    text = render_authoritative_closure_overview(
+        result, allow_stop=False, world_id=_WORLD,
+        building_id=_BUILDING, generated_at="2026-08-02T00:00:00Z",
+    )
+    assert ("- satisfied: 2（原生 1 ＋ 镜像一致性副本 1；"
+            "镜像与来源触发器同判，不构成独立法规判断）") in text
+    # violated 无镜像 ⇒ 行保持旧格式（逐字节）。
+    assert f"- violated: {result.closure_summary.violated_count}\n" in text + "\n"
+
+    # 无镜像输入 ⇒ satisfied 行也保持旧格式。
+    plain = _make_closure_result(allow_stop=False, obligations=[native])
+    plain.closure_summary.satisfied_count = 1
+    plain_text = render_authoritative_closure_overview(
+        plain, allow_stop=False, world_id=_WORLD,
+        building_id=_BUILDING, generated_at="2026-08-02T00:00:00Z",
+    )
+    assert "- satisfied: 1\n" in plain_text + "\n"
+    assert "镜像一致性副本" not in plain_text
+
+
 def test_authoritative_closure_overview_allow_stop_true_uses_auxiliary_title():
     result = _make_closure_result(allow_stop=True)
     text = render_authoritative_closure_overview(
@@ -592,7 +634,9 @@ def test_incomplete_closure_notice_lists_open_and_blocked():
     assert "OBL-BLK" in text
     assert "missing_fact" in text
     assert "unsupported_formula" in text
-    assert "排水检查记录缺失" in text
+    assert "排水检查记录缺失" not in text
+    assert "公式不在白名单" not in text
+    assert "本次结果未带归因映射" in text
     # 不得出现完整报告的第 3-9 节标题
     assert "## 5. 逐项义务闭包表" not in text
     assert "## 7. 证据链与来源" not in text
@@ -986,3 +1030,72 @@ def tmp_path(request):
     path = Path.cwd() / "杂物箱" / "pytest_v3_paths" / request.node.name
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+# ===========================================================================
+# 十二、DEBT-083 哨兵边界开关转正常开启（工单①，2026-08-02）
+# ===========================================================================
+
+
+def test_resolve_fallback_boundary_enabled_parsing(monkeypatch):
+    """未设/空→True（四门已过、正常开启是新常态）；"1"→True；"0"→False；
+    其它取值→ValueError fail-closed（防拼写静默退化）。"""
+    from evo_agent_baseline.agent.run_orchestrator import (
+        resolve_fallback_boundary_enabled,
+    )
+
+    monkeypatch.delenv("EVO_FALLBACK_BOUNDARY", raising=False)
+    assert resolve_fallback_boundary_enabled() is True
+    monkeypatch.setenv("EVO_FALLBACK_BOUNDARY", "")
+    assert resolve_fallback_boundary_enabled() is True
+    monkeypatch.setenv("EVO_FALLBACK_BOUNDARY", "1")
+    assert resolve_fallback_boundary_enabled() is True
+    monkeypatch.setenv("EVO_FALLBACK_BOUNDARY", "0")
+    assert resolve_fallback_boundary_enabled() is False
+    monkeypatch.setenv("EVO_FALLBACK_BOUNDARY", "yes")
+    with pytest.raises(ValueError):
+        resolve_fallback_boundary_enabled()
+
+
+def test_closure_fn_accepts_fallback_boundary_detection():
+    """只对签名里有 exclude_fallback_reasons_facts 的真验证器传参；三位置参桩不受影响。"""
+    from evo_agent_baseline.agent.run_orchestrator import (
+        _closure_fn_accepts_fallback_boundary,
+    )
+    from evo_agent_baseline.closure.validator import validate_building_closure
+
+    assert _closure_fn_accepts_fallback_boundary(validate_building_closure) is True
+
+    def stub3(rule_slice, fact_pack, config):
+        return None
+
+    assert _closure_fn_accepts_fallback_boundary(stub3) is False
+
+
+def test_orchestrator_run_audit_records_fallback_boundary_enabled(
+        tmp_path, monkeypatch):
+    """run_audit.json 顶层必须记开关实际值（codex 终审硬条件②：记实际值不吃缺省）。"""
+    monkeypatch.delenv("EVO_FALLBACK_BOUNDARY", raising=False)
+    orch = RunOrchestrator(
+        retrieval_fn=_stub_retrieval,
+        closure_fn=_make_closure_stub(allow_stop=True),
+        runs_root=str(tmp_path / "on"),
+        kg_snapshot_id="KGS-1",
+    )
+    run = orch.run(world_id=_WORLD, building_id=_BUILDING)
+    audit = json.loads(
+        (tmp_path / "on" / run.run_id / "run_audit.json").read_text(encoding="utf-8"))
+    assert audit["fallback_boundary_enabled"] is True
+
+    monkeypatch.setenv("EVO_FALLBACK_BOUNDARY", "0")
+    orch_off = RunOrchestrator(
+        retrieval_fn=_stub_retrieval,
+        closure_fn=_make_closure_stub(allow_stop=True),
+        runs_root=str(tmp_path / "off"),
+        kg_snapshot_id="KGS-1",
+    )
+    run_off = orch_off.run(world_id=_WORLD, building_id=_BUILDING)
+    audit_off = json.loads(
+        (tmp_path / "off" / run_off.run_id / "run_audit.json")
+        .read_text(encoding="utf-8"))
+    assert audit_off["fallback_boundary_enabled"] is False

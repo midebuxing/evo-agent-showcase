@@ -37,7 +37,6 @@ class SidecarDerivationTests(unittest.TestCase):
         return _build_sidecar_runtime_bundle_for_buildings(
             self.building_worlds,
             registries=self.registries,
-            rng=random.Random(7),
         )
 
     def test_returns_sidecar_runtime_bundle(self) -> None:
@@ -152,10 +151,10 @@ class SidecarDerivationTests(unittest.TestCase):
         from workflow_engine.worldgen.sidecar import _build_sidecar_runtime_bundle_for_buildings
 
         bundle1 = _build_sidecar_runtime_bundle_for_buildings(
-            self.building_worlds, registries=self.registries, rng=random.Random(123),
+            self.building_worlds, registries=self.registries,
         )
         bundle2 = _build_sidecar_runtime_bundle_for_buildings(
-            self.building_worlds, registries=self.registries, rng=random.Random(123),
+            self.building_worlds, registries=self.registries,
         )
         for r1, r2 in zip(bundle1.records, bundle2.records):
             v1_by_slot = {v.slot_id: v.value for v in r1.supervision_runtime_state}
@@ -170,7 +169,6 @@ class SidecarDerivationTests(unittest.TestCase):
         bundle = _build_sidecar_runtime_bundle_for_buildings(
             self.building_worlds,
             registries=self.registries,
-            rng=random.Random(7),
             projection_ids_by_fragment=projection_ids,
         )
         target_record = next(r for r in bundle.records if r.projection_id == "PROJ-TEST-0001")
@@ -186,7 +184,7 @@ class SidecarDerivationTests(unittest.TestCase):
         from workflow_engine.worldgen.sidecar import _build_sidecar_runtime_bundle_for_buildings
 
         bundle = _build_sidecar_runtime_bundle_for_buildings(
-            self.building_worlds, registries=None, rng=random.Random(7),
+            self.building_worlds, registries=None,
         )
         for record in bundle.records:
             self.assertEqual(record.facts, [])
@@ -260,7 +258,7 @@ class SidecarDerivationTests(unittest.TestCase):
             batch_config={}, registries=self.registries, count=20, seed=42, fragment_count_per_building=4
         )
         bundle = _build_sidecar_runtime_bundle_for_buildings(
-            big_worlds, registries=self.registries, rng=random.Random(7),
+            big_worlds, registries=self.registries,
         )
         n_total = 0
         n_true = 0

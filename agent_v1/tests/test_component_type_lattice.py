@@ -66,36 +66,68 @@ def test_generation_plan_equals_alias_keys(lattice, alias_map):
 
 
 def test_generation_and_dormant_cover_registry(lattice):
-    """断言 B-3(P2 动态): 生成计划 ∪ 休眠 = W0 registry 全类型(动态读 component_type_registry,
-    防生成器/测试硬编码同步漂移),且不相交(禁静默丢弃)。"""
+    """断言 B-3(P2 动态 + 第二波): 生成计划 ∪ 无映射生成 ∪ 休眠 = W0 registry 全类型
+    (动态读 component_type_registry,防硬编码漂移),三者两两不相交(禁静默丢弃)。
+
+    第二波起新增 w0_unmapped_generation_types:W0 确实生成、但**无组件类型映射**的原生类型
+    (unauthorized_structure——ubw 迁出组件轴后按"宁缺勿错"删了别名桥),其 fragment 身份
+    判 unknown、判据保守不早退;显式登记以区分"没映射"与"漏登记"。
+    """
     registry_types = _registry_component_types()
     gen = set(lattice["w0_generation_plan_types"])
+    unmapped = set(lattice.get("w0_unmapped_generation_types") or [])
     dormant = set(lattice["w0_dormant_types"])
     assert gen & dormant == set(), "生成计划与休眠清单相交"
-    assert gen | dormant == registry_types, (
-        f"生成∪休眠 != W0 registry 全集; 差集 {(gen | dormant) ^ registry_types}"
+    assert gen & unmapped == set(), "已映射与无映射生成清单相交"
+    assert unmapped & dormant == set(), "无映射生成与休眠清单相交"
+    assert gen | unmapped | dormant == registry_types, (
+        f"生成∪无映射∪休眠 != W0 registry 全集; 差集 {(gen | unmapped | dormant) ^ registry_types}"
     )
 
 
-def test_disjoint_pairs_complete_symmetric_irreflexive(lattice):
-    """disjoint: 叶集 C(n,2) 全覆盖 + 对称(规范化)+ 无自反。"""
+def test_disjoint_pairs_cover_leaves_and_allow_cross_layer(lattice):
+    """disjoint: 叶集 C(n,2) **全覆盖**（下界）+ 允许**跨层**追加 + 对称 + 无自反。
+
+    🔴 2026-07-26（DEBT-076）：原断言是 `pairs == 叶全组合` 且 `== 10`，
+    那锁死了「互斥只能在叶之间」这个旧假设。裁定明确要求**支持跨层互斥**——
+    实测 20,368 次配对冲突里大量是跨层（卡要 `structural_component`、
+    世界给 `drainage_component`），而叶×叶全组合永远表达不了。
+    故改为「叶全组合是**子集**」+ 跨层对必须来自**人裁关系表**（不是自动生成）。
+    """
     leaf = lattice["leaf_types"]
     pairs = {tuple(sorted(p)) for p in lattice["disjoint_pairs"]}
-    expected = {tuple(sorted(c)) for c in itertools.combinations(leaf, 2)}
-    assert pairs == expected
-    assert len(lattice["disjoint_pairs"]) == len(expected) == 10
+    leaf_pairs = {tuple(sorted(c)) for c in itertools.combinations(leaf, 2)}
+    assert leaf_pairs <= pairs, "叶×叶互斥必须全覆盖（它们由词表结构决定）"
+    assert len(leaf_pairs) == 10
     for a, b in lattice["disjoint_pairs"]:
         assert a != b, "disjoint 含自反对"
+    # 跨层对必须有来源标注，防"自动生成的跨层对"混进来
+    extra = pairs - leaf_pairs
+    if extra:
+        assert lattice.get("relations_source") not in (None, "relations_file_missing"), (
+            f"有 {len(extra)} 对跨层互斥，但 relations_source 缺失 —— "
+            f"跨层关系只能来自人裁关系表，不许自动生成")
+        assert lattice.get("disjoint_from_relations_table") == len(extra)
 
 
 def test_subsumption_members_are_leaves(lattice):
     """subsumption 父类 ∈ non_leaf,成员 ∈ leaf。"""
     leaf = set(lattice["leaf_types"])
     non_leaf = set(lattice["non_leaf_types"])
+    vocab = leaf | non_leaf
     for parent, members in lattice["subsumption"].items():
         assert parent in non_leaf, f"subsumption 父类 {parent} 不是 non_leaf"
         for m in members:
-            assert m in leaf, f"subsumption 成员 {m} 不是叶型"
+            # 🔴 成员可以是**非叶**（DEBT-076 允许多级）：`transfer_structure`
+            # （非叶）is_a `structural_component`，依据 §3.4.1(b)(vii) 結構構件
+            # 檢驗項目明列「轉移構築物」。原断言"成员必须是叶"锁死了单级假设。
+            assert m in vocab, f"subsumption 成员 {m} 不在词表值域"
+            assert m != parent, f"subsumption 自反: {parent}"
+    # 多级时不得成环
+    for parent, members in lattice["subsumption"].items():
+        for m in members:
+            assert parent not in lattice["subsumption"].get(m, []), (
+                f"subsumption 成环: {parent} ⊇ {m} 且 {m} ⊇ {parent}")
 
 
 def test_snapshot_hash_roundtrip(lattice, vocab_domain, alias_map):
