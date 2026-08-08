@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -521,12 +522,115 @@ def run_worldgenerator_fullcoverage_framework_v2(
     }
 
 
-def main() -> int:
+# ── 换池前置 C3：P5 override 对账闸接线（2026-08-06） ─────────────────────────
+# 真值面（W2 NormativeProjection）生成命令的**最早强制点**：main() 解析参数后、
+# 任何生成步骤之前。闸本体与三条断言见
+# `agent_v1/scripts/check_override_registry_reconciliation.py`。
+# 乙路红线「覆盖该细族的真值队列不得在只落了真值侧的状态下生成」在此机器化：
+# 闸给出任何问题（违例或前提不成立）即拒绝生成——fail-loud 退非零＋逐条明细。
+# 旁路仅限显式 `--force-override-gate <理由>`（照批驱动隔离闸的形：不给静默
+# 通道，醒目警告＋理由字符串留在输出里）。授权：审核结果_kimi_G6_20260806 C3。
+EXIT_REFUSED_BY_OVERRIDE_GATE = 1
+
+
+def _force_utf8_stdio() -> None:
+    """Windows 控制台默认 GBK，闸的中文明细会整段炸掉——强制 UTF-8。"""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except Exception:  # pragma: no cover - 老 Python / 非 TextIO
+                pass
+
+
+def _gate_problems_via_p5_script() -> List[str]:
+    """加载 P5 闸的薄接口 `gate_problems()` 并执行（读真卡包，静态、不连库）。
+
+    闸导入/执行失败**不静默放行**——闸不可用同样按拒绝处理（防「关键配置
+    静默退化」bug 族：闸悄悄失效比闸红更危险）。
+    """
+    scripts_dir = Path(__file__).resolve().parents[3] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    try:
+        from check_override_registry_reconciliation import gate_problems  # noqa: WPS433
+    except Exception as exc:
+        return [f"[闸不可用] 导入 check_override_registry_reconciliation 失败：{exc}"]
+    try:
+        return list(gate_problems())
+    except Exception as exc:  # pragma: no cover - 闸自身已把已知失败包成清单
+        return [f"[闸不可用] gate_problems() 执行失败：{exc}"]
+
+
+def enforce_override_reconciliation_gate(force_reason: Optional[str]) -> Optional[int]:
+    """真值队列生成前的强制对账。返回 None＝放行；返回退出码＝拒绝生成。"""
+    _force_utf8_stdio()
+    if force_reason is not None and not force_reason.strip():
+        print(
+            "[override 对账闸] --force-override-gate 必须带非空理由字符串——"
+            "旁路要留下「谁、为什么」，不给匿名通道。",
+            file=sys.stderr,
+        )
+        return EXIT_REFUSED_BY_OVERRIDE_GATE
+
+    problems = _gate_problems_via_p5_script()
+    if not problems:
+        if force_reason:
+            print(
+                "[override 对账闸] 闸本就全绿，--force-override-gate 未起作用"
+                f"（理由已记录：{force_reason.strip()}）。",
+                file=sys.stderr,
+            )
+        return None
+
+    if force_reason:
+        banner = "!" * 78
+        print(banner, file=sys.stderr)
+        print("!! 警告：P5 override 对账闸被显式旁路（--force-override-gate）", file=sys.stderr)
+        print(f"!! 旁路理由：{force_reason.strip()}", file=sys.stderr)
+        print(f"!! 被旁路的问题共 {len(problems)} 条：", file=sys.stderr)
+        for line in problems:
+            print(f"!!   {line}", file=sys.stderr)
+        print("!! 本批真值产物携带未对账的 override 风险——旁路属例外，须已走决策门。", file=sys.stderr)
+        print(banner, file=sys.stderr)
+        return None
+
+    print("=" * 78, file=sys.stderr)
+    print("[REFUSE] P5 override 对账闸未过——拒绝生成真值队列。", file=sys.stderr)
+    print(f"共 {len(problems)} 条问题（违例或前提不成立，零核不宣绿）：", file=sys.stderr)
+    for line in problems:
+        print(f"  {line}", file=sys.stderr)
+    print(
+        "\n处置：先跑 `python agent_v1/scripts/check_override_registry_reconciliation.py`"
+        "\n看完整判据块（RULE_TEXT），补登记 / 走决策门扩白名单 / 两侧同批落；"
+        "\n确属已裁定的例外才可用 --force-override-gate <理由> 显式旁路。",
+        file=sys.stderr,
+    )
+    print("=" * 78, file=sys.stderr)
+    return EXIT_REFUSED_BY_OVERRIDE_GATE
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    _force_utf8_stdio()  # argparse 帮助与闸明细都含中文，GBK 控制台先切 UTF-8
     parser = argparse.ArgumentParser(description="W0 worldgen full-coverage v2 framework runner.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_WORLDGEN_FULLCOVERAGE_OUTPUT_DIR)
     parser.add_argument("--count", type=int, default=DEFAULT_BATCH_WORLD_COUNT)
     parser.add_argument("--seed", type=int, default=DEFAULT_BATCH_RANDOM_SEED)
-    args = parser.parse_args()
+    parser.add_argument(
+        "--force-override-gate",
+        metavar="REASON",
+        default=None,
+        help=(
+            "显式旁路 P5 override 对账闸（换池前置 C3 接线）。必须给非空理由字符串；"
+            "会打印醒目警告并把理由留在输出里。仅限已走决策门的例外使用。"
+        ),
+    )
+    args = parser.parse_args(argv)
+    # 换池前置 C3：生成命令侧最早强制点——任何生成步骤之前先过 override 对账闸。
+    gate_exit = enforce_override_reconciliation_gate(args.force_override_gate)
+    if gate_exit is not None:
+        return gate_exit
     result = run_worldgenerator_fullcoverage_framework_v2(
         output_dir=args.output_dir, count=args.count, seed=args.seed,
     )

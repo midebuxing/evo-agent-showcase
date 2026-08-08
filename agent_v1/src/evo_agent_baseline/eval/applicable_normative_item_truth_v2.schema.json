@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "applicable_normative_item_truth_v2.schema.json",
+  "title": "适用规范项独立真值 v2（池 v2 / seed401，验收标准③「适用条款不漏」阅卷侧真值）",
+  "description": "每行一条 JSONL 记录 = 一个规范性原子项在一栋楼上的独立适用性裁定。**与 v1 的关系**：v1 锚在旧池（`_reanchor_50x1_seed301`）、由逐行人工裁定累积而成，含 4 条重复 (项,栋) 行与 14 个网格空洞；v2 锚在池 v2（`_poolv2_50x1_seed401/gen_seed_401`）、由 `agent_v1/scripts/generate_truth_v2.py` 从**已封的内容层裁定**机械展开，结构上恰 278 项 × 10 栋 ＝ 2,780 行、零重复零空洞（生成器的唯一键断言与显式网格契约各带变异对照）。🔴 **v1 不作废、也不迁移**：两份真值锚两个不同的池，`building_id` 集合互不相交，任何跨池比较都无效——阅卷器按 `--truth-file {v1,v2}` 显式选，缺省仍 v1，防静默换锚。裁定依据只有两样：中文守则正文（`agent_v1/regulations/markdown/MBIS_CoP_2023.md`，唯一效力来源）与池 v2 的世界事实（裁定包 `agent_v1/experiments/truth_v2_prep/adjudication_packages/<building_id>/world/*`，从池 parquet 抽、非批产物）。禁止从 RuleSlice 或义务求值结果反推 applicable / expected_card_ids。内容层终局台账：`团队文档/我的笔记/真值v2内容层终局_20260807.md`（三桶 161 恒常 ＋ 110 因楼而异 ＋ 7 挂起；引「148/123」是丁型反向扫描**之前**的数）。",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "world_id",
+    "building_id",
+    "normative_item_id",
+    "source_clause_id",
+    "scope_type",
+    "scope_id",
+    "applicable",
+    "modality_zh",
+    "conditionality",
+    "reason",
+    "expected_card_ids",
+    "zh_source_excerpt",
+    "truth_source",
+    "low_confidence",
+    "pool_identity"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "applicable_normative_item_truth_v2",
+      "description": "真值文件版本标识，固定字符串。消费方必须按它分辨 v1/v2——两份真值锚不同的池，混用即静默错对齐。"
+    },
+    "world_id": {
+      "type": "string",
+      "pattern": "^WB-",
+      "description": "世界 id，形如 WB-...-S00401（池 v2 的 seed 后缀是 S00401）。"
+    },
+    "building_id": {
+      "type": "string",
+      "pattern": "^BLD-",
+      "description": "楼栋 id，批产物 buildings/ 下的目录名。10 栋抽样，抽法见 `truth_v2_prep/building_sample_v1.json`（`sorted(building_id)[0::5]`，无随机数、可重算）。"
+    },
+    "normative_item_id": {
+      "type": "string",
+      "description": "规范项原子 id，全局唯一。278 项全集与 v1 逐项相同（内容层重裁的是取值与分桶，不是项集）。"
+    },
+    "source_clause_id": {
+      "type": "string",
+      "description": "中文守则条款编号，形态与卡包 source_section.section_id 对齐。项级属性，沿用 v1 的项级记录（与楼无关，不含任何一栋的答案）。"
+    },
+    "scope_type": {
+      "enum": ["building", "component_class"],
+      "description": "作用域类型。🔴 **v2 无 `fragment` 档**：v1 里 13 项跨行 scope_type 不一致（同一项在不同栋上分别记成 building/component_class/fragment），而 `fragment` 的 scope_id 是逐池不同的 FRG- 片段 id，在新池上结构性不可用。v2 按机械规则收敛：该项在 v1 的全部 scope_id 里非 BLD-/非 FRG- 前缀的那个即其构件类标签（实测每项要么 0 个要么恰 1 个，无例外），有标签 ⇒ component_class，无标签 ⇒ building。fragment 行因此被**上收**到所属构件类——这是泛化不是改判：阅卷器 component_class 分支的判据（片段标签集含该类）是原 fragment 分支判据（恰是该片段）的超集。"
+    },
+    "scope_id": {
+      "type": "string",
+      "description": "作用域 id。scope_type=building 时填 building_id；component_class 时填 component_type_key（或已在 `component_class_scope_conjunction_v1.json` 登记的细标签）。"
+    },
+    "applicable": {
+      "oneOf": [{"type": "boolean"}, {"const": "unknown_pending"}],
+      "description": "独立阅卷结论三态：true=法律上适用（进召回分母）；false=结构不适用（不进分母也不进分子，走精确率侧反向闸）；\"unknown_pending\"=真值侧证据双缺、阅卷者判不了——既不进召回分母也不进精确率分母，单独计数出报表。⚠️ 编码是 boolean ∪ const 字符串，不是三值字符串枚举；消费方一律用 `is True` / `is False` 判——Python 真值判断会把非空字符串 \"unknown_pending\" 当成适用（本项目已实测的静默退化形状）。"
+    },
+    "modality_zh": {
+      "enum": ["shall", "should", "may", "prohibition"],
+      "description": "中文正文效力标记：須=shall / 應=should / 可、可能需要=may / 禁止式=prohibition。只依据中文正文裁定，英文 source_quote 是译文、无效力证据力（DEBT-068）。项级属性。"
+    },
+    "conditionality": {
+      "enum": ["unconditional", "trigger_conditioned"],
+      "description": "unconditional=被选定为目标楼宇即适用；trigger_conditioned=义务以某条件成立为前提。项级属性。"
+    },
+    "reason": {
+      "type": "string",
+      "description": "中文裁定依据，按 truth_source 分三种形态、全部由生成器从已落盘的裁定留痕机械拼接（生成器不新写一个字的论证）：constant_template=【恒常模板】＋Q1 语义无条件性＋Q2 池分化实证＋各轮复核留痕；adjudicated_grid=【人工裁定网格】＋逐格裁定依据＋**所查世界字段**＋对抗复核处置（决议 §四 的可审计性要求）；pending=【挂起】＋判不了的结构性障碍。"
+    },
+    "expected_card_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^rc\\."},
+      "description": "卡包中 source_section 声明了 source_clause_id 且语义对应该规范项的卡。空数组 = 卡包未建模该项（漏项落第 1 态 not_modeled）。只由机械查表得出，不含该卡是否被检索/求值的任何信息。项级属性。"
+    },
+    "zh_source_excerpt": {
+      "type": "string",
+      "description": "中文正文来源摘要，证明该项真实存在于守则正文。项级属性。"
+    },
+    "truth_source": {
+      "enum": ["constant_template", "adjudicated_grid", "pending"],
+      "description": "本行取值的来源桶（v2 新增，用于分账与换池探针射程）：constant_template=恒常桶 161 项，每项一个常量值展开到 10 栋（来源 `final_partition.json` v5 的 keep_constant）；adjudicated_grid=因楼而异桶 110 项 × 10 栋逐格人工裁定（来源 `final_grid.json`）；pending=挂起桶 7 项，逐行 emit \"unknown_pending\"（供给侧补轴后重裁）。161+110+7=278。"
+    },
+    "low_confidence": {
+      "type": "boolean",
+      "description": "该格的裁定是否被裁定者标记为低置信（判据含间接推断，如「材料系统取值为结构材料 ⇒ 无飾面」这类没有正向谓词的推断）。只在 adjudicated_grid 行上可能为 true；**不影响 applicable 的效力**，是给复核用的指针，不得据此改判或洗分母。"
+    },
+    "pool_identity": {
+      "type": "object",
+      "description": "池身份五件套（逐行携带，使任何一行离开本文件也无法被静默对上别的池）。🔴 **不含「工作树哈希 code_state_sha256」，这是结构性的不是偷懒**：本真值文件落在 `agent_v1/src/evo_agent_baseline/eval/` ＝ code_state 作用域内，把 code_state 写进行里会让写盘这个动作自己作废刚写进去的值——自指、无不动点。生成器代码态由预注册项 `truth_generation_producer`（脚本路径＋脚本 sha256＋模板版本）承载，落在台账（`agent_v1/experiments/prereg/`，作用域外）。",
+      "required": [
+        "worldgen_run_dir",
+        "pool_content_sha256",
+        "generation_config_sha256",
+        "sampled_building_id_member_digest",
+        "sampled_world_id_member_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "worldgen_run_dir": {"type": "string", "description": "池目录（仓库内相对路径）。"},
+        "pool_content_sha256": {"type": "string", "description": "池全部文件内容哈希，口径复用 `run_baseline_batch.pool_content_sha256`（不复制第二份逻辑）。"},
+        "generation_config_sha256": {"type": "string", "description": "池目录自带 `WorldgenRegistryBundle.v2.json` 的字节 sha256（registries 即采样配置快照）。"},
+        "sampled_building_id_member_digest": {"type": "string", "description": "sha256(\"\\n\".join(sorted(building_id)))。⚠️ 成员集是本真值覆盖的 **10 抽样栋**，不是池的 50 栋——与池级摘要 `ad26bd38…` 不该相等，拿来对比会得出「池身份对不上」的假结论。"},
+        "sampled_world_id_member_digest": {"type": "string", "description": "同上口径的 world_id 摘要。池级摘要是 `32e3857c…`，同样不该相等。"}
+      }
+    }
+  }
+}

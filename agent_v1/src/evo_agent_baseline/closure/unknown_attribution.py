@@ -523,6 +523,9 @@ _PASSTHROUGH_CAUSE_CODES: FrozenSet[str] = frozenset({
     "observed_false_without_violation_basis",
     "artifact_state_not_valid_evidence",
     "diagnostic_binding_not_valid_evidence",
+    # #33 保护闸（2026-08-05）：耦合未证拒判。与上面两码分立——上面两码是
+    # 「永久不能确立」，本码是「耦合未证、根治后可解封」。
+    "evidence_event_coupling_unproven",
     "missing_rule_edge",
     "ambiguous_fact_binding",
     "missing_artifact_evidence",
@@ -558,6 +561,16 @@ _PASSTHROUGH_EXPLANATIONS: Dict[str, str] = {
         "系统已取得相关读数，但该义务与这类读数的**精确绑定**已经逐项对法规原文裁定为"
         "「此类读数不能确立本义务」，程序按保守原则不据其下判定。**这是有意设计，不是漏查**。"
         "要由维护方为该义务改接能确立义务的证据通道；改接后须重新裁定。"
+    ),
+    # #33 保护闸（2026-08-05）。⚠️ 本码覆盖真假两侧（诊断行两出口必须同码），
+    # 故解释里**不许**出现「系统查到了该文件已呈交」这类只对真值侧为真的断言，
+    # 否则会破「文案声称的事实须对该码 100% 义务为真」这条常驻测试锁定的不变量。
+    "evidence_event_coupling_unproven": (
+        "本条的判定依据是「相关文件已呈交／送达／签署」这一状态读数；系统尚未确立"
+        "「记录到该状态即代表该事件确已发生」这条关联，故不据其判定义务已履行。"
+        "**这是有意设计，不是漏查**——世界侧该状态与实际程序事件之间目前是独立采样。"
+        "要由专业审查员核实该呈交／送达／签署事件是否真实发生；"
+        "维护方补上该关联后，本条可恢复正常判定。"
     ),
     "missing_rule_edge": (
         "验证器报规则边或引用缺失（非卡级触发器堵死）。"

@@ -210,7 +210,7 @@ def test_build_rulecard_graph_real_bundle(rulecard_dir: Path) -> None:
     # 沿革：2026-07-28 补 64 张缺卡；2026-08-04 件四批 1 §3.2.6 同义重复卡二保一
     # 退役 1 张（两卷裁定一致，退役卡留档 杂物箱/垃圾箱/2026-08-04_件四批1退役卡_s3_2_6重复/）
     # ⇒ 470 → 469（先量后冻：卡包实测 469）。
-    assert result.card_count == 469
+    assert result.card_count == 470  # 2026-08-05 #23 补 §5.4.3(b) masonry 缺卡 469→470
     assert result.family_count == 57  # 2026-07-28 补 64 张缺卡 → +9 fine family（44→53）
     assert result.bundle_id == "rulecard_v2.mbis_cop_2023"
 

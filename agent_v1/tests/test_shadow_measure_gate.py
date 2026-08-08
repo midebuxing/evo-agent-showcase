@@ -74,8 +74,10 @@ def test_sidecar_gate_fails_on_regression_not_on_baseline():
 
     # 2026-08-04 棘轮下调 45→39：reporting 三根轴落地后三个批（轴验证批＋满血三连）
     # 实测幽灵槽稳定 39，且 D 门自身输出提示「留着高锚等于给回退开后门」。
+    # 2026-08-06 棘轮下调 39→37：池 v2 两个独立 50 栋批（地板档＋满血档）实测均 37，
+    # D 门在两批批尾各自打过下调提示。
     # 下调即是本注释要求的「有意且有实证」。
-    assert sc.GHOST_SLOT_BASELINE == 39, \
+    assert sc.GHOST_SLOT_BASELINE == 37, \
         "基线锚变动必须是有意的——改小了要有实证，改大了等于给回退开后门"
     src = inspect.getsource(sc.main)
     assert "> GHOST_SLOT_BASELINE" in src, "必须只在超出基线时失败"

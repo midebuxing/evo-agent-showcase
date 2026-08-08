@@ -399,14 +399,21 @@ def build_fact_pack(
 
     slot_index / measure_index / carrier_index 的 value 都是 fact_id 列表。
 
+    DEBT-090：对 facts 按 fact_id 稳定排序后再建索引与落盘。KG 检索对同类量测
+    载体的返回顺序非确定（同池同码两批会出现「集合相同、顺序不同」），消费侧
+    取首条即漂移。fact_id 含载体编号、字典序确定，排序后同槽事实在索引/序列化
+    中顺序固定 ⇒ fact_pack_content_hash 可复现。
+
     Args:
         run_id / world_id / building_id: run 标识。
-        facts: 全部 FactAtom。
+        facts: 全部 FactAtom（顺序任意，本函数内部按 fact_id 排序）。
         source_tables: 本次涉及的源表名列表。
 
     Returns:
         FactPack。
     """
+    # DEBT-090：一处确定性排序插入--facts / 三个倒排索引均按 fact_id 字典序确定。
+    facts = sorted(facts, key=lambda f: f.fact_id)
     slot_index: Dict[str, List[str]] = {}
     measure_index: Dict[str, List[str]] = {}
     carrier_index: Dict[str, List[str]] = {}

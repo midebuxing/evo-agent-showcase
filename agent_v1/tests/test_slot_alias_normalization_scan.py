@@ -137,6 +137,17 @@ _NO_NORMALIZATION_NEEDED: Dict[Tuple[str, str], str] = {
         "只是重名。判据按名字匹配，分不出来——这正是诚实边界 1 说的"
         "「机器判不了这个名字是什么」。"
     ),
+    ("scripts/check_override_registry_reconciliation.py", "reconcile"): (
+        "P5（W2 override 对账闸，2026-08-06 归属裁定）：`:306` 的 `b.slot_id == "
+        "slot_id` 两侧都出自**同一** `_collect_bindings(mapping)` 结果集"
+        "（`{b.slot_id for b in bindings}` 迭代自身再回头过滤自身），同源同侧、"
+        "过不过归一逐字节同结果。该闸对账的三份资产（`projection_runtime_mapping` "
+        "覆盖表 / `semantic_slot_registry` / `override_trigger_whitelist`）全部是"
+        "**卡侧**权威文件，槽名同一命名域；跨侧（卡↔世界）对账不是本闸职责——"
+        "闸文件头自述它只堵『覆盖表引用未登记槽/未授权角色/两侧漂移』三个卡侧洞。"
+        "⚠️ 若将来本闸引入世界侧槽名（如按运行时事实校验覆盖谓词），此条理由失效，"
+        "须接 slot_alias_policy。"
+    ),
 }
 
 # --------------------------------------------------------------------------- #

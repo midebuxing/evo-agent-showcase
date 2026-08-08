@@ -214,6 +214,10 @@ PHASE_TWO_REASON_DRIFT: Dict[str, Any] = {
         "非产物读数的诊断型拒判）后 12→13 open 码——144→156（66→78 open，blocked 78 不变）、"
         "非保守 41→45。同上例行：**blocked 侧四轮一律 78 不动**，说明每轮增长都只来自 open 侧"
         "枚举面变大，不是发散性质变化。"
+        "⚠️ 2026-08-05 五算：open 码新增 `evidence_event_coupling_unproven`（#33 保护闸，"
+        "耦合未证拒判）后 13→14 open 码——156→169（78→91 open，blocked 78 **第五轮仍不动**）、"
+        "非保守 45→49。同上例行；开数恰为 C(14,2)=91，与前四轮 C(n,2) 序列吻合，"
+        "再次佐证增长纯来自枚举面。"
     ),
     # 判定投影（closure_status + satisfaction_status = allow_stop 地基）在全部**纯 reason 发散**上
     # 字节等价——**限定 merged_observation_bottom == ()（无观测冲突）**；观测冲突合并见
@@ -224,10 +228,12 @@ PHASE_TWO_REASON_DRIFT: Dict[str, Any] = {
     # 全序表实测发散计数（诚实登记；测试核对活代码，防回退 overclaim）。
     # 2026-08-02 A′裁决新增 open 码 observed_false_without_violation_basis 后
     # 由 123/45/78/33 重算（07-27 那轮由 114/36 重算，沿革同形）。
-    "measured_directional_divergences": 156,
-    "measured_open_divergences": 78,
+    # 2026-08-05 #33 保护闸新增 open 码 evidence_event_coupling_unproven 后
+    # 由 156/78/78/45 重算（实测，非外推）。
+    "measured_directional_divergences": 169,
+    "measured_open_divergences": 91,
     "measured_blocked_divergences": 78,
-    "measured_nonconservative_tier": 45,
+    "measured_nonconservative_tier": 49,
     # 旧 overclaim 登记的 2 对（现仅作『真子集』佐证，证明它远非全部）。
     "legacy_overclaim_pairs": (
         ("open", "missing_fact", "missing_measurement"),

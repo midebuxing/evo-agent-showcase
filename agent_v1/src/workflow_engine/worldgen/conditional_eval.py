@@ -182,10 +182,14 @@ ALLOWED_SIDECAR_INPUTS = frozenset({
     "supervision.record.completed_and_retained",
     "artifact.record.test_or_material_witness",
     "artifact.certificate.material_or_product",
+    # #38 槽 2（池 v2 供给侧，2026-08-06）：发现不一致事项——sp2 记录公式的上游
+    "supervision.nonconformity.found",
     "artifact.record.nonconformity_sp2",
     "procedure.repair.revision_required",
     "artifact.proposal.repair_revision",
     # L5 completion
+    # #38 槽 4（池 v2 供给侧，2026-08-06）：另聘监督 RI 委任完成——mbi5 公式的上游
+    "procedure.repair_supervising_ri.appointment.completed",
     "procedure.repair.prescribed.completed",
     "procedure.completed_work.final_inspection_performed",
     "artifact.report.completion",

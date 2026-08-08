@@ -795,7 +795,7 @@ def test_applicability_has_no_state_field():
 # 向 A：真实 398 卡逐源经 typed DTO ingest（extra=forbid 不误伤 + 捕获新键）
 # =========================================================================== #
 
-EXPECTED_CARD_COUNT = 469  # 真实卡数（精确锚，非 >=300）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
+EXPECTED_CARD_COUNT = 470  # 真实卡数（精确锚，非 >=300）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469；2026-08-05 #23 补 §5.4.3(b) masonry 缺卡 469→470
 
 # 阻断#1b：九源容器**每卡必存在**（真卡枚举 9/9 全 398/398 存在为键，即使 list 为空亦带键）。
 # 缺任一 → fail（母病闸不 `.get` 静默兜过）。当前语料无 optional 容器（全 398/398 present）。
@@ -964,7 +964,12 @@ def test_typed_dtos_ingest_all_398_cards():
     # （引用新 sr02 = 真前件槽 `procedure.investigation.detailed.intended`）。
     # 「未变的项即证据」：本件只碰这一张卡的 `trigger_conditions` 与 `slot_role_map`，
     # 故只有 trigger_items(+1) 与 slot_roles(+1) 动，其余十项逐位不变。
-    assert counts["trigger_items"] == 429
+
+    # 2026-08-05 #23 补 §5.4.3(b) masonry 缺卡（该卡：trigger_items 1 / slot_roles 1 /
+    # nodes 1，其余九个容器全空）⇒ 只有这三项各 +1，artifacts/deadlines/thresholds/
+    # formulas/evidence/definitions/edges/exceptions/recipients 九项**逐位不变**
+    # ——同样是「未变的项即证据」。
+    assert counts["trigger_items"] == 339  # 2026-08-08 残差57A 342→339。旧沿革：# 2026-08-07 卡包合流 430→342（-95+7）
     assert counts["recipients"] == 75  # 2026-07-28 补 64 张缺卡后重锚
     # 2026-07-28 补 64 张缺卡后重锚（卡 398→462）。增量逐项归因于新卡：
     #   artifacts 326→336(+10) / slot_roles 771→872(+101) / nodes 402→480(+78)
@@ -976,12 +981,12 @@ def test_typed_dtos_ingest_all_398_cards():
     # evidence/definitions/edges/exceptions/recipients 八项**逐位不变**——同样是「未变的项即证据」。
     assert counts["artifacts"] == 335
     assert counts["deadlines"] == 25
-    assert counts["slot_roles"] == 878  # 2026-08-05 乙路 #30：意向卡 +sr02（trigger 角色）877→878
+    assert counts["slot_roles"] == 788  # 2026-08-08 残差57A 791→788。旧沿革：# 2026-08-07 卡包合流 879→791（-95+7）。旧沿革：# 2026-08-05 乙路 #30：意向卡 +sr02 877→878；#23 masonry 卡 +sr01 878→879
     assert counts["thresholds"] == 41
     assert counts["formulas"] == 3
-    assert counts["evidence"] == 370  # 三组合计（for_matching+for_submission+for_completion）
+    assert counts["evidence"] == 369  # 2026-08-07 s423 删 e02（-1）。旧注：# 三组合计（for_matching+for_submission+for_completion）
     assert counts["definitions"] == 1
-    assert counts["nodes"] == 487
+    assert counts["nodes"] == 488  # 2026-08-05 #23 masonry 卡 +n01 487→488
     assert counts["edges"] == 4
     assert counts["exceptions"] == 0
 

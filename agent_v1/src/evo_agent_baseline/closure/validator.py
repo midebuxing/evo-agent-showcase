@@ -1456,9 +1456,20 @@ def validate_building_closure(
 
         = 全 slot_role_map qualifiers（覆盖 trigger 经 slot_ref_id 引用的）
         ∪ 各 trigger item 自带 qualifiers 的 qkey（字符串值）。
+
+        🔧 **DEBT-096 角色感知（2026-08-08 案甲，两线全票）**：slot_role_map 中
+        roles ⊆ {evidence, prerequisite} 的槽其限定符**不参与整卡结构早退**（法理：
+        evidence/prerequisite 不收窄卡适用；trigger/definition_reference 参与）。
+        多角色（含 trigger 等）/未知角色（roles 空）缺省参与。trigger_conditions.items
+        自带 qualifiers 不受此过滤（本就是 trigger 角色）。与
+        `blueprint_deriver._card_qualifier_values` 逐字节同源（双径一致，见
+        test_debt096_role_aware_qualifiers.py）。
         """
         vals: set = set()
         for ref in card.slot_role_map or []:
+            roles = _safe_get(ref, "roles") or []
+            if roles and set(roles) <= {"evidence", "prerequisite"}:
+                continue
             q = _safe_get(ref, "qualifiers") or {}
             v = q.get(qkey) if isinstance(q, dict) else None
             if isinstance(v, str) and v:
@@ -1503,6 +1514,9 @@ def validate_building_closure(
             if fragment_ids and _card_is_fragment_scoped(card)
             else [None]
         )
+        # DEBT-096 注：结构早退的 component 轴已改走 applicability_bundle（见下方
+        # _ct_na 赋值段），_card_ct 当前无消费者（死变量）；保留以维持生成顺序不变，
+        # 不删逻辑。location 轴仍消费 _card_lc。
         _card_ct = _card_component_types(card)
         _card_lc = _card_qualifier_values(card, "location_class_key")
         for scope_fid in card_scopes:

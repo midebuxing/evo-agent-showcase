@@ -111,6 +111,83 @@ def test_build_fact_pack_inverted_indexes() -> None:
     assert set(pack.carrier_index.keys()) == {"CND-1", "MSR-1"}
 
 
+# ---------------------------------------------------------------------------
+# DEBT-090：检索层确定性排序（同槽事实按 fact_id 排序后再建索引/落盘）
+# ---------------------------------------------------------------------------
+def _drift_facts() -> list[FactAtom]:
+    """5 个同槽量测事实，fact_id 后缀模拟 DEBT-090 漂移形状（-00/-01/-06/-07/-11）。
+
+    诊断单 §四记 5 个数值槽集合相同、顺序不同；此处用一槽 5 条复刻该形状。
+    """
+    atoms: list[FactAtom] = []
+    for suffix in ("-11", "-00", "-06", "-07", "-01"):
+        fid = f"MSR-COUNT-HAMMER-TAPPING-GRID-MINIMUM{suffix}"
+        atoms.append(FactAtom(
+            fact_id=fid, world_id="WB-1", building_id="BLD-1",
+            carrier_type="measurement", carrier_id=fid, target_ref="FRG-1",
+            slot_id="count.hammer_tapping.grid.minimum",
+            measure_key="count.hammer_tapping.grid.minimum",
+            value_json=str(float(suffix.strip("-"))),
+            value_type="number", unit=None,
+            qualifiers={"method_key": "hammer_tapping"},
+            source_path="measurements.parquet", source_node_id=fid,
+        ))
+    return atoms
+
+
+def test_build_fact_pack_deterministic_across_input_order() -> None:
+    """DEBT-090：同输入不同顺序两次构建 FactPack，序列化逐字节相同。"""
+    facts = _drift_facts()
+    pack_a = pack_builder.build_fact_pack(
+        "RUN-1", "WB-1", "BLD-1", list(facts), ["t.parquet"])
+    pack_b = pack_builder.build_fact_pack(
+        "RUN-1", "WB-1", "BLD-1", list(reversed(facts)), ["t.parquet"])
+    # 逐字节序列化相同（字段定义序 + facts/索引均按 fact_id 确定）。
+    assert pack_a.model_dump_json() == pack_b.model_dump_json()
+    # 索引列表按 fact_id 字典序（-00 < -01 < -06 < -07 < -11）。
+    expected = [
+        "MSR-COUNT-HAMMER-TAPPING-GRID-MINIMUM-00",
+        "MSR-COUNT-HAMMER-TAPPING-GRID-MINIMUM-01",
+        "MSR-COUNT-HAMMER-TAPPING-GRID-MINIMUM-06",
+        "MSR-COUNT-HAMMER-TAPPING-GRID-MINIMUM-07",
+        "MSR-COUNT-HAMMER-TAPPING-GRID-MINIMUM-11",
+    ]
+    key = "count.hammer_tapping.grid.minimum"
+    assert pack_a.measure_index[key] == expected
+    assert pack_a.slot_index[key] == expected
+    assert [f.fact_id for f in pack_a.facts] == expected
+
+
+def test_build_fact_pack_without_sort_is_order_dependent() -> None:
+    """变异对照：拆掉 fact_id 排序后，不同输入顺序产生不同序列化（应红）。
+
+    复刻 build_fact_pack 但去掉 DEBT-090 排序行；乱序 vs 反序的序列化必须不同，
+    证明排序是确定性的来源、而非偶然碰巧。
+    """
+
+    def _build_unsorted(facts_in: list[FactAtom]) -> FactPack:
+        slot_index: dict[str, list[str]] = {}
+        measure_index: dict[str, list[str]] = {}
+        carrier_index: dict[str, list[str]] = {}
+        for fact in facts_in:
+            if fact.slot_id:
+                slot_index.setdefault(fact.slot_id, []).append(fact.fact_id)
+            if fact.measure_key:
+                measure_index.setdefault(fact.measure_key, []).append(fact.fact_id)
+            carrier_index.setdefault(fact.carrier_id, []).append(fact.fact_id)
+        return FactPack(
+            run_id="RUN-1", world_id="WB-1", building_id="BLD-1",
+            facts=list(facts_in), slot_index=slot_index,
+            measure_index=measure_index, carrier_index=carrier_index,
+            source_tables=sorted({"t.parquet"}),
+        )
+
+    facts = _drift_facts()
+    a = _build_unsorted(list(facts)).model_dump_json()
+    b = _build_unsorted(list(reversed(facts))).model_dump_json()
+    assert a != b, "去掉排序后仍逐字节相同--确定性测试无法证伪排序的作用"
+
+
 # ===========================================================================
 # §5.4.3 扁平子图 → RuleCardDTO 原嵌套还原
 # ===========================================================================

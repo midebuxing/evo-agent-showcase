@@ -58,8 +58,9 @@ def test_component_class_without_fragment_is_labelled_supply_side() -> None:
         "expected_card_ids": ["rc.a"],
     }
     bundle = {"rc.a"}
-    frag_comp = {"FRG-1": "external_wall"}          # 本栋只有外墙片段，没有幕墙
-    got = scorer._classify_item(item, [], bundle, bundle, frag_comp)
+    # 2026-08-05（#23）：片段标签是**集合**（粗类 + 满足合取的细标签）。
+    frag_labels = {"FRG-1": frozenset({"external_wall"})}   # 本栋只有外墙片段，没有幕墙
+    got = scorer._classify_item(item, [], bundle, bundle, frag_labels)
     assert got == "supply_side_no_fragment_of_class"
 
 
@@ -74,8 +75,8 @@ def test_component_class_with_fragment_is_not_labelled_supply_side() -> None:
         "expected_card_ids": ["rc.a"],
     }
     bundle = {"rc.a"}
-    frag_comp = {"FRG-1": "external_wall"}
-    got = scorer._classify_item(item, [], bundle, bundle, frag_comp)
+    frag_labels = {"FRG-1": frozenset({"external_wall"})}
+    got = scorer._classify_item(item, [], bundle, bundle, frag_labels)
     assert got == "retrieved_no_evaluation"
 
 

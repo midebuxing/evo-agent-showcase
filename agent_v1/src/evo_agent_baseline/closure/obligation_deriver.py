@@ -1144,6 +1144,8 @@ from .pending_adjudication_registry import (  # noqa: E402
 )
 from .binding_contract_registry import (  # noqa: E402
     COARSE_SLOTS as BINDING_COARSE_SLOTS,
+    # #33 保护闸的唯一共享判据（2026-08-05）——A′/诊断通道与 c55 桶通道**同调它**。
+    coupling_unproven_exit_code,
     DIAGNOSTIC_ONLY_BINDINGS as DIAGNOSTIC_ONLY_AUTHORIZED_BINDINGS,
     NODE_SLOT_BINDINGS as NODE_SLOT_AUTHORIZED_BINDINGS,
     REJECTED_BINDINGS as REJECTED_AUTHORIZED_BINDINGS,
@@ -1933,7 +1935,25 @@ def _evaluate_evidence_by_slot(
     *,
     authorized_scope_selection: bool = False,
 ) -> Obligation:
-    """evidence requirement 按 slot_id 直接绑定评估（限定符过滤 + §6.4.3 作用域分级）。"""
+    """evidence requirement 按 slot_id 直接绑定评估——**逐槽管线＋逐槽贡献护栏**。
+
+    2026-08-07 决议底稿_s423修法 第 4 件重构：限定符过滤与 §6.4.3 作用域分级都在
+    **槽内**完成，**禁止跨槽合池后再分级**——旧实现把多槽候选合进同一个池再取
+    rank 最小组，载体类型高的整槽被静默剔除（复现_s423 §一 F 行：`recognized`
+    sidecar rank 4 被 `started` building rank 3 整槽剔掉，从未参与求值；§4.3：
+    限定符滤空的槽同样整槽消失，剩余槽冒充完整判据产 410 条 satisfied）。
+
+    逐槽贡献检查（任一声明槽零贡献即拒判，两码分账，零新枚举）：
+      · 世界无该槽候选事实 → `open + missing_artifact_evidence`（notes 点名缺的槽）；
+      · 有候选但限定符滤空 → `blocked + qualifier_conflict`（spec §6.3.10.4 第 5 条既定）；
+      · 槽内值冲突 → `blocked + ambiguous_fact_binding`；
+      · 全部声明槽各有贡献 → 进入合并判定，**合并语义本刀不改**（跨槽值不一致仍按
+        既有 conflict 语义落 `blocked/ambiguous_fact_binding`，保守不定罪）。
+
+    方向断言（金丝雀钉死）：本护栏只能把实判变 open/blocked，结构上不可能新增
+    violated/satisfied——新实判要求全部槽各自有贡献且并集取值一致，是旧实判条件的
+    真子集（并集 ⊇ 旧合池分级组，值冲突只会更多不会更少）。
+    """
     common = dict(common)
     common["slot_ids"] = slot_ids
     all_facts: List[FactAtom] = []
@@ -1941,14 +1961,48 @@ def _evaluate_evidence_by_slot(
         candidates = fact_index.slot_index.get(
             fact_index.canonical_slot(slot_id), []
         )
+        if not candidates:
+            common["open_reason_code"] = "missing_artifact_evidence"
+            common["notes"] = (
+                common.get("notes", "")
+                + f"; evidence slot fact missing: {slot_id}"
+            )
+            return _new_obligation(
+                card, fact_pack_meta, kind, "open", "unknown", **common
+            )
         quals = (slot_qualifiers or {}).get(slot_id)
         if quals:
-            candidates = _filter_by_qualifiers(candidates, quals, fact_index.component_subsumption)
-        all_facts.extend(candidates)
-    # §6.4.3 目标作用域分级（同触发器路径：楼级聚合读数优先）。
-    all_facts = fact_index.scoped_facts(all_facts)
+            filtered = _filter_by_qualifiers(
+                candidates, quals, fact_index.component_subsumption
+            )
+            if not filtered:
+                common["blocked_reason_code"] = "qualifier_conflict"
+                common["notes"] = (
+                    common.get("notes", "")
+                    + f"; evidence slot qualifier filtered empty: {slot_id}"
+                      f" quals={quals!r}"
+                )
+                return _new_obligation(
+                    card, fact_pack_meta, kind, "blocked", "unknown", **common
+                )
+        else:
+            filtered = candidates
+        # §6.4.3 目标作用域分级——**槽内**（楼级聚合读数优先只在同槽候选间分级）。
+        slot_scoped = fact_index.scoped_facts(filtered)
+        if conflict_status(slot_scoped, fact_index.numeric_tolerance) == "ambiguous":
+            common["blocked_reason_code"] = "ambiguous_fact_binding"
+            common["notes"] = (
+                common.get("notes", "")
+                + f"; conflicting evidence facts within slot: {slot_id}"
+            )
+            return _new_obligation(
+                card, fact_pack_meta, kind, "blocked", "unknown", **common
+            )
+        all_facts.extend(slot_scoped)
+    # 合并层（本刀不改判定语义）：跨槽值不一致仍按既有 conflict 语义。
     status = conflict_status(all_facts, fact_index.numeric_tolerance)
     if status == "missing":
+        # 防御分支：逐槽贡献检查后不应到达（每槽均已非空）。
         common["open_reason_code"] = "missing_artifact_evidence"
         common["notes"] = common.get("notes", "") + "; evidence slot fact missing"
         return _new_obligation(
@@ -2533,10 +2587,18 @@ def refine_action_kind(node_kind: str, action: str) -> str:
 def _node_satisfaction_slot_refs(
     card: RuleCardDTO, node: ObligationNodeDTO
 ) -> List[Dict[str, Any]]:
-    """返回能确定归属到 `node` 的必需主证据槽。
+    """返回能确定归属到 `node` 的必需主证据槽（禁止节点另含解禁前件槽）。
 
     `slot_role_map` 是卡级表，没有 node 外键。只有单节点卡才能确定归属；多节点卡、
-    方法节点、非必需槽和次要 evidence 角色均缺省拒绝，不做语义猜测。
+    方法节点、非必需槽均缺省拒绝，不做语义猜测。
+
+    选中判据（spec §6.3.10.4 [v0.4-DEBT-073] 第 1 条，2026-08-07 决议底稿_s423修法
+    第 1 件改）：`required=true` 且 `roles` **含** `"evidence"`——成员资格判定语义化，
+    列表书写顺序不再承载判定（旧判据 `roles[0] == "evidence"` 的变异对照：只调换
+    roles 书写顺序、不改任何值，选中集即变——复现_s423 §一 A 行）。
+    禁止节点另把 `required=true` 且 `roles` 含 `"prerequisite"` 的槽一并纳入
+    （spec 同节第 3 条唯一例外：仅作否定解禁前件进入条件禁止判定，不作任何节点的
+    正向满足通道——若不纳入，卡上已声明的前件会再次「声明了没被读」，正是本病灶）。
     """
     if refine_action_kind(node.node_kind, node.action) == "method":
         return []
@@ -2556,7 +2618,9 @@ def _node_satisfaction_slot_refs(
         if not isinstance(ref, dict) or ref.get("required") is not True:
             continue
         roles = ref.get("roles") or []
-        if roles and roles[0] == "evidence":
+        if "evidence" in roles:
+            selected.append(ref)
+        elif node.node_kind == "prohibition" and "prerequisite" in roles:
             selected.append(ref)
     return sorted(selected, key=lambda r: str(r.get("slot_ref_id") or ""))
 
@@ -2676,6 +2740,26 @@ def _diagnostic_contract_terminal(
     if not (use_scope and binding_key in DIAGNOSTIC_ONLY_AUTHORIZED_BINDINGS):
         return None
     row = SCOPE_PRECISE_AUTHORIZED.get(binding_key) or {}
+    # 🔴 #33 保护闸先行（2026-08-05）：共享判据 `coupling_unproven_exit_code`
+    # 在**本终止器其余一切判据之前**，两条通道同调它（另一条是
+    # `_bucket_axis_value_consumption`）。
+    #
+    # 为什么必须先行、不能沿用下面那套判据：下面的 `src_ok`/出口核对是照
+    # rows 38-103 那批**产物态/非产物读数**的形状写的——
+    # ①`diagnostic_refusal_reason_code()` 是**事实分类器**，它只认「事实是不是产物态」，
+    #   而 #33 的分野是「**行的授权状态**」（同一条呈交轴读数，闸下是耦合未证、
+    #   根治后是耦合已证，事实类型一个字没变）⇒ 分类器结构上答不出本码；
+    # ②因此下面 2755 那条「声明出口 == 分类器实际出口」的核对对 #33 行**必然不等**，
+    #   不先行就是全射程 22 行 × 全批栋数一律 `blocked/schema_contract_violation`
+    #   ——对专业审查员说「系统坏了」，而系统没坏（那正是本仓记过的
+    #   「有意的缺省拒绝被误读成工程缺陷」形状）。
+    # ⇒ 本码是**声明驱动**的（行怎么写、运行时就出什么），与另两码的**分类器驱动**
+    #   分工明确。行级声明的合法性由 `_schema_violations` 的三条闸在导入期锁死
+    #   （两出口必须同码 / 必须配 diagnostic_only / verdict_permission 必须为 none）。
+    _coupling_code = coupling_unproven_exit_code(row)
+    if _coupling_code is not None:
+        return _coupling_unproven_refusal(
+            card, fact_pack_meta, kind, common, bound, code=_coupling_code)
     expected_src = row.get("aggregation_source")
     deriv = ((bound[0].provenance or {}).get("derivation")
              if bound else None)
@@ -2801,6 +2885,58 @@ def _is_building_axis_reading(f: FactAtom) -> bool:
             and "fragment_id" not in q)
 
 
+def _coupling_unproven_refusal(
+    card: RuleCardDTO,
+    fact_pack_meta: Dict[str, str],
+    kind: str,
+    common: Dict[str, Any],
+    bound: List[FactAtom],
+    *,
+    code: str,
+) -> Obligation:
+    """#33 保护闸的**唯一出口构造器**——两条通道共用（决议_33处置_20260805 §一.1）。
+
+    语义：世界记录到该产物的呈交/送达/签署状态，但「产物存在 ⇒ 事件发生」这条
+    耦合在世界侧尚未建立（四根 reporting 轴 `conditional_inputs=[]`、独立伯努利
+    采样、与程序闸零耦合）⇒ 该读数的证据力未证，**不据其判定义务已履行**。
+
+    🔴 出口形状三条硬约束：
+    - **恒 `open + unknown`**，结构上不可能产 satisfied/violated——这是闸的全部意义；
+    - **形状坏也不改判**（多行/非布尔/非轴本相）：本闸的裁定是「这类读数现在一律
+      不能据以判满足」，与读数形状无关。形状观察写进 notes 供漂移排障，
+      **但不许把它升格成 blocked**——那会让「有意拒判」在产物里长得像「系统坏了」。
+    - **真假两侧同码**：诊断行两出口必须相同（`_schema_violations` 丁④ 锁死）。
+      故 notes 里**必须**把观测到的真假写出来，否则消费者读到的信息比翻转前更粗
+      ——这是本次实施相对官方线「假值一侧不动」建议的已登记偏离
+      （`重核准记录_33保护闸_20260805.md` §四.2）。
+    """
+    from .fact_binding import parse_value as _pv
+    common = dict(common)
+    common.pop("blocked_reason_code", None)
+    common["open_reason_code"] = code
+    if bound:
+        common["evidence_fact_ids"] = [f.fact_id for f in bound]
+        common["evidence_node_refs"] = [
+            f.source_node_id for f in bound if f.source_node_id]
+        common["observed_value_json"] = bound[0].value_json
+    _shape_ok = len(bound) == 1 and _is_building_axis_reading(bound[0])
+    _v = _pv(bound[0].value_json) if _shape_ok else None
+    if _shape_ok and isinstance(_v, bool):
+        _obs = "读数为真" if _v else "读数为假"
+    else:
+        # 形状不是「恰一行轴本相楼级布尔」——记下来但不改判（见 docstring）。
+        _obs = (f"读数形状非预期（行数={len(bound)}, 载体="
+                f"{sorted({str(f.carrier_type) for f in bound})!r}）")
+    common["notes"] = (
+        str(common.get("notes", "")) + "; #33 保护闸：呈交/送达/签署状态读数与"
+        f"「该事件确已发生」之间的耦合尚未在世界侧建立（{_obs}），"
+        "不据其判定义务已履行，交专业人员核实该事件是否真实发生"
+    ).strip("; ")
+    return _new_obligation(
+        card, fact_pack_meta, kind, "open", "unknown", **common
+    )
+
+
 def _bucket_axis_value_consumption(
     card: RuleCardDTO,
     fact_pack_meta: Dict[str, str],
@@ -2831,6 +2967,21 @@ def _bucket_axis_value_consumption(
     bound = _filter_by_qualifiers(candidates, quals)
     if not bound:
         return None   # 轴未供给——落回拒判老路（本钩对旧池零扰动的关键）
+    # 🔴 #33 保护闸：**共用判据、共用出口构造器**（2026-08-05，官方线商议
+    # §2.3 点名的承重约束）。本函数**不读** `true_exit_mode`、下方 True 分支
+    # 曾**硬编码** `closed/satisfied` ⇒ 只闸 A′ 那一侧，等于把闸建在两个出口
+    # 之一，`c55_bucket_value_consumption` 开关打开当天即被绕过。
+    # 判据必须落在**行级授权数据**（`coupling_unproven_exit_code` 读同一行的
+    # 出口声明），不落在 `verdict_permission`（判定路径零读者的僵尸字段）。
+    # ⚠️ 位置在形状检查**之前**：闸的裁定与读数形状无关（见
+    # `_coupling_unproven_refusal` docstring）。
+    _coupling_code = coupling_unproven_exit_code(row)
+    if _coupling_code is not None:
+        common = dict(common)
+        common["slot_ids"] = sorted(
+            set(common.get("slot_ids") or []) | {str(row["slot_id"])})
+        return _coupling_unproven_refusal(
+            card, fact_pack_meta, kind, common, bound, code=_coupling_code)
     _is_marked_agg = len(bound) == 1 and _is_building_axis_reading(bound[0])
     _v = _pv(bound[0].value_json) if _is_marked_agg else None
     # 证据链完整性（qwen 发现⑤）：判定依据换成轴事实后，三个证据字段一起换——
@@ -3116,6 +3267,15 @@ def _evaluate_node_slot_binding(
 
 
 _NODE_OPEN_REASON_RANK = {
+    # 2026-08-06 审核门必修 1 补登（#33 保护闸）：本表此前漏登该码，
+    # 下方 `.get(code, -1)` 使它在多子绑定合并里比最低的 `null_observed_value`(0)
+    # 还低，而 `identity_v2.OPEN_REASON_ORDER` 给的是 13（最高）——两张序表方向
+    # 相反，任何已登记 open 码都会盖掉 #33 的归因（冻结批可见风险面 31 条，
+    # 436 条主体因全是单通道而侥幸未受影响）。定序法照双表先例（下面四个新增码
+    # 9-12 均双表同登、取新最大值）：取 13，与 identity_v2 同码同档。
+    # 相对方向一致性由 `test_33_coupling_unproven_gate.py::
+    # test_open_reason_rank_tables_agree_in_relative_direction` 锁死（防再漂）。
+    "evidence_event_coupling_unproven": 13,
     # 2026-08-03 三方仲裁「丁」路新增（档位取舍与影响面评估见 identity_v2 同表注释）。
     "diagnostic_binding_not_valid_evidence": 12,
     # 2026-08-02 S3 新增，取新最大值（不动既有档位 ⇒ 既有 merge 结果不变）。
@@ -3145,6 +3305,119 @@ _NODE_BLOCKED_REASON_RANK = {
     "ambiguous_fact_binding": 2,
     "artifact_not_modeled_upstream": 1,
 }
+
+
+#: 禁止节点四格里「取值可得性」类 open 码——只有这两类 open 会被判为「前件缺/null」；
+#: 其它 open 码（如楼级聚合待裁闸的 `binding_requires_adjudication_authorization`）
+#: 一律交回既有 opened 合并语义（含闸，本刀不动——2026-08-07 s423 决议第 2 件）。
+_PROHIBITION_VALUE_OPEN_CODES = {"missing_fact", "null_observed_value"}
+
+
+def _prohibition_conditional_verdict(
+    card: RuleCardDTO,
+    node: ObligationNodeDTO,
+    base_kind: str,
+    merged: Dict[str, Any],
+    evid: Obligation,
+    prereq: Optional[Obligation],
+    bindings: List[Obligation],
+    fact_pack_meta: Dict[str, str],
+) -> Optional[Obligation]:
+    """禁止节点条件禁止四格（spec §6.3.10.4 第 4 条；2026-08-07 决议底稿_s423修法 第 2 件）。
+
+    「不得在未 X 前做 Y」＝ Y ∧ ¬X → violated（条件禁止通例形状）。四格：
+      · 被禁事实假 → closed/satisfied（¬started → satisfied 禁止义务标准语义；
+        无前件槽时即原单槽行为，逐位不变）；
+      · 被禁事实真 ∧ 无前件槽 → closed/violated（原行为）；
+      · 被禁事实真 ∧ 前件真 → closed/satisfied（解禁）；
+      · 被禁事实真 ∧ 前件假 → closed/violated；
+      · 被禁事实真 ∧ 前件缺/null → open + null_observed_value（诚实拒判，绝不回退 violated）。
+
+    返回 None ＝ 不在本分支射程，交回合并主流程既有分支：被禁事实绑定未 closed
+    （缺/null/待裁 → opened 合并如实带码）、前件因门闸产非取值类 open 码
+    （楼级聚合待裁闸等，闸语义本刀不动）、全绑定哨兵 NA（DEBT-083 语义保持）。
+
+    ⚠️ 诚实边界：前件为真只证「前件事实存在且为真」（存在性核验），**不证时序**
+    ——recognized 真只证「认可过」，不证「认可在先」；时序轴世界侧不可验，
+    产物注释与报告层都不得声称「认可时序已验」。
+    """
+    def _closed_value(b: Optional[Obligation]) -> Optional[bool]:
+        if b is None or b.closure_status != "closed":
+            return None
+        if "non_adjudicative_sentinel" in (b.notes or ""):
+            return None
+        return _canon_truthy(parse_value(b.observed_value_json))
+
+    _sent = [
+        b for b in bindings
+        if b.satisfaction_status == "not_applicable"
+        and "non_adjudicative_sentinel" in (b.notes or "")
+    ]
+    if _sent and len(_sent) == len(bindings):
+        return None
+    if evid.closure_status != "closed":
+        return None
+    evid_v = _closed_value(evid)
+    merged["observed_value_json"] = evid.observed_value_json
+    if evid_v is None:
+        merged.pop("blocked_reason_code", None)
+        merged["open_reason_code"] = "null_observed_value"
+        merged["notes"] = (
+            str(merged.get("notes", ""))
+            + "; prohibition_conditional: 被禁事实取值不可判，诚实拒判"
+        ).strip("; ")
+        return _new_obligation(
+            card, fact_pack_meta, base_kind, "open", "unknown", **merged
+        )
+    if evid_v is False:
+        merged["notes"] = (
+            str(merged.get("notes", ""))
+            + "; prohibition_conditional: 被禁事实为假 → satisfied"
+        ).strip("; ")
+        return _new_obligation(
+            card, fact_pack_meta, base_kind, "closed", "satisfied", **merged
+        )
+    # 被禁事实为真。
+    if prereq is None:
+        merged["notes"] = (
+            str(merged.get("notes", ""))
+            + "; prohibition_conditional: 被禁事实为真且卡未声明解禁前件 → violated"
+        ).strip("; ")
+        return _new_obligation(
+            card, fact_pack_meta, base_kind, "closed", "violated", **merged
+        )
+    if (prereq.closure_status == "open"
+            and (prereq.open_reason_code or "")
+            not in _PROHIBITION_VALUE_OPEN_CODES):
+        return None
+    prereq_v = _closed_value(prereq)
+    if prereq_v is None:
+        merged.pop("blocked_reason_code", None)
+        merged["open_reason_code"] = "null_observed_value"
+        merged["notes"] = (
+            str(merged.get("notes", ""))
+            + "; prohibition_conditional: 被禁事实为真而解禁前件缺/null"
+            f"（{'|'.join(prereq.slot_ids or [])}），诚实拒判不定罪"
+        ).strip("; ")
+        return _new_obligation(
+            card, fact_pack_meta, base_kind, "open", "unknown", **merged
+        )
+    if prereq_v:
+        merged["notes"] = (
+            str(merged.get("notes", ""))
+            + "; prohibition_conditional: 解禁前件为真（存在性核验，非时序核验）"
+            "→ satisfied"
+        ).strip("; ")
+        return _new_obligation(
+            card, fact_pack_meta, base_kind, "closed", "satisfied", **merged
+        )
+    merged["notes"] = (
+        str(merged.get("notes", ""))
+        + "; prohibition_conditional: 被禁事实为真且解禁前件为假 → violated"
+    ).strip("; ")
+    return _new_obligation(
+        card, fact_pack_meta, base_kind, "closed", "violated", **merged
+    )
 
 
 def _binding_audit_paths(bindings: List[Obligation]) -> List[str]:
@@ -3186,14 +3459,44 @@ def _merge_node_satisfaction_bindings(
         f"{json.dumps(paths, ensure_ascii=False, separators=(',', ':'))}"
     ).strip("; ")
 
-    # 禁止节点必须且只能有一个主证据槽；任何其它组合都拒绝。
-    if node.node_kind == "prohibition" and (
-        len(bindings) != 1 or len(bindings[0].slot_ref_ids) != 1
-    ):
-        merged["open_reason_code"] = "missing_satisfaction_binding"
-        return _new_obligation(
-            card, fact_pack_meta, base_kind, "open", "unknown", **merged
-        )
+    # 禁止节点形状闸（spec §6.3.10.4 第 4 条，2026-08-07 决议底稿_s423修法 第 2 件）：
+    # 许可形状＝恰一个**纯 evidence** 槽（被禁事实）＋至多一个 roles 含 prerequisite
+    # 的槽（解禁前件）；其它任何形状缺省拒绝。旧闸「必须且只能有一个主证据槽」把
+    # §4.2.3 的条件禁止（Y ∧ ¬X → violated）钉死成无条件禁止（Y → violated），
+    # 合取在架构里无处可放（复现_s423 §一 B 行）。
+    _prohib_evid: List[Obligation] = []
+    _prohib_prereq: List[Obligation] = []
+    if node.node_kind == "prohibition":
+        _roles_by_ref = {
+            str(r.get("slot_ref_id") or ""): list(r.get("roles") or [])
+            for r in (card.slot_role_map or [])
+            if isinstance(r, dict)
+        }
+        _shape_ok = True
+        for b in bindings:
+            refs = list(b.slot_ref_ids or [])
+            if len(refs) != 1:
+                _shape_ok = False
+                break
+            roles = _roles_by_ref.get(str(refs[0]), [])
+            if "prerequisite" in roles:
+                _prohib_prereq.append(b)
+            elif set(roles) == {"evidence"}:
+                _prohib_evid.append(b)
+            else:
+                _shape_ok = False
+                break
+        if (not _shape_ok or len(_prohib_evid) != 1
+                or len(_prohib_prereq) > 1):
+            merged["open_reason_code"] = "missing_satisfaction_binding"
+            merged["notes"] = (
+                str(merged.get("notes", "")) + "; prohibition_shape_gate: "
+                "禁止节点许可形状=恰一纯 evidence 槽+至多一 prerequisite 解禁前件，"
+                "其它形状缺省拒绝"
+            ).strip("; ")
+            return _new_obligation(
+                card, fact_pack_meta, base_kind, "open", "unknown", **merged
+            )
 
     blocked = [b for b in bindings if b.closure_status == "blocked"]
     if blocked:
@@ -3222,6 +3525,17 @@ def _merge_node_satisfaction_bindings(
         return _new_obligation(
             card, fact_pack_meta, base_kind, "blocked", "unknown", **merged
         )
+    # 禁止节点条件禁止四格（形状闸已过；blocked 已按既有语义先行返回）。
+    # 返回 None ＝ 被禁事实未 closed / 前件被门闸 open / 全哨兵 NA
+    # → 交回下方既有 opened / 哨兵分支（含楼级聚合待裁闸码，本刀不动）。
+    if node.node_kind == "prohibition":
+        _p_obl = _prohibition_conditional_verdict(
+            card, node, base_kind, merged, _prohib_evid[0],
+            _prohib_prereq[0] if _prohib_prereq else None,
+            bindings, fact_pack_meta,
+        )
+        if _p_obl is not None:
+            return _p_obl
     opened = [b for b in bindings if b.closure_status == "open"]
     if opened:
         winner = max(
@@ -3256,20 +3570,15 @@ def _merge_node_satisfaction_bindings(
         return _new_obligation(
             card, fact_pack_meta, base_kind, "closed", "not_applicable", **merged
         )
-    if node.node_kind == "prohibition":
-        truthy = _canon_truthy(parse_value(bindings[0].observed_value_json))
-        if truthy is None:
-            merged["open_reason_code"] = "null_observed_value"
-            return _new_obligation(
-                card, fact_pack_meta, base_kind, "open", "unknown", **merged
-            )
-        satisfaction = "violated" if truthy else "satisfied"
-    else:
-        satisfaction = (
-            "violated"
-            if any(b.satisfaction_status == "violated" for b in bindings)
-            else "satisfied"
-        )
+    # 禁止节点到不了这里：evid closed 已在 `_prohibition_conditional_verdict` 内
+    # 全出口返回；evid open 走上方 opened 分支；全哨兵 NA 走上方哨兵分支。
+    # （旧「truthy → violated / falsy → satisfied」无条件反转块已随 2026-08-07
+    # s423 决议第 2 件移入条件四格，勿在此复活。）
+    satisfaction = (
+        "violated"
+        if any(b.satisfaction_status == "violated" for b in bindings)
+        else "satisfied"
+    )
     return _new_obligation(
         card, fact_pack_meta, base_kind, "closed", satisfaction, **merged
     )

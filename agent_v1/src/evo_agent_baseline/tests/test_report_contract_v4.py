@@ -3,6 +3,7 @@
 核心断言:模型无法经任何字段注入规则语义;规则/状态/原因/证据/条文全由程序权威组装。
 """
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List
 
 from evo_agent_baseline.agent.report_contract_v4 import (
@@ -414,5 +415,132 @@ def test_missing_satisfaction_binding_survives_the_v4_contract():
         {"obligation_alias": "O9", "analysis_code": "MODELING_GAP",
          "selected_fact_aliases": [], "review_action_code": "ESCALATE_MODELING_GAP"}]}
     norm, errs = validate_submission_payload_v4(payload, pk.key_items)
-    assert errs == [], f"新原因码过不了 v4 契约 → 整篇回退、缺口对消费者不可见：{errs}"
+    assert errs == [], f"新原因码过不了 v4 契约 -> 整篇回退、缺口对消费者不可见：{errs}"
     assert norm and norm[0]["obligation_alias"] == "O9"
+
+
+# ===== DEBT-099 回归：6 组行动项紧凑化（2026-08-08）=====
+
+
+def _six_group_pack():
+    """6 组构造样例（触发 0020/0047 两栋主视图 181 行的最大组数）。
+
+    每组一个不同签名，对应实测 6 个分析码：疑似未满足 / 证据缺口 /
+    字段完整性 / 测量数据 / 时间锚点 / 绑定歧义。
+    """
+    items = [
+        {"alias": "O1", "obligation_id": "a" * 24, "category": "violated",
+         "closure_status": "closed", "satisfaction_status": "violated",
+         "reason_code": None, "rule_card_alias": "R1", "fact_aliases": []},
+        {"alias": "O2", "obligation_id": "b" * 24, "category": "open",
+         "closure_status": "open", "satisfaction_status": "unknown",
+         "reason_code": "missing_fact", "rule_card_alias": "R1",
+         "fact_aliases": []},
+        {"alias": "O3", "obligation_id": "c" * 24, "category": "open",
+         "closure_status": "open", "satisfaction_status": "unknown",
+         "reason_code": "missing_required_field_group", "rule_card_alias": "R2",
+         "fact_aliases": []},
+        {"alias": "O4", "obligation_id": "d" * 24, "category": "open",
+         "closure_status": "open", "satisfaction_status": "unknown",
+         "reason_code": "missing_measurement", "rule_card_alias": "R1",
+         "fact_aliases": []},
+        {"alias": "O5", "obligation_id": "e" * 24, "category": "open",
+         "closure_status": "open", "satisfaction_status": "unknown",
+         "reason_code": "missing_time_anchor", "rule_card_alias": "R2",
+         "fact_aliases": []},
+        {"alias": "O6", "obligation_id": "f" * 24, "category": "blocked",
+         "closure_status": "blocked", "satisfaction_status": "unknown",
+         "reason_code": "ambiguous_fact_binding", "rule_card_alias": "R2",
+         "fact_aliases": []},
+    ]
+    return _Pack(
+        key_items=items,
+        rule_cards=[
+            {"alias": "R1", "rule_card_id": "rc.mbis.x.c01",
+             "quote": "条文一。"},
+            {"alias": "R2", "rule_card_id": "rc.mbis.y.c01",
+             "quote": "条文二。"},
+        ],
+        facts=[],
+    )
+
+
+def _six_group_payload():
+    return {
+        "contract": "report_contract_v4",
+        "points": [
+            {"obligation_alias": "O1", "analysis_code": "SUSPECTED_VIOLATION",
+             "selected_fact_aliases": [], "review_action_code": "MANUAL_VERIFY"},
+            {"obligation_alias": "O2", "analysis_code": "EVIDENCE_GAP",
+             "selected_fact_aliases": [], "review_action_code": "OBTAIN_MISSING_EVIDENCE"},
+            {"obligation_alias": "O3", "analysis_code": "FIELD_GROUP_REVIEW",
+             "selected_fact_aliases": [], "review_action_code": "SUPPLY_REQUIRED_FIELDS"},
+            {"obligation_alias": "O4", "analysis_code": "MEASUREMENT_REVIEW",
+             "selected_fact_aliases": [], "review_action_code": "OBTAIN_MEASUREMENT"},
+            {"obligation_alias": "O5", "analysis_code": "TIME_ANCHOR_REVIEW",
+             "selected_fact_aliases": [], "review_action_code": "SUPPLY_TIME_ANCHOR"},
+            {"obligation_alias": "O6", "analysis_code": "AMBIGUITY_REVIEW",
+             "selected_fact_aliases": [], "review_action_code": "DISAMBIGUATE_BINDING"},
+        ],
+    }
+
+
+def test_debt099_six_groups_compact_within_line_budget(tmp_path):
+    """DEBT-099 回归：6 组行动项以紧凑格式渲染，每组主视图两行不随组数线性吃预算。
+
+    改前每组 3 行（组头 + 义务入口 + 状态/原因/动作），6 组 = 18 主视图行；
+    改后每组 2 行（组头 + 合并入口行），6 组 = 12 行。
+    消失的字符仅为两条列表项间的换行，代之以 ` ｜ ` 分隔符；
+    两个标签与全部取值逐字保留，语义零损失。
+    A 门 v4 形态校验须通过（紧凑格式合法）。
+    """
+    pk = _six_group_pack()
+    norm, errs = validate_submission_payload_v4(_six_group_payload(), pk.key_items)
+    assert errs == [], f"构造样例校验失败: {errs}"
+    lines = render_v4_points(pk, norm)
+    assert lines is not None
+
+    main_nonempty = []
+    in_fold = False
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith("<details"):
+            in_fold = True
+        if not in_fold and s:
+            main_nonempty.append(ln)
+        if s == "</details>":
+            in_fold = False
+
+    group_headers = [ln for ln in main_nonempty if ln.startswith("### G")]
+    assert len(group_headers) == 6, f"应为 6 组，实得 {len(group_headers)}"
+
+    assert len(main_nonempty) == 12, (
+        f"6 组紧凑格式应 12 主视图行（2/组），实得 {len(main_nonempty)}；"
+        "若为 18 则紧凑化未生效（DEBT-099 回归）")
+
+    standalone = [ln for ln in main_nonempty
+                  if ln.startswith("- 状态 / 原因 / 动作：")]
+    assert standalone == [], "状态/原因/动作不应独立成行（应已合并）"
+
+    merged = [ln for ln in main_nonempty if ln.startswith("- 义务入口：")]
+    assert len(merged) == 6
+    for ln in merged:
+        assert "状态 / 原因 / 动作：" in ln, "合并行缺状态/原因/动作标签"
+
+    text = "\n".join(lines)
+    for alias in ("[O1/R1]", "[O2/R1]", "[O3/R2]", "[O4/R1]",
+                  "[O5/R2]", "[O6/R2]"):
+        assert alias in text, f"别名 {alias} 丢失"
+
+    import importlib.util
+    _script = Path(__file__).resolve().parents[3] / "scripts" / "check_report_usability.py"
+    _spec = importlib.util.spec_from_file_location("_cru_debt099", _script)
+    cru = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(cru)
+    report_text = "<!-- report contract v4 -->\n" + "\n".join(lines)
+    p = tmp_path / "debt099_report.md"
+    p.write_text(report_text, encoding="utf-8")
+    r = cru.analyze(str(p), {"main_max": 9999, "dup_max": 1.0, "mix_max": 1.0})
+    assert r["checks"]["v4_group_shape"][1] is True, (
+        f"紧凑格式 v4 形态校验失败: {r['checks']['v4_group_shape']}")
+    assert r["checks"]["v4_group_count"][1] is True

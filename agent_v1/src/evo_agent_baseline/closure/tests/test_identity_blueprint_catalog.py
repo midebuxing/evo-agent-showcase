@@ -159,7 +159,7 @@ def test_catalog_schema_fields_and_real_corpus_building_scope():
     if p is None:
         pytest.fail("生产 rule_cards.json 未找到——证据闸不得 skip（skip=空转）")
     fcards = _real_float_cards()
-    assert len(fcards) == 469  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
+    assert len(fcards) == 470  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469；2026-08-05 #23 补 §5.4.3(b) masonry 缺卡 469→470
     rule_slice = make_rule_slice(fcards)  # semantic_slots=[] → 无 fragment 承载
     fact_pack = make_fact_pack([])         # 空事实 → fragment 集空 → building 回退
     cat = CAT.build_identity_blueprint_catalog(p, rule_slice, fact_pack, _META)

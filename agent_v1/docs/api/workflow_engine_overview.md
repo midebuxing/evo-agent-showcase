@@ -37,7 +37,6 @@
 | `worldgen/noise_models.py` | spec 06 §14 命名噪声模型 + precision rounding（pure function） |
 | `worldgen/parquet_io.py` | W0/W1/W2 三层共用 parquet 列存读写（9+3+6 张子表）。`write_*_parquet` / `read_*_parquet` / `is_*_parquet_dir` |
 | `worldgen/p2_audit.py` | P2 inline clamp 的 contextvar accumulator（`audit_capture` context manager） |
-| `worldgen/reporting.py` | 批次分布快照 + markdown 报告 + 单楼 human-readable 渲染（含 CLI `main`） |
 | `worldgen/seed.py` / `worldgen/constants.py` | 确定性种子工具 / 常量（无公开顶层 API） |
 | `worldgen/audits/` | W1 输出反作弊/反泄漏 audit 套件（5 项）：见下表 |
 
@@ -201,7 +200,7 @@ python -m workflow_engine.regulation_projection run-worldgen-batch <batch_dir> <
 
 ### 6.4 `main` / `build_parser` — 多个模块各有 CLI
 
-`main` 在本包出现于 `regulation_projection` / `rulecard_v2` / `fact_feature_pattern_matcher` / `worldgen.reporting` / `worldgen.validation`（还跟 `research_kg` 包同名）。`build_parser` 在 `regulation_projection` 与 `fact_feature_pattern_matcher` 各一份。都是各模块自己的 CLI 入口，按 `python -m <模块全路径>` 调，互不相干。
+`main` 在本包出现于 `regulation_projection` / `rulecard_v2` / `fact_feature_pattern_matcher` / `worldgen.validation`（还跟 `research_kg` 包同名）。`build_parser` 在 `regulation_projection` 与 `fact_feature_pattern_matcher` 各一份。都是各模块自己的 CLI 入口，按 `python -m <模块全路径>` 调，互不相干。
 
 ---
 

@@ -1005,6 +1005,8 @@ operator, expected_value_json
 
 `slot_role_map` 的每一行建一个 `SlotRef`，因为同一 `slot_id` 可以通过不同 qualifiers 与 roles 扮演不同语义。
 
+**角色参与面（DEBT-096，2026-08-08 案甲，两线全票）**：`_card_qualifier_values` 读限定符并集（供 fragment 级结构适用边界早退）时，`roles ⊆ {evidence, prerequisite}` 的槽其 qualifiers 不参与；trigger/definition_reference 参与，多角色/未知角色（roles 空）缺省参与。沿革见 `决议_debt096_20260808.md`。
+
 ```text
 slot_ref_id, rule_card_id, slot_id,
 qualifiers_json, roles, required
@@ -2845,7 +2847,7 @@ node-level obligation 的判定按以下优先级：
 4. 若 node 引用的 artifact / deadline / recipient id 不存在：`blocked + missing_rule_edge`；
 5. 若 action 可由 artifact / evidence / sidecar fact 绑定：按绑定结果给出 `closed/open/blocked`；
 6. 若 action 是纯专业判断类动作（如 `exercise_professional_judgment`）且 rule_card 只提供 source_quote、无可绑定 fact：生成 `evidence` obligation，要求 evidence_requirement 或 sidecar record；缺失则 `open + missing_fact`，不得默认 satisfied；
-7. 若 `node_kind="prohibition"`：找到 prohibited fact truthy → `closed + violated`；找到 falsy → `closed + satisfied`；缺失 → `open + missing_fact`；
+7. 若 `node_kind="prohibition"`：找到 prohibited fact truthy → `closed + violated`；找到 falsy → `closed + satisfied`；缺失 → `open + missing_fact`；【2026-08-07 收窄：卡声明 `prerequisite` 解禁前件的禁止节点非无条件禁止——以下方 [v0.4-DEBT-073] 第 4 条的条件禁止判定＋形状闸为准（决议底稿_s423修法 第 2 件）】；
 8. 若无任何可绑定 artifact / evidence / deadline / slot / measure 且 source quote 存在：`open + missing_fact`，notes 写 `action_not_fact_bound`，不得 satisfied。
 
 **[v0.4-DEBT-073] node 满足通道解析（2026-07-26）**：`action` 是动作词，**不是事实
@@ -2854,16 +2856,48 @@ node-level obligation 的判定按以下优先级：
 
 1. `slot_role_map[]` 是卡级表、没有 `obligation_node_id` 外键。仅当该卡
    `obligation_graph.nodes[]` **恰有一个 node** 时，`required=true` 且
-   `roles[0] == 'evidence'` 的 slot ref 才能确定归属到该 node；
+   `roles` **含** `'evidence'` 的 slot ref 才能确定归属到该 node（成员资格判定
+   语义化，列表书写顺序不承载判定）；禁止节点另把 `required=true` 且 `roles` 含
+   `'prerequisite'` 的 slot ref 一并纳入——仅作第 4 条的否定解禁前件，不作正向
+   满足通道；
+   【沿革 2026-08-07（决议底稿_s423修法_20260807 第 1 件；三源＝kimi/复现/glm 商议合流）：
+   原文写 `roles[0] == 'evidence'`，属「操作化写法覆盖不了定义本意」——判据依赖无任何
+   语义约定的书写顺序（复现单 A 行变异对照：只调换 roles 列表顺序、不改任何值，选中集
+   即变）。定义意图自始是「required 且属 evidence 角色」。修码同刀（`obligation_deriver.py`
+   `_node_satisfaction_slot_refs`）。全包 roles 多值恰 10 条，选中集会变的卡恰 7 张，
+   逐卡裁定表与位移白名单见实施记录。】
 2. 在同一单 node 边界内，`node.artifact_ids[]` 与 `node.deadline_ids[]` 按既有 artifact /
    deadline binding 求值。多 node 卡即使共享 artifact，也不得据此同时关闭多个 node 主义务；
 3. `trigger_condition_ids[]` 只控制激活，不能作为动作已完成的证据；`recipient_ids[]`
    只做引用存在性检查，也不能作为满足通道；`definition_reference` / `prerequisite` 角色
-   不得冒充 evidence；
+   不得冒充 evidence——**唯一例外（禁止节点）**：`roles` 含 `prerequisite` 的 required
+   槽可作禁止节点的**否定解禁前件**（进入第 4 条条件禁止判定），仍不得作为任何节点的
+   **正向**满足通道；
+   【沿革 2026-08-07（决议底稿_s423修法_20260807 第 2 件）：「prerequisite＝解禁前件」
+   当前唯一例证是 §4.2.3 禁止卡（470 卡复核：全包 prohibition 节点恰 1 个，**n=1 起步**，
+   诚实标注）。双形态并存、互不干扰：prohibition 卡内＝解禁前件参与节点判定；
+   非 prohibition 卡＝照旧生成独立 prerequisite 义务行（该槽自身的 prerequisite 义务行
+   两形态下都继续产出）。角色语义漂移由双形态测试钉死。】
 4. 普通动作的多个必需通道按合取聚合：任一 blocked → `blocked + unknown`，否则任一
    open → `open + unknown`，全部 closed 后任一 falsy / violated → `closed + violated`，
-   否则 `closed + satisfied`。禁止节点只允许唯一 evidence 满足槽；truthy → violated、
-   falsy → satisfied，无法唯一定位则缺省拒绝；
+   否则 `closed + satisfied`。**禁止节点＝形状闸＋条件禁止四格**：许可形状恰为
+   一个**纯 evidence** 槽（被禁事实）＋至多一个 `roles` 含 `prerequisite` 的槽
+   （解禁前件）；其它任何形状 → `open + missing_satisfaction_binding`（缺省拒绝）。
+   判定四格（零新枚举，全为既有码）：被禁事实缺 → open（`missing_fact`／
+   `null_observed_value`，绝不 violated）；被禁事实假 → `closed + satisfied`
+   （无前件槽时即原单槽行为，逐位不变）；被禁事实真 ∧ 前件真 → `closed + satisfied`
+   （解禁）；被禁事实真 ∧ 前件假 → `closed + violated`；被禁事实真 ∧ 前件缺/null →
+   `open + null_observed_value`（诚实拒判，不回退 violated）；任一绑定 blocked →
+   沿既有 blocked 合并语义（含楼级聚合待裁闸，不动）。前件为真只证「前件事实存在
+   且为真」、不证时序（认可在先），报告层不得声称时序已验（时序轴世界侧不可验）。
+   本条为准，上方优先级表第 7 条的无条件禁止表述随之收窄；
+   【沿革 2026-08-07（决议底稿_s423修法_20260807 第 2 件；三线一致点＋分歧明裁）：
+   原文「禁止节点只允许唯一 evidence 满足槽；truthy → violated、falsy → satisfied」
+   把 §4.2.3「未獲…認可**前**，不得進行」的条件禁止（Y ∧ ¬X → violated）判成无条件
+   禁止（Y → violated）——50 栋反事实实测：已合流口径 prohibition violated 36 条中
+   10 条为 `recognized=true` 假违规。修法＝求值器全局条件禁止分支（解禁前件取卡已
+   声明的 `prerequisite` 角色槽，显式声明优于隐式推断，不动卡本体）；形状闸吸收
+   自丙案护栏形。历史批 s4_2_3 相关行不可比（复现单 §3.2 已列全批清单，按错判追认）。】
 5. 卡侧没有可确定满足通道 → `open + missing_satisfaction_binding`。有通道但没有事实仍用
    `missing_fact` / `missing_artifact_evidence` / `missing_time_anchor`；限定符不匹配仍为
    `blocked + qualifier_conflict`。绝不把“查不到”改成 satisfied；

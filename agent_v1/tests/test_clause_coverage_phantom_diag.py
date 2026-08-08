@@ -67,6 +67,17 @@ def _score(canonical_component_type: str | None, diagnostic: bool | None = None)
             "blocked_reason_code": "missing_rule_edge",
         }]},
         "fact_pack.json": {"facts": facts},
+        # 2026-08-05（#23）：阅卷器新增一个读径——细作用域标签合取登记表。
+        # 本组测的是幻影诊断，与合取无关 ⇒ 喂**空表**，作用域匹配退回纯严格相等
+        # （与 2026-08-05 之前逐位等价）。这里显式列出而不是让加载器静默兜底：
+        # 假文件系统下「读不到就当没有」会把真实的读径缺失一并盖住。
+        "component_class_scope_conjunction_v1.json": {
+            "schema_version": "component_class_scope_conjunction_v1", "entries": []},
+        # 2026-08-07：第二张读径——世界原生构件类对齐登记表。同上口径喂空表。
+        # 🔴 这一条是被上面那句纪律**当场抓住**的：新读径落地时本夹具直接 KeyError，
+        # 而不是静默走加载器的「文件不存在 ⇒ 返回 {}」兜底。显式枚举的价值就在这。
+        "component_class_scope_native_alias_v1.json": {
+            "schema_version": "component_class_scope_native_alias_v1", "entries": []},
     }
 
     def fake_read_text(path: Path, encoding: str | None = None) -> str:

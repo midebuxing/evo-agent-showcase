@@ -328,6 +328,9 @@ _ARCHETYPE_EXTRA_COMPONENTS: Dict[str, List[Dict[str, str]]] = {
          "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
         {"component_type": "canopy", "structural_role": "non_load_bearing",
          "location_class": "podium_soffit", "exposure_zone": "exterior_weather", "storey_band": "low_zone"},
+        # #23 L3（决议_23路线_20260805 §一.1）：公用地方假天花（§3.3.1(c)(i)）。
+        {"component_type": "false_ceiling_common_area", "structural_role": "non_load_bearing",
+         "location_class": "common_part", "exposure_zone": "interior_dry", "storey_band": "low_zone"},
     ],
     "BT_HK_PODIUM_SERVICE_LANE_DRAINAGE_V1": [
         {"component_type": "drainage_branch", "structural_role": "service_component",
@@ -341,10 +344,16 @@ _ARCHETYPE_EXTRA_COMPONENTS: Dict[str, List[Dict[str, str]]] = {
         # spec 草案·DEBT-049 第一波 §3 贴砖案A。
         {"component_type": "wall_tile_finish", "structural_role": "finish_only",
          "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
+        # #23 L3：外牆附屬物（§3.3.1(a)(vi) 金屬支架/晾衣架/伸出物）。
+        {"component_type": "external_appendage", "structural_role": "non_load_bearing",
+         "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
     ],
     "BT_HK_UBW_PRONE_OLD_BLOCK_V1": [
         {"component_type": "unauthorized_structure", "structural_role": "non_load_bearing",
          "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "high_zone"},
+        # #23 L3：外牆附屬物（老楼外墙附着物密度高，§3.3.1(a)(vi)）。
+        {"component_type": "external_appendage", "structural_role": "non_load_bearing",
+         "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
     ],
     "BT_HK_COASTAL_COMPOSITE_TOWER_RC_V1": [
         {"component_type": "balcony_slab", "structural_role": "secondary_load_bearing",
@@ -357,6 +366,39 @@ _ARCHETYPE_EXTRA_COMPONENTS: Dict[str, List[Dict[str, str]]] = {
          "location_class": "podium_soffit", "exposure_zone": "exterior_weather", "storey_band": "low_zone"},
         {"component_type": "structural_member", "structural_role": "primary_load_bearing",
          "location_class": "transfer_floor", "exposure_zone": "interior_dry", "storey_band": "low_zone"},
+        # #23 L3：轉移構築物本体（§3.4.1(b)(vii)；§3.4.2(C)(a) 30% 被遮蓋檢驗）——
+        # 此前该楼型只有 structural_member 位于 transfer_floor，真值 transfer_structure
+        # 作用域是纯建模缺口（卡侧词表/类型格/卡绑定齐备、唯世界不产）。
+        {"component_type": "transfer_structure", "structural_role": "primary_load_bearing",
+         "location_class": "transfer_floor", "exposure_zone": "interior_dry", "storey_band": "low_zone"},
+    ],
+    # ── #23 L3 新增楼型条目（此前走 fallback 只用 _BASE_COMPONENT_PLAN）──
+    "BT_HK_PRIVATE_RESIDENTIAL_TOWER_RC_V1": [
+        # 外牆附屬物（§3.3.1(a)(vi) 冷氣機支架/晾衣架類）＋公用地方假天花（§3.3.1(c)(i)）。
+        {"component_type": "external_appendage", "structural_role": "non_load_bearing",
+         "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
+        {"component_type": "false_ceiling_common_area", "structural_role": "non_load_bearing",
+         "location_class": "common_part", "exposure_zone": "interior_dry", "storey_band": "low_zone"},
+    ],
+    "BT_HK_MASS_HOUSING_RC_WALL_V1": [
+        {"component_type": "external_appendage", "structural_role": "non_load_bearing",
+         "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
+        # 外牆飾面·批盪類（§3.3.1(a)(i)；§5.3.1）。
+        {"component_type": "external_wall_finish", "structural_role": "finish_only",
+         "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
+    ],
+    "BT_HK_COMMERCIAL_ASSEMBLY_MARKET_PODIUM_V1": [
+        {"component_type": "false_ceiling_common_area", "structural_role": "non_load_bearing",
+         "location_class": "common_part", "exposure_zone": "interior_dry", "storey_band": "low_zone"},
+    ],
+    "BT_HK_TONG_LAU_MIXED_USE_MASONRY_V1": [
+        # 批盪飾面（TONG_LAU primary_materials 原生 masonry_plaster/plaster_finish）。
+        {"component_type": "external_wall_finish", "structural_role": "finish_only",
+         "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
+    ],
+    "BT_HK_NT_VILLAGE_LOWRISE_RC_V1": [
+        {"component_type": "external_wall_finish", "structural_role": "finish_only",
+         "location_class": "external_wall", "exposure_zone": "exterior_weather", "storey_band": "mid_zone"},
     ],
 }
 
@@ -677,6 +719,22 @@ def _select_fragment_templates(
     primary = [t for t in all_templates if t.get("building_template_id") == building_template_id]
     if not primary:
         primary = list(all_templates)
+        # 🔴 #23 L3（2026-08-06）：全表回退路径补上与补抽路径**同一把**过滤
+        # （EXP-012 前置修当时只修了补抽半边）。病：走全表回退的楼型（无 primary
+        # 模板绑定）会按稳定序取到「楼内根本不存在该 component_type」的模板，
+        # `_pick_component_for_fragment` 随之回退**任选组件** ⇒ 机制/条件错绑
+        # （C005/C006 闪红）。L3 A0 金丝雀当场抓到实例：MASS_HOUSING 楼取到
+        # `FT_TRANSFER_STRUCTURE_COVERED_V1`（楼内无 transfer_structure）⇒ 回退绑到
+        # `external_wall_finish` 组件 ⇒ corrosion_spall 打在饰面上（C005+C006+C009 三红）。
+        # 模板池扩张（15→19）放大了这条既有病的暴露面，故随本单补齐。
+        # `available_component_types` 未传时维持旧行为（兼容单测直调），与补抽半边同约。
+        if available_component_types is not None:
+            filtered = [
+                t for t in primary
+                if t.get("component_type") in available_component_types
+            ]
+            if filtered:
+                primary = filtered
 
     def _template_key(template: Dict[str, Any]) -> bytes:
         return rng_domains.stable_sort_key(
@@ -727,9 +785,14 @@ def _select_fragment_templates(
     #
     # ⚠️ 缺省 False：开着会追加模板 ⇒ 消耗 rng ⇒ 整个世界的随机流改变。
     #    开它必须配新池名，**不得原地改同一 seed 的语义**。
-    #    注册表只有 12 个模板覆盖 8 种构件类，而 `component_type_registry` 有 19 种；
-    #    `balcony_slab` / `parapet_wall` / `signboard` **无模板**，本开关对它们无能为力
-    #    （须新写模板，属内容工作，另行处置）。
+    #    ⚠️ 2026-08-05 订正（#23）：旧注释写「注册表只有 12 个模板覆盖 8 种构件类…
+    #    `balcony_slab` / `parapet_wall` / `signboard` **无模板**，本开关对它们无能为力」
+    #    ——**已过时**。`f21fa0b`（2026-08-04）加入 `FT_SIGNBOARD_V1` /
+    #    `FT_PARAPET_WALL_V1` / `FT_BALCONY_SLAB_V1` 后，实为 **15 张模板覆盖 11 种构件类**，
+    #    这三者**都有模板**，本开关对它们有效。照旧注释做会得出错误的「开关必要性」判断。
+    #    当前真正无模板的是 `component_type_registry` 里剩下的 8 种休眠类型
+    #    （如 `fire_resisting_wall` / `smoke_vent` / `access_panel` 等），
+    #    它们才是「须新写模板、属内容工作」的那一批。
     #
     # 🔴🔴 追加**必须用独立子 rng**，绝不能碰主 `rng`（2026-07-29 实测栽过一次）。
     #    首版直接 `rng.randrange(...)` ⇒ 主 rng 状态被推进 ⇒ 而

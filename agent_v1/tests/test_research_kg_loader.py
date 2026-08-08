@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,6 +21,24 @@ from research_kg.loader import (
 from research_kg.regulation_corpus import RegulationCorpus, build_regulation_corpus
 
 RESEARCH_KG_DIR = _REPO / "research_kg"
+
+# 语料构建器写的子树（`rulecard_v2` 不在其射程内，排除以免被别的测试的
+# 变异—还原夹具干扰本文件的「真实树未被写」断言）。
+_CORPUS_SUBTREES = ("extracted", "markdown", "corpus", "manifests", "failed", "raw")
+
+
+def _real_corpus_fingerprint() -> dict[str, tuple[int, int]]:
+    """真实法规语料树逐文件 (mtime_ns, size) 快照——用来断言本测试没有写它。"""
+    snapshot: dict[str, tuple[int, int]] = {}
+    for sub in _CORPUS_SUBTREES:
+        root = _REPO / "regulations" / sub
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
+            if path.is_file():
+                stat = path.stat()
+                snapshot[path.relative_to(_REPO).as_posix()] = (stat.st_mtime_ns, stat.st_size)
+    return snapshot
 
 
 class TestSubgraphLoad(unittest.TestCase):
@@ -57,9 +77,80 @@ class TestSubgraphLoad(unittest.TestCase):
 class TestDualSourceLoad(unittest.TestCase):
     """Test full dual-source KG loading."""
 
+    _tmp: tempfile.TemporaryDirectory
+    _tmp_root: Path
+    _corpus_before: dict[str, tuple[int, int]]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """🔴 测试卫生（2026-08-06，门 A 新码批双线终审两线同挖出的第三写入源）。
+
+        改前：`setUp` 每轮无条件 `build_regulation_corpus(_REPO)`，而 `_REPO` 就是
+        **真实 `agent_v1/`** ⇒ 原地重建 `agent_v1/regulations/` 下 **29 个已跟踪文件**
+        （四份守则的 extracted 12 ／ markdown 4 ／ corpus 8 ／ manifests 4 ／ failed 1，
+        实测：干净临时树上跑一遍构建器，产出 29 个非 raw 文件、29/29 均为已跟踪路径，
+        `审核结果_c批新码_20260806.md` §四.3）；本类 7 个测试方法
+        ⇒ **每跑一次全量 pytest 就真·覆盖写 7 遍**。
+
+        为什么必须改：它**不是**变异—还原夹具——**没有 tearDown、没有备份、没有还原断言**。
+        字节之所以一直没变，纯粹因为这条流水线在输入不变时是幂等的。上游任何输入漂移
+        （原始 PDF、`data/*.md`）或流水线引入任何不确定性，一次全量 pytest 就会在无人
+        察觉下**永久改写权威法规源文件**，而它们全部落在 `run_baseline_batch.CODE_STATE_SCOPE`
+        （`agent_v1/regulations/`）内 —— 与 A3 封存值直接冲突：封存与全量测试若重叠，
+        漂移就被封进锚里。
+
+        改后：构建输出落**临时目录**，真实法规树全程只读；并由
+        `test_corpus_build_does_not_write_the_real_regulations_tree` 把这条钉成回归闸。
+        """
+        cls._corpus_before = _real_corpus_fingerprint()
+        cls._tmp = tempfile.TemporaryDirectory(
+            prefix="research_kg_corpus_", ignore_cleanup_errors=True
+        )
+        cls._tmp_root = Path(cls._tmp.name)
+        # 构建器只读两处输入——`<root>/regulations/raw/`（canonical 源）与
+        # `<root>/data/*.md`（`preferred_markdown_candidates`）；其余全由它自己生成。
+        raw_dst = cls._tmp_root / "regulations" / "raw"
+        raw_dst.mkdir(parents=True, exist_ok=True)
+        for item in (_REPO / "regulations" / "raw").iterdir():
+            if item.is_file():
+                shutil.copy2(item, raw_dst / item.name)
+        data_dst = cls._tmp_root / "data"
+        data_dst.mkdir(parents=True, exist_ok=True)
+        for item in (_REPO / "data").glob("*.md"):
+            shutil.copy2(item, data_dst / item.name)
+        build_regulation_corpus(cls._tmp_root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
     def setUp(self) -> None:
-        build_regulation_corpus(_REPO)
         self.kg = load_dual_source_kg(RESEARCH_KG_DIR)
+
+    def test_corpus_build_does_not_write_the_real_regulations_tree(self) -> None:
+        """回归闸：语料构建器不许再原地重建真实 `agent_v1/regulations/`。
+
+        判据是逐文件 `(mtime_ns, size)` ——**只比内容不够**：这条流水线幂等，
+        写回同样的字节内容级口径一个都抓不到（这正是它潜伏至今的原因）。
+        """
+        after = _real_corpus_fingerprint()
+        touched = sorted(
+            rel for rel, sig in after.items() if self._corpus_before.get(rel) != sig
+        )
+        self.assertEqual(
+            touched,
+            [],
+            "真实法规语料树在本测试类运行期间被写过——构建器必须指向临时目录，"
+            f"被碰文件：{touched[:10]}（共 {len(touched)} 个）",
+        )
+        self.assertEqual(
+            sorted(self._corpus_before), sorted(after), "真实法规语料树的文件集合被增删"
+        )
+        # 反面：构建产物确实落在临时目录里（否则「没写真实树」只是因为压根没建）
+        built_manifest = self._tmp_root / "regulations" / "manifests" / "ingest_manifest.json"
+        self.assertTrue(
+            built_manifest.is_file(), f"构建产物未落临时目录：{built_manifest}"
+        )
 
     def test_top_level_type(self) -> None:
         self.assertIsInstance(self.kg, DualSourceResearchKG)

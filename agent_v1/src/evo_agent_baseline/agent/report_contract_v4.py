@@ -113,6 +113,18 @@ REASON_CODE_SPEC: Dict[str, _R] = {
         "analysis": "PENDING_COMPLETION_REVIEW",
         "actions": ["MANUAL_VERIFY"],
     },
+    # #33 保护闸（2026-08-05，决议_33处置_20260805.md §一.1）。
+    # 🔴 文案边界三条（照 `diagnostic_binding_not_valid_evidence` 的教训写）：
+    # ①**不得**写成「该义务不可核验」——那是越界，耦合建起来就能判；
+    # ②**不得**写成「文件不存在」——真值侧读数恰恰为真，那是事实错误；
+    # ③本码同时覆盖真假两侧（诊断行两出口必须同码），故文案须对两种情形都为真。
+    "evidence_event_coupling_unproven": {
+        "zh": "该义务的判定依据是「相关文件已呈交／送达／签署」这一状态读数，而本系统"
+              "尚未确立「记录到该状态即代表该呈交／送达／签署事件确已发生」这条关联，"
+              "故不据其判定义务已履行；须由专业人员核实该事件是否真实发生",
+        "analysis": "MODELING_GAP",
+        "actions": ["ESCALATE_MODELING_GAP", "MANUAL_VERIFY"],
+    },
     # S3 裁决（2026-08-02）：不得渲染成"缺少事实"——事实在，缺的是该绑定
     # 消费此类读数产判定的裁定授权。
     "binding_requires_adjudication_authorization": {
@@ -241,6 +253,7 @@ _OPEN_REASONS = frozenset({
     "diagnostic_binding_not_valid_evidence",
     "observed_false_without_violation_basis",
     "binding_requires_adjudication_authorization",
+    "evidence_event_coupling_unproven",
 })
 _BLOCKED_REASONS = frozenset({
     "missing_rule_edge", "missing_obligation_edge_target",
@@ -558,8 +571,13 @@ def render_v4_points(
     """把 v4 规范化点列渲染成确定性 markdown 行；缺任一权威条目返回 None。
 
     pack = NarrativeEvidencePack（key_items/rule_cards/facts 均程序权威产出）。
-    展示形态＝语义四元组聚合（主视图三行/组 + 折叠逐义务明细），内容与安全
+    展示形态＝语义四元组聚合（主视图两行/组 + 折叠逐义务明细），内容与安全
     属性同逐点展开形态（全部权威来源）。
+
+    🔴 DEBT-099 紧凑化（2026-08-08）：原「义务入口」与「状态 / 原因 / 动作」
+    各占一行（主视图三行/组），合并为单行（主视图两行/组）。消失的字符仅为
+    两条 `- ` 列表项之间的换行，代之以 ` ｜ ` 分隔符；两个标签与全部取值
+    逐字保留，语义零损失。组数随原因码种类线性增长时，主视图行数增速减半。
     """
     resolved = _resolve_v4_points(pack, normalized_points)
     if resolved is None:
@@ -585,12 +603,13 @@ def render_v4_points(
     for gi, (sig, members) in enumerate(chunks, 1):
         status, analysis, reason, action = sig
         lines.append(f"### G{gi}｜{_analysis_title(analysis)}｜{len(members)} 项")
-        lines.append("- 义务入口："
-                     + "、".join(f"[{m['o_alias']}/{m['r_alias']}]" for m in members))
         lines.append(
-            f"- 状态 / 原因 / 动作：{_STATUS_ZH.get(status, status)}；"
-            f"{reason_zh(reason)}；"
-            f"{REVIEW_ACTION_ZH.get(action, '建议人工复核')}。")
+            "- 义务入口："
+            + "、".join(f"[{m['o_alias']}/{m['r_alias']}]" for m in members)
+            + " ｜ 状态 / 原因 / 动作："
+            + f"{_STATUS_ZH.get(status, status)}；"
+            + f"{reason_zh(reason)}；"
+            + f"{REVIEW_ACTION_ZH.get(action, '建议人工复核')}。")
         lines.append("")
         lines.append("<details>")
         lines.append(f"<summary>展开 {len(members)} 项的所选证据与法规原文</summary>")

@@ -255,13 +255,15 @@ def test_main_actually_calls_preflight_and_refuses(work_path, monkeypatch, capsy
         "拒跑时不该已经建出批次目录——说明前置检查在建目录之后才跑"
 
 
-def test_ensure_rulecard_contract_on_real_bundle_lists_exactly_three_exemptions():
-    """真实卡包：契约违规必须正好是那 3 条空 slot_role_map（其余已修）。
+def test_ensure_rulecard_contract_on_real_bundle_lists_exactly_known_exemptions():
+    """真实卡包：契约违规必须与豁免表逐条相等（一条不多、一条不少）。
 
     同时证明 `collect_rulecard_bundle_violations` 一次列出全部，不是遇错即停。
+    2026-08-07 卡包合流事务后基线 3 → **16**（13 张裁定删 trigger 卡的空
+    slot_role_map 属机械后果，见 `重核准记录_卡包合流_20260807.md`）。
     """
     violations = _REAL_RULECARD_CONTRACT()
-    assert len(violations) == 3, violations
+    assert len(violations) == 18, violations  # 2026-08-08 残差57A：+2（s6_2_4/s5_3_1 删 trigger 后空 map，重核准记录_残差57三卡_20260808.md）
     assert set(violations) == set(batch_module.RULECARD_CONTRACT_EXEMPTIONS)
 
 
@@ -492,6 +494,112 @@ def test_code_state_participates_in_anchor_mismatch():
 
     drifted = dict(base, code_state={"code_state_sha256": "bbb"})
     assert "code_state_sha256" in batch_module.anchor_mismatches(base, drifted)
+
+
+def test_sealed_code_state_resolution_prefers_cli_and_normalises():
+    """封存值解析:命令行优先于环境变量;大小写与空白归一;两处都空 = 不启用本闸。"""
+    env = {batch_module.SEALED_CODE_STATE_ENV: "b" * 64}
+    assert batch_module.resolve_sealed_code_state("A" * 64, env) == "a" * 64
+    assert batch_module.resolve_sealed_code_state(None, env) == "b" * 64
+    assert batch_module.resolve_sealed_code_state("  " + "c" * 64 + " ", {}) == "c" * 64
+    assert batch_module.resolve_sealed_code_state(None, {}) is None
+    assert batch_module.resolve_sealed_code_state("   ", {}) is None
+
+
+def test_sealed_code_state_gate_passes_only_on_exact_match():
+    """开跑前硬闸:声明值与实测逐位相同才放行,不同即拦,且报文要同时给出两个值。
+
+    不声明 = 不启用(既有地板批/试验批不受影响),这一支必须仍为空清单——
+    否则本闸会把所有历史调用姿势一次性拦死。
+    """
+    observed = {"code_state_sha256": "a" * 64, "git_commit": "c" * 40,
+                "dirty_path_count": 3, "workspace_clean": False}
+    assert batch_module.sealed_code_state_problems(None, observed) == []
+    assert batch_module.sealed_code_state_problems("a" * 64, observed) == []
+
+    drifted = batch_module.sealed_code_state_problems("b" * 64, observed)
+    assert len(drifted) == 1
+    assert "封存已失效" in drifted[0]
+    assert "a" * 64 in drifted[0] and "b" * 64 in drifted[0], \
+        "报文必须同时给出封存值与实测值，否则读的人无法判断该回退还是该重封存"
+
+
+def test_sealed_code_state_gate_rejects_malformed_seal():
+    """形态错的封存值必须当场拒跑,不许当成「不启用」悄悄放行。
+
+    这是本闸最容易被绕过的口子:传个截断值或带 `sha256:` 前缀,若按「不等于就报错」
+    去实现，读的人会以为闸开着；若按「解析失败就当没传」去实现，闸直接静默失效。
+    """
+    observed = {"code_state_sha256": "a" * 64}
+    for bad in ("a" * 63, "a" * 65, "sha256:" + "a" * 64, "z" * 64):
+        problems = batch_module.sealed_code_state_problems(bad, observed)
+        assert len(problems) == 1 and "64 位十六进制" in problems[0], bad
+
+
+def test_main_actually_wires_sealed_code_state_gate(work_path, monkeypatch, capsys):
+    """🔴 接线闸:`main()` 必须真的调用封存值硬闸,并且拦在任何生成动作之前。
+
+    与 `test_main_actually_calls_preflight_and_refuses` 同形状——纯函数测试证明闸本身
+    会红，但**证明不了 main 调用了它**。本测试给一个必然不符的封存值（autouse fixture
+    把 `code_state_sha256` stub 成 `stub-code-state`），断言 main 非零退出、报文里是
+    封存值那条原因、且批目录一个字节都没落。
+    """
+    monkeypatch.setenv("EVO_AGENT_NEO4J_DATABASE", "s25smoke")
+    pool = work_path / "gen_seed_301"
+    pool.mkdir()
+
+    rc = batch_module.main([
+        "--worldgen-run-dir", str(pool),
+        "--count", "1",
+        "--batch-root", str(work_path / "batch"),
+        "--sealed-code-state", "a" * 64,
+    ])
+    assert rc == 2, "封存值不符时 main 必须非零退出"
+    captured = capsys.readouterr()
+    combined = captured.err + captured.out
+    assert "封存已失效" in combined, \
+        "rc=2 必须来自封存值硬闸而不是别的守卫——否则删掉接线也能通过"
+    assert not (work_path / "batch").exists(), \
+        "拒跑时不该已经建出批目录——说明闸没有排在生成动作之前"
+
+
+def test_sealed_code_state_lands_in_manifest(work_path, monkeypatch):
+    """过闸的封存值必须写进批清单,不声明时留 null——清单里看得出这批走没走硬闸。"""
+    batch_root = work_path / "batch"
+    sealed = "d" * 64
+    monkeypatch.setenv("EVO_AGENT_NEO4J_DATABASE", "test_database")
+    monkeypatch.setenv(batch_module.SEALED_CODE_STATE_ENV, sealed)
+    monkeypatch.setattr(batch_module, "code_state_sha256", lambda: {
+        "code_state_sha256": sealed, "git_commit": "commit",
+        "dirty_path_count": 0, "workspace_clean": True,
+        "scope": ["agent_v1/src/"]})
+    monkeypatch.setattr(batch_module, "read_pool", lambda _p: (
+        ["B1"], {"fail": 7, "pass": 3}, {"B1": "W1"},
+        {"W1": ["pass"] * 3 + ["fail"] * 7}))
+    monkeypatch.setattr(batch_module, "git_commit", lambda: "commit")
+
+    def fake_run(command, **kwargs):
+        if "--output-dir" not in command:
+            return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+        output_dir = Path(command[command.index("--output-dir") + 1])
+        (output_dir / "runs" / "R1").mkdir(parents=True)
+        (output_dir / "eval_report.json").write_text("{}", encoding="utf-8")
+        (output_dir / "runs" / "R1" / "run_audit.json").write_text(
+            json.dumps({"llm_tool_call_count": 3}), encoding="utf-8")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(batch_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(aggregate_module, "aggregate_batch", lambda _root: {
+        "completion": {"completed_count": 1, "failed_count": 0}})
+
+    batch_module.main([
+        "--worldgen-run-dir", str(work_path / "pool"),
+        "--batch-root", str(batch_root),
+    ])
+    manifest = json.loads(
+        (batch_root / "batch_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["code_state"]["sealed_code_state_sha256"] == sealed
+    assert manifest["code_state"]["code_state_sha256"] == sealed
 
 
 @pytest.fixture

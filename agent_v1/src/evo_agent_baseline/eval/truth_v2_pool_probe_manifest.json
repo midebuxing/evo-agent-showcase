@@ -1,0 +1,460 @@
+{
+ "schema_version": "truth_v2_pool_probe_manifest.v1",
+ "purpose_zh": "换池时对真值 v2 的恒常侧做定向复测的清单。**本清单不判任何项**，只回答「换池后该先测哪几根轴、哪些项必须重看、哪些探针必须响亮失败」。",
+ "produced_by": {
+  "script": "agent_v1/scripts/generate_truth_v2.py",
+  "template_version": "truth_v2.expansion_template.v1",
+  "truth_schema_version": "applicable_normative_item_truth_v2"
+ },
+ "sources": {
+  "final_partition": "agent_v1/experiments/truth_v2_prep/constant_check/final_partition.json",
+  "final_partition_schema": "truth_v2_prep.constant_check.final_partition.v5",
+  "final_grid": "agent_v1/experiments/truth_v2_prep/varying_adjudication/final_grid.json",
+  "shared_gate_axis_advisory_upstream": "full_review_107.open_tails_zh #3（原文估「约二十项」，本段是机器提取的实数）"
+ },
+ "pool_identity": {
+  "worldgen_run_dir": "agent_v1/experiments/qa_reports/_poolv2_50x1_seed401/gen_seed_401",
+  "pool_content_sha256": "b21b389cc595713dfce97f7a585565deac26346b9c5d8fae2e04443be6c9f197",
+  "generation_config_sha256": "aaeb5386f5c37a296ce8316d893175d257b83b688f09d5a629c0d4d454ebb76b",
+  "sampled_building_id_member_digest": "54203de91186667f85d3cc6bc3153d404367c447b58f4fb3ad9ca5c49ab0741b",
+  "sampled_world_id_member_digest": "54b4242ef612170d279fa33bd1481b5763d434e33908dbbd341b6e9682ca7711"
+ },
+ "shared_gate_axes": {
+  "criterion_zh": "判据必须随数字一起说出来（同一个「共用轴」有三把尺，跨轮引用必须点名用的哪把）：\nA 档 `structured_registry`：该项的 `checked_predicates` 里**同时**登记了两根轴（结构化字段，探针直接消费）。\nB 档 `text_cited_both_axes`：该项的 Q1/Q2/复核留痕文本里**同时**出现两根轴（探针走 `q2_evidence` 文本抽取路径）。\nC 档 `building_axis_only`：只出现楼级 `repair.required`、不含片段级轴（换池风险较低，单列以免与 B 档混算）。\n⚠️ 三档**互不相等**：A ⊆ B；C 与 B 互斥。原尾巴写的「约二十项」是分片阅读时的目测估计，不对应其中任何一档。",
+  "risk_zh": "这批项的恒真**不是各自独立成立的**——它们共用同一根闸门轴，其中片段级那根还是采样聚合。换池若改片段数或 marginal，整批会同时假报警（或同时该翻）。生成器模板落地时须把这根轴单列一条**族级注记**，不要按项各写一遍；换池探针也应先测这根轴、再逐项判，否则一根轴的漂移会被计成几十条独立缺陷。",
+  "axes": {
+   "building_level": {
+    "token": "derived_outcomes.repair.required",
+    "granularity_zh": "楼级派生位",
+    "pool_v2_measured": "True 50/50 栋（本轮亲算 WorldgenWorldBundles.v2.parquet 的 derived_outcomes_json）"
+   },
+   "fragment_level": {
+    "token": "procedure.repair.prescribed.started",
+    "aliases": [
+     "procedure.repair.prescribed.started",
+     "repair.prescribed.started"
+    ],
+    "granularity_zh": "**片段级采样、按栋聚合** —— 换池若改片段数或 marginal，这批会同时假报警或同时该翻，是单点依赖"
+   }
+  },
+  "groups": [
+   {
+    "group_id": "shared_gate_axis.structured_registry",
+    "tier": "structured_registry",
+    "criterion_zh": "A 档：`checked_predicates` 里同时登记了两根轴（结构化字段，探针直接消费）",
+    "member_count": 7,
+    "members": [
+     "mbis.cop2023.s2_1_3_r.deliver_completion_report_to_person_same_day",
+     "mbis.cop2023.s2_1_3_r.submit_completion_report_and_mbi4_to_ba",
+     "mbis.cop2023.s5_1_1.perform_validation_tests",
+     "mbis.cop2023.s5_2_d.consider_defect_cause",
+     "mbis.cop2023.s5_5_2_c.restore_fire_lift_lobby_integrity",
+     "mbis.cop2023.s5_5_3_c.repair_defective_fire_doors",
+     "mbis.cop2023.s6_4_2.supervise_works_to_minimum_standard"
+    ],
+    "alarm_policy_zh": "整组一次报警：这批项的恒真不是各自独立成立的，共用同一根闸门轴 ⇒ 一根轴的漂移若按项计会被算成几十条独立缺陷。换池探针须先测轴、再逐项判。"
+   },
+   {
+    "group_id": "shared_gate_axis.text_cited_both_axes",
+    "tier": "text_cited_both_axes",
+    "criterion_zh": "B 档：Q1/Q2/复核留痕文本里同时出现两根轴（探针走 q2_evidence 文本抽取）",
+    "member_count": 36,
+    "members": [
+     "mbis.cop2023.s2_1_3_b.ri_supervise_rectification_and_repair",
+     "mbis.cop2023.s2_1_3_c.ensure_repair_materials_not_defective",
+     "mbis.cop2023.s2_1_3_d.ensure_repair_materials_properly_applied",
+     "mbis.cop2023.s2_1_3_e.ensure_building_safe_after_repair",
+     "mbis.cop2023.s2_1_3_q.deliver_documents_to_rc_before_repair",
+     "mbis.cop2023.s2_1_3_r.deliver_completion_report_to_person_same_day",
+     "mbis.cop2023.s2_1_3_r.submit_completion_report_and_mbi4_to_ba",
+     "mbis.cop2023.s5_1_1.ensure_repair_meets_bo_standard",
+     "mbis.cop2023.s5_1_1.perform_validation_tests",
+     "mbis.cop2023.s5_1_1.select_suitable_repair_method",
+     "mbis.cop2023.s5_1_4.repair_per_approved_plans",
+     "mbis.cop2023.s5_2_b.consider_exposure_severity",
+     "mbis.cop2023.s5_2_c.consider_existing_condition",
+     "mbis.cop2023.s5_2_d.consider_defect_cause",
+     "mbis.cop2023.s5_2_e.consider_impact_on_occupants_public",
+     "mbis.cop2023.s5_2_f.consider_impact_on_building_environment",
+     "mbis.cop2023.s5_2_g.consider_required_performance_durability",
+     "mbis.cop2023.s5_4.consider_structural_repair_factors",
+     "mbis.cop2023.s5_5_2_b.repair_dilapidated_emergency_vehicular_access",
+     "mbis.cop2023.s5_5_2_c.restore_fire_lift_lobby_integrity",
+     "mbis.cop2023.s5_5_3_c.repair_defective_fire_doors",
+     "mbis.cop2023.s5_5_3_e.fire_protection_for_non_emergency_services",
+     "mbis.cop2023.s5_5_3_h.repair_blocked_staircase_top_vents",
+     "mbis.cop2023.s6_1_2_b.control_repair_works_and_scaffolding",
+     "mbis.cop2023.s6_1_2_c.ensure_works_follow_inspection_results",
+     "mbis.cop2023.s6_2_1.ensure_works_carried_out_safely",
+     "mbis.cop2023.s6_2_1.provide_safety_measures",
+     "mbis.cop2023.s6_2_2.clear_debris_regularly",
+     "mbis.cop2023.s6_2_2.provide_safe_access",
+     "mbis.cop2023.s6_3.rc_communicate_with_pmc_and_owners",
+     "mbis.cop2023.s6_4_1.check_and_supervise_all_repair_works",
+     "mbis.cop2023.s6_4_1.frequency_not_less_than_appendix6",
+     "mbis.cop2023.s6_4_2.supervise_works_to_minimum_standard",
+     "mbis.cop2023.s6_5_1.rc_continuous_supervision",
+     "mbis.cop2023.s6_5_1.works_comply_with_bo",
+     "mbis.cop2023.s6_5_2.rc_give_ri_prior_notice"
+    ],
+    "alarm_policy_zh": "整组一次报警：这批项的恒真不是各自独立成立的，共用同一根闸门轴 ⇒ 一根轴的漂移若按项计会被算成几十条独立缺陷。换池探针须先测轴、再逐项判。"
+   },
+   {
+    "group_id": "shared_gate_axis.building_axis_only",
+    "tier": "building_axis_only",
+    "criterion_zh": "C 档：只出现楼级 repair.required、不含片段级轴（换池风险较低，单列以免与 B 混算）",
+    "member_count": 21,
+    "members": [
+     "mbis.cop2023.s2_1_3_h.comply_with_buildings_ordinance",
+     "mbis.cop2023.s3_4_3_a.assess_condition_and_recommend_follow_up",
+     "mbis.cop2023.s5_1_2.formulate_repair_proposals",
+     "mbis.cop2023.s5_1_7.repair_safe_until_next_cycle",
+     "mbis.cop2023.s5_2_h.consider_material_method_compatibility",
+     "mbis.cop2023.s5_5_1_f.correct_noncomplying_door_locks",
+     "mbis.cop2023.s5_6_1_a.replace_defective_common_drain_parts",
+     "mbis.cop2023.s5_6_1_b.plastic_pipes_durable_requirements",
+     "mbis.cop2023.s5_6_1_c.cast_iron_coating_against_corrosion",
+     "mbis.cop2023.s5_6_1_d.fittings_corrosion_resistant",
+     "mbis.cop2023.s5_6_1_e.vertical_pipes_securely_fixed",
+     "mbis.cop2023.s5_6_1_f.penetration_sleeved_and_sealed",
+     "mbis.cop2023.s5_6_5.perform_or_direct_validation_tests",
+     "mbis.cop2023.s5_6_5_a.ball_test_standard",
+     "mbis.cop2023.s5_6_5_b.air_test_standard",
+     "mbis.cop2023.s5_6_5_c.water_test_standard",
+     "mbis.cop2023.s5_6_5_d.smoke_test_standard",
+     "mbis.cop2023.s5_6_5_e.cctv_survey_standard",
+     "mbis.cop2023.s6_1_2_a.ensure_safe_working_environment",
+     "mbis.cop2023.s6_1_3.adopt_cop_practices",
+     "mbis.cop2023.s6_4_2.reported_defects_must_be_repaired"
+    ],
+    "alarm_policy_zh": "整组一次报警：这批项的恒真不是各自独立成立的，共用同一根闸门轴 ⇒ 一根轴的漂移若按项计会被算成几十条独立缺陷。换池探针须先测轴、再逐项判。"
+   }
+  ],
+  "group_total_members": 64
+ },
+ "registered_predicates": {
+  "criterion_zh": "带结构化 `checked_predicates` 的项 —— 探针直接重测登记的轴，不走 q2_evidence 文本抽取（文本里常含非前件 token，逐池假报警）。",
+  "item_count": 8,
+  "items": [
+   {
+    "item_id": "mbis.cop2023.s2_1_3_r.deliver_completion_report_to_person_same_day",
+    "clause_ref": "2.1.3(r)",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "repair.required",
+      "kind_hint": "derived_outcome",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：本栋需要糾正及修葺工程"
+     },
+     {
+      "token": "procedure.repair.prescribed.started",
+      "kind_hint": "sidecar_slot",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：訂明修葺已在本栋展开"
+     }
+    ]
+   },
+   {
+    "item_id": "mbis.cop2023.s2_1_3_r.submit_completion_report_and_mbi4_to_ba",
+    "clause_ref": "2.1.3(r)",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "repair.required",
+      "kind_hint": "derived_outcome",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：本栋需要糾正及修葺工程"
+     },
+     {
+      "token": "procedure.repair.prescribed.started",
+      "kind_hint": "sidecar_slot",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：訂明修葺已在本栋展开"
+     }
+    ]
+   },
+   {
+    "item_id": "mbis.cop2023.s5_1_1.perform_validation_tests",
+    "clause_ref": "5.1.1",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "repair.required",
+      "role_zh": "载体：buildings.derived_outcomes_json",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     },
+     {
+      "token": "procedure.repair.prescribed.started",
+      "role_zh": "载体：sidecar any-true",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     }
+    ]
+   },
+   {
+    "item_id": "mbis.cop2023.s5_2_d.consider_defect_cause",
+    "clause_ref": "5.2(d)",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "repair.required",
+      "role_zh": "载体：buildings.derived_outcomes_json",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     },
+     {
+      "token": "procedure.repair.prescribed.started",
+      "role_zh": "载体：sidecar any-true",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     }
+    ]
+   },
+   {
+    "item_id": "mbis.cop2023.s5_5_2_c.restore_fire_lift_lobby_integrity",
+    "clause_ref": "5.5.2(c)",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "repair.required",
+      "role_zh": "载体：buildings.derived_outcomes_json",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     },
+     {
+      "token": "procedure.repair.prescribed.started",
+      "role_zh": "载体：sidecar any-true",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     }
+    ]
+   },
+   {
+    "item_id": "mbis.cop2023.s5_5_3_c.repair_defective_fire_doors",
+    "clause_ref": "5.5.3(c)",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "repair.required",
+      "kind_hint": "derived_outcome",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：本栋需要糾正及修葺工程（§5.5.3 引出句「正在修葺的樓宇」）"
+     },
+     {
+      "token": "procedure.repair.prescribed.started",
+      "kind_hint": "sidecar_slot",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：訂明修葺已在本栋展开"
+     },
+     {
+      "token": "fire_door",
+      "kind_hint": "component_type",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：耐火結構对象类（防火門）在楼"
+     },
+     {
+      "token": "scope.component.inspection_included",
+      "kind_hint": "sidecar_slot",
+      "qualifiers": {
+       "component_type_key": "fire_door"
+      },
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋；100 行）",
+      "hits": "50/50",
+      "role_zh": "闸门轴：防火門在本栋检验范围内"
+     }
+    ]
+   },
+   {
+    "item_id": "mbis.cop2023.s6_2_3.scaffold_adequate_lighting",
+    "clause_ref": "6.2.3",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "（世界侧尚无对应槽）棚架在场",
+      "role_zh": "载体：待供给侧补槽",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "0/50（词表解析不到）",
+      "probe_expectation": "registered_predicate_unresolvable_in_pool（响亮失败，不静默）"
+     }
+    ],
+    "probe_expectation": [
+     "registered_predicate_unresolvable_in_pool（响亮失败，不静默）"
+    ],
+    "must_fail_loudly": true
+   },
+   {
+    "item_id": "mbis.cop2023.s6_4_2.supervise_works_to_minimum_standard",
+    "clause_ref": "6.4.2",
+    "final_verdict": "keep_constant",
+    "predicates": [
+     {
+      "token": "repair.required",
+      "role_zh": "载体：buildings.derived_outcomes_json",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     },
+     {
+      "token": "procedure.repair.prescribed.started",
+      "role_zh": "载体：sidecar any-true",
+      "anchor": "池 v2（_poolv2_50x1_seed401，50 栋）",
+      "hits": "50/50"
+     }
+    ]
+   }
+  ]
+ },
+ "case3_items": {
+  "criterion_zh": "裁定留痕里出现「情形 3（正则 `情形\\s*3`，容忍无空格写法）」的项 —— 判据是「有前件、世界侧无载体 ⇒ 保守判适用」。换池若把载体补上，这批项的判据基础当场改变，必须重看。⚠️ 射程只覆盖进过双查池的 213 项（`final_partition.items`）；从未进双查池的 65 项 mixed 不在这张表里。",
+  "total": 40,
+  "in_keep_constant": 25,
+  "in_unknown_pending": 3,
+  "items": [
+   "mbis.cop2023.s2_1_3_b.ri_coordinate_with_ap_if_appointed",
+   "mbis.cop2023.s2_1_3_t.comply_with_minor_works_or_approval_procedures",
+   "mbis.cop2023.s3_2_5.review_outstanding_statutory_orders",
+   "mbis.cop2023.s3_4_1_b_xi.inspection_scope_suspended_structures",
+   "mbis.cop2023.s3_4_1_b_xii.inspection_scope_exposed_pile_caps",
+   "mbis.cop2023.s3_4_2_a_c_ix.identify_abnormal_separation_between_adjacent_buildings",
+   "mbis.cop2023.s3_4_2_a_c_v.identify_delamination",
+   "mbis.cop2023.s3_5_1_a.scope_includes_means_of_escape",
+   "mbis.cop2023.s3_7_1_c.look_for_signs_of_suspected_subdivided_flats",
+   "mbis.cop2023.s4_1_4.may_engage_specialist_for_testing",
+   "mbis.cop2023.s4_1_4.personal_responsibility_for_repair_proposal_from_di_findings",
+   "mbis.cop2023.s4_1_4.supervise_engaged_specialist_investigation_work",
+   "mbis.cop2023.s4_2_2_b.proposal_states_scope",
+   "mbis.cop2023.s4_2_2_d.proposal_attaches_location_marked_plans",
+   "mbis.cop2023.s4_3_1_h.di_for_excessive_deformation_of_structural_members",
+   "mbis.cop2023.s4_3_1_i.di_for_global_movement_of_building",
+   "mbis.cop2023.s5_1_6.advise_owner_appoint_ap_rse_rge_rc",
+   "mbis.cop2023.s5_1_6.obtain_ba_approval_and_consent",
+   "mbis.cop2023.s5_3_2_c.replacement_panels_noncombustible",
+   "mbis.cop2023.s5_3_3.reinstalled_fins_durable",
+   "mbis.cop2023.s5_3_4_b.submit_replacement_material_certificates",
+   "mbis.cop2023.s5_3_6_c.replace_defective_metal_gate_parts",
+   "mbis.cop2023.s5_4_2_a_a.remove_rust_and_protect_steel",
+   "mbis.cop2023.s5_4_2_c.restore_damaged_fireproofing_on_steel",
+   "mbis.cop2023.s5_5_1_a.replace_defective_exit_signs",
+   "mbis.cop2023.s5_5_1_b.correct_inadequate_lighting",
+   "mbis.cop2023.s5_5_1_c.repair_defective_balustrades_handrails_treads",
+   "mbis.cop2023.s5_5_1_e.remove_escape_route_obstructions",
+   "mbis.cop2023.s5_5_2_b.repair_dilapidated_emergency_vehicular_access",
+   "mbis.cop2023.s5_5_2_c.restore_fire_lift_lobby_integrity",
+   "mbis.cop2023.s5_5_3_a.repair_inadequate_fire_resisting_materials",
+   "mbis.cop2023.s5_5_3_b.provide_fire_dampers_for_ducts",
+   "mbis.cop2023.s5_5_3_d.replace_inadequate_fire_doors_glazing",
+   "mbis.cop2023.s5_5_3_e.fire_protection_for_non_emergency_services",
+   "mbis.cop2023.s5_5_3_g.replace_defective_fire_stopping_sealing",
+   "mbis.cop2023.s5_5_3_h.repair_blocked_staircase_top_vents",
+   "mbis.cop2023.s6_2_2.clear_debris_regularly",
+   "mbis.cop2023.s6_2_3.scaffold_adequate_lighting",
+   "mbis.cop2023.s6_2_4.dismantle_scaffold_after_completion",
+   "mbis.cop2023.s6_2_4.inspect_scaffold_frequently_in_typhoon"
+  ]
+ },
+ "no_probe_reach": {
+  "criterion_zh": "`q1_unconditional == true` 的项在结构上没有池谓词（恒常性是语义主张），换池探针对它无射程。**这不是漏测，是规程后果**，登记以免被误读成覆盖缺口。",
+  "item_count": 70,
+  "items": [
+   "mbis.cop2023.s2_1_3_a.ri_personally_conduct_inspection",
+   "mbis.cop2023.s2_1_3_h.comply_with_buildings_ordinance",
+   "mbis.cop2023.s2_1_3_i.notify_ba_of_appointment_mbi1",
+   "mbis.cop2023.s2_1_3_o.deliver_documents_to_person_within_7d",
+   "mbis.cop2023.s2_1_3_o.submit_inspection_report_and_mbi3_to_ba",
+   "mbis.cop2023.s2_1_3_o.submit_report_and_mbi3_within_7d",
+   "mbis.cop2023.s3_1_1.cover_common_parts_excluding_private_premises",
+   "mbis.cop2023.s3_1_1.cover_external_walls",
+   "mbis.cop2023.s3_1_1.cover_prescribed_projections",
+   "mbis.cop2023.s3_1_2_a.inspection_includes_external_and_other_physical_elements",
+   "mbis.cop2023.s3_1_2_c.inspection_includes_fire_safety_elements",
+   "mbis.cop2023.s3_1_2_d.inspection_includes_drainage_system",
+   "mbis.cop2023.s3_1_4.determine_serious_defects_obviously_dangerous",
+   "mbis.cop2023.s3_2_1.exercise_judgement_on_unusual_construction",
+   "mbis.cop2023.s3_2_1.obtain_approved_plans",
+   "mbis.cop2023.s3_2_1.obtain_minor_works_plans_and_details",
+   "mbis.cop2023.s3_2_1.obtain_s39c_plans_and_documents",
+   "mbis.cop2023.s3_2_5.review_outstanding_statutory_orders",
+   "mbis.cop2023.s3_3_2_a_a.visual_inspection_external_components",
+   "mbis.cop2023.s3_3_2_a_c.keep_and_submit_inspection_log",
+   "mbis.cop2023.s3_4_1_b_i.inspection_scope_columns",
+   "mbis.cop2023.s3_4_1_b_ii.inspection_scope_walls",
+   "mbis.cop2023.s3_4_1_b_iii.inspection_scope_beams",
+   "mbis.cop2023.s3_4_1_b_iv.inspection_scope_floor_slabs",
+   "mbis.cop2023.s3_4_1_b_ix.inspection_scope_protective_barriers",
+   "mbis.cop2023.s3_4_1_b_v.inspection_scope_staircases",
+   "mbis.cop2023.s3_4_1_b_vi.inspection_scope_cantilevered_projections",
+   "mbis.cop2023.s3_4_1_b_vii.inspection_scope_transfer_structures",
+   "mbis.cop2023.s3_4_1_b_x.inspection_scope_partition_and_basement_walls",
+   "mbis.cop2023.s3_4_1_b_xi.inspection_scope_suspended_structures",
+   "mbis.cop2023.s3_4_1_b_xiii.inspection_scope_other_special_structural",
+   "mbis.cop2023.s3_4_2_a_a.visual_inspection_structural_components",
+   "mbis.cop2023.s3_4_2_a_b.keep_and_submit_structural_inspection_log",
+   "mbis.cop2023.s3_4_2_a_c_i.identify_dampness",
+   "mbis.cop2023.s3_4_2_a_c_iii.identify_cracks_or_structural_damage_signs",
+   "mbis.cop2023.s3_4_2_a_c_iv.identify_concrete_spalling",
+   "mbis.cop2023.s3_4_2_a_c_ix.identify_abnormal_separation_between_adjacent_buildings",
+   "mbis.cop2023.s3_4_2_a_c_v.identify_delamination",
+   "mbis.cop2023.s3_4_2_a_c_vi.identify_exposed_rebar",
+   "mbis.cop2023.s3_4_2_a_c_viii.identify_deformation_or_displacement",
+   "mbis.cop2023.s3_4_3_a.assess_condition_and_recommend_follow_up",
+   "mbis.cop2023.s3_4_3_c.consider_s4_3_to_decide_detailed_investigation",
+   "mbis.cop2023.s3_5_1_a.scope_includes_means_of_escape",
+   "mbis.cop2023.s3_5_1_c.scope_includes_fire_resisting_construction",
+   "mbis.cop2023.s3_5_2_a_a.inspect_fire_safety_installations_against_standard",
+   "mbis.cop2023.s3_5_2_a_c.keep_and_submit_fire_safety_inspection_log",
+   "mbis.cop2023.s3_5_2_b_a.identify_defective_or_missing_exit_signs",
+   "mbis.cop2023.s3_5_2_d_c.identify_fire_door_hinge_glazing_defects",
+   "mbis.cop2023.s3_5_2_d_d.identify_defective_or_absent_self_closing_device",
+   "mbis.cop2023.s3_5_3_a.recommend_fire_safety_remedial_and_repair_works",
+   "mbis.cop2023.s3_6_1_c.scope_includes_drainage_in_common_pipe_duct",
+   "mbis.cop2023.s3_6_2_a_a.visual_inspection_drainage",
+   "mbis.cop2023.s3_6_2_a_d.keep_and_submit_drainage_inspection_log",
+   "mbis.cop2023.s3_6_2_a_e_i.identify_defective_drainage_pipes",
+   "mbis.cop2023.s3_7_1_a.identify_ubw_in_common_parts_exterior_and_street",
+   "mbis.cop2023.s3_7_1_b_ii.identify_projections_and_signboards_on_external_wall",
+   "mbis.cop2023.s3_7_1_c.look_for_signs_of_suspected_subdivided_flats",
+   "mbis.cop2023.s3_7_1_d.keep_and_submit_ubw_inspection_log",
+   "mbis.cop2023.s3_7_2_a_a.visual_inspection_to_identify_and_record_all_ubw",
+   "mbis.cop2023.s3_7_2_a_b.make_all_efforts_from_high_level_vantage_points",
+   "mbis.cop2023.s4_1_2.exercise_professional_judgment_on_need_for_di",
+   "mbis.cop2023.s4_1_3.may_need_di_to_determine_severity_integrity_or_fire_resistance",
+   "mbis.cop2023.s4_2_3.no_di_before_ba_endorsement",
+   "mbis.cop2023.s5_1_2.formulate_repair_proposals",
+   "mbis.cop2023.s5_5_4_a.notify_owner_fire_doors_not_held_open",
+   "mbis.cop2023.s5_5_4_b.notify_owner_fire_door_closers_operate",
+   "mbis.cop2023.s5_5_4_c.notify_owner_clear_escape_route_obstructions",
+   "mbis.cop2023.s5_5_4_d.notify_owner_prohibit_fire_safety_adverse_ubw",
+   "mbis.cop2023.s7_2_2.submit_report_with_mbi3_certificate",
+   "mbis.cop2023.s7_2_3.sign_inspection_report"
+  ]
+ },
+ "declared_open_items": [
+  {
+   "id": "tail_5_scope_rebind_s3_3_2_b_a_v",
+   "item_id": "mbis.cop2023.s3_3_2_b_a_v.identify_spalling_in_wall_finish",
+   "current_scope_id": "external_wall",
+   "status": "open_not_resolved_in_this_transaction",
+   "detail_zh": "内容层终局 §五 尾巴 5：本项翻面后作用域应由 `external_wall` 改绑到飾面类。但终局自己给的是**两个**载体（`external_wall_finish` 12 栋 ＋ `wall_tile_finish` 8 栋，严格口径 20/50），一行真值只能带一个 `scope_id`，且 `component_class_scope_conjunction_v1.json` 现无这两个标签的登记 ⇒ **本事务不发明**，维持 v1 项级标签并在此响亮登记。解法须另单裁：或在合取登记表补细标签，或在内容层把两载体合并成一个标签。"
+  },
+  {
+   "id": "tail_2_family_note_in_template",
+   "status": "partially_open",
+   "detail_zh": "内容层终局 §五 尾巴 2：共用闸门轴的「清单机器提取并登记」部分已闭；「族级注记落进生成器模板」由本清单的 `shared_gate_axes.groups` 承载 —— 按**组**登记、整组一次报警，不按项各写一遍。"
+  }
+ ],
+ "counts_echo": {
+  "constant_items": 161,
+  "grid_items": 110,
+  "pending_items": 7,
+  "buildings": 10,
+  "truth_rows": 2780
+ }
+}

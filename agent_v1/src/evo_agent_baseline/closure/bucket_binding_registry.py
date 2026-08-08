@@ -94,7 +94,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "81aed58f3249e9c2f2798beeeae2e324ff05828d706b3e853b7f543b679818e0",
+        "card_content_sha256": "99efe1aef43122543c7ba3f998b5943b872b08804637b69ba592479e2a6621e7",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -106,7 +106,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "2eba2cf9015f1fec2f4644249fc25e75dec721727ae87642e94f9b72b0cbae49",
+        "card_content_sha256": "3ba45dd627b8a68968e458a2ad0a8b6032b8ce50f9fca1f79ae3bac2b1247a6d",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -118,7 +118,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "2494f2e73e282d5000fe4ce3cab60b0a080ee4bdc460339fcfa2e1ebbf66cf73",
+        "card_content_sha256": "f75e98f6137abb185ad730493d93d1e1912ce4ad86cb0b09f00c6cfed7878ffa",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -130,7 +130,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "53dc01df9306ee10c0889dc979acb6b5794f89547c68e6fdb4285d1bd4fe1522",
+        "card_content_sha256": "0a5ce90ef8d1e24cc88e9da17b98ed4e70f3850949556ec33c2cfec747107520",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -142,7 +142,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "804487e9b0897cf6c0217bc34902654863a027746aa3213f50306c32ae8e55c9",
+        "card_content_sha256": "c5c9ac7ddd109cc7d6df0bd0438ea931d20d5c1497c7ccc2183d9db09c3c5d4a",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -154,7 +154,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "392da62e577aff59b43fe1c3635770daabd1d5da60329bc4ddfacc4345406020",
+        "card_content_sha256": "82a609bcdb8da1bc0a9d6ab5808591a573537bb472d987a86b1b7efd964a936f",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -166,7 +166,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "89d3dfc3ba2b38be5363e7d407e317f434df49de6df984cf6d19040756951c43",
+        "card_content_sha256": "bd6981af4b9f5becdde8da6e4623dd5b45cf8a6bda5c0da47f9bd439a7da0c78",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -178,7 +178,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "4fab33ac06ad74badfb71ef2d58fbb5792d681a382ebb67a8106fe7c3e7b997f",
+        "card_content_sha256": "832de9d8bbde2f800bb4af07f3b3c3a13f3ea14bf2bae34bca4b22a1c522d08e",
         "runtime_obligations_batch_i": 264,
     },
     {
@@ -466,7 +466,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "685cad071732f706d3818ba09e7491f9fb69891be2d26b5c52b846c2c17cbb31",
+        "card_content_sha256": "7044c4cb3ed8495ead967b8f54f6feee27298d3604fffba73e8af99fe1905d0b",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -478,7 +478,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "de0669ed90d86e914e2dd42049f839eb693d3c9a1772e13f9206e9b44bfc5935",
+        "card_content_sha256": "809f8e91876fd53fa13fb2030558b80cf310662e58af26f326075ab7be104bf4",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -490,7 +490,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "cabee94a16d8748f821731421aec9f0118f62d794af0f729d10fdbea8d9be5f9",
+        "card_content_sha256": "327df00990528030c81af30b60e5870200dba53aed22e920b99ac34be37e6cab",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -502,7 +502,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "85bd83b514bd11b2fafee4afc5b112ba9d6b3d8e65699658efdf62447ad7f385",
+        "card_content_sha256": "8adf0a5f13a2ee90b39a2c53c467bdb6f6b66c1ba6f5156dbb5263382e6572c0",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -514,7 +514,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "609e4acdf8551ef79bb1f5dddb98d8e0cde3ab7abe80026bd532ed4d180af7d3",
+        "card_content_sha256": "20ef3e2b3a4202423f1d1a32e15f8c48081c13872ac4c91e61088a1426e7ed3d",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -526,7 +526,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "2c706072055c4329b233c15cab98c3f78a2b6fc234ca87dfae176ca78c03ae4b",
+        "card_content_sha256": "4a037644a5fd707fb9abb3a879e3591b91db8dbb9b33bd887d834d54eaee331e",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -538,7 +538,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "c2c83ec3e863e25a4bcc8b2160ebf2c487568085e51c82abae2f4200afcd3d10",
+        "card_content_sha256": "a323f071ec3bd82b7aae44901bf290b203b567f17090a30ecb7a71ae4d776bfe",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -550,7 +550,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "7c348b071acc70592cdcbc25b6363a55b54bdd765408bac0dffa7ff39800af89",
+        "card_content_sha256": "08cb858dea8acb1e9a6f08f883b2869484689e3ac965fcc4b9702ed3ec2286a0",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -562,7 +562,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "3d290113c57735a0ccb7b6223b1ec74e6f7a1c055592f5e03ee95fd45ab04d56",
+        "card_content_sha256": "0541ec353cfe1adb8a3f53d40def4c844d828de415c7cd1dbaf0f4bbfb94707e",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -574,7 +574,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "82d239f5215e2093358d137af2dd425b4e0f5713f8d542aae7087d96fbce6e53",
+        "card_content_sha256": "86ce646040ea4a2e6b264012d415e0c6709e2ab1842477061481fa47a2a77192",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -586,7 +586,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "f5ddad729438f0b865ec2ba616b8ad66606ba9e79416299a653a7c11b0b7bcf3",
+        "card_content_sha256": "9361d210def3aa2edd3dc5a7ee74edde72d9a83716188e37839ab1009e2fd131",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -598,7 +598,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "9f68c0eb0450ee7cdfc77336a2d9f7e3a21c3c2ed8a559a14cd740ab6021eee8",
+        "card_content_sha256": "6968177789c3e6106f6f35238bba9c389dcec16e0baedcd886f6fb8db524209c",
         "runtime_obligations_batch_i": 132,
     },
     {
@@ -742,7 +742,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "af9550faa82a71c27558f9b0481d532e0d2ebed6b77dbea2819f81c3b530f6c1",
+        "card_content_sha256": "c8a8f250b17542835098d937cdc8f03e581e2a63b76df543913d70bad2738177",
         "runtime_obligations_batch_i": 101,
     },
     {
@@ -874,7 +874,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "4b92f1e37f22843e54d19e93fdf408d77481c583d493637e3f116fd053719330",
+        "card_content_sha256": "48fee644847f44a688e9624199b2eac6fb981f536d5e146d8af4ed74122bf85b",
         "runtime_obligations_batch_i": 90,
     },
     {
@@ -1258,7 +1258,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "092c8d997f61acd8a391a1d1a76cb2efa5f497f5a52591b1cce1a6576979fd45",
+        "card_content_sha256": "bd9db2f27e2ca14873efee45268440adc9244cb9d27ddcc83e3c259a434d0b99",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1270,7 +1270,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "d711fb96218199c65294016566fdec227602bddfd0a14157dde3fa8402e26a66",
+        "card_content_sha256": "350b975062d4e83ae32b1ae164ced4c9f22dc79a6f37e47b75f78a3c3cf7e8a5",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1282,7 +1282,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "71ec765b329a665ea3ba148d46715cf875080af9194d250551e93f364f62d32d",
+        "card_content_sha256": "2cc8f6d831a0b0ee1e0eac773519463f369d1cbf33b5ce3a0c393e0f6dd1ca9f",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1294,7 +1294,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "a84825a59ae6301c74172b0c88dc5358731c03d65796f96d541130f0e6f0083d",
+        "card_content_sha256": "cf3afeb4e24f725fb9f5405d233b45c65e1cd178847648fec8cc6a113da28ec1",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1306,7 +1306,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "54b229dfe0618a45c6f8f679fc183b38a2d8bfa71bd113683831d740c01eee57",
+        "card_content_sha256": "0413bbed963b4d5dec88896a2beadb1c307c035729a806fc21f02cc01192e71c",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1318,7 +1318,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "ccd28ce7a770ce32ad2a84071b7db89dd647a2b74d40dd67a34000cc0ecd8e76",
+        "card_content_sha256": "eef165aea258ccd81186d35dfa9c5a0009cdba8b8829e73212f7498e5ce44f31",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1330,7 +1330,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "f12edf2dec401813444e051069d318d41648b948ef73e8a802c2c9cd1a1ad179",
+        "card_content_sha256": "2e9f7088467c6b4abb075a36d64175d665aa5af6d2da43045fbb8b6a292d709e",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1342,7 +1342,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "21ff6f6c42e98acf6083c02e578f6d8459203fa99edd188c676bb7b681b7b48a",
+        "card_content_sha256": "3e4a08e2254b2f7cd2a5214bd0855af5def91fe9c6abf750d20bd945ab3811c4",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1354,7 +1354,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "90518e8f1b87ce7fe2b5593bb310824c6c57e6738275573497f2b8b40071d4ce",
+        "card_content_sha256": "450edec55fa5c4d13fd2a61e7d76f6400e37dd3deb03309750c0eb5490ec881c",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1366,7 +1366,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "行为须发生",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "6a62bc4e6e29272cdb96ba871345d6f9eeb41134ac302c00902c1ac942effac1",
+        "card_content_sha256": "0bbfd82e03c634b4bb0586f550873542759d43d64b863d96e53af88e91a200d8",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1378,7 +1378,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "e393e367cb85a15b8a5b76992b29aa220b3cafdb7e1c0e092b87bc41910b64e8",
+        "card_content_sha256": "f7d56bc1e59214efb068071087617fb1c4c648eda17f42be0dfe3e7eea9c9910",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1390,7 +1390,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "f014981ebf3d95413948f825587031e0126158c3ea94d28098d059585a40126c",
+        "card_content_sha256": "798bf60aa63020bef1032a8655852ec05e5aa8458493ad61e39af2b58144c29c",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1402,7 +1402,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "bf645a4f91e3e3d62acab42fab1896cd4190ade2f72f714b3182b63bfe2f5639",
+        "card_content_sha256": "2ac6e5c4a1bd7f1ef76433c462903017b5556f5033faa89ee13427432f5b82ca",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1414,7 +1414,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "9dcd9c428e1ebd38fee16ac835baebfd508cbaa6d1841175b2742f86494b4a30",
+        "card_content_sha256": "984ffafeed3f36585b4567ca90022aa27ef255e9d16c0531047e55fc42873791",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1426,7 +1426,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "9e2b8a095bc9f045ead68e6c9e18efeae63ae15b841f7bdb184e5eff787c96ee",
+        "card_content_sha256": "72533d0c08386a6530b70dba8aa9841d1e1418d78b93d1217860f5a646a1683a",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1438,7 +1438,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "a91e7c714045683e7ec40bbef3ca847258e3be7c5654264776672a7a8b652ba0",
+        "card_content_sha256": "56611f969773810605379f669ef2891f06e8e0d708347945edcb4032cf07c6ea",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1450,7 +1450,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "87c270fb33646e9b08d8b671f5d6863d1c558ae41917101137758eef160784c8",
+        "card_content_sha256": "6cd7085dd96b7536617fd0e0068a13f96f8c98b3e029dde36df1209ed5d5214b",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1462,7 +1462,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "320dddc2c9490bef2fc2d60c75a790c09567672bb0026b8d5e4bdd43954f125b",
+        "card_content_sha256": "9cd4afd8e54751595264c1563b437501bf07dc0593791ba957f9cb8fceb2bbf6",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1474,7 +1474,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "45e6c504087f307255c2bfebd2023071999490768a1c0f215a587fe0746c4728",
+        "card_content_sha256": "c51975efb2175a4b7e8cceb9d42d9fd96c7151a78f03b5bc757d4814d4db6e45",
         "runtime_obligations_batch_i": 40,
     },
     {
@@ -1990,7 +1990,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "d9ba1f643d9988a285efa8dfb43840f7f5775bbd52a9424cc7791a2f0f2a1e98",
+        "card_content_sha256": "7f6fc630da333d94b517856d90590d0aa58c4d1c8e61f83f3c1d2999a7cabe60",
         "runtime_obligations_batch_i": 20,
     },
     {
@@ -2002,7 +2002,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "8f4d005a04a94baadec1e288b031ce0938af99ad6137c2c94676bb35229e58a4",
+        "card_content_sha256": "a8f5e4a521767f9d45862ff710bc807e52d1bf7b3f4608abb9b0c7a04e282369",
         "runtime_obligations_batch_i": 20,
     },
     {
@@ -2014,7 +2014,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "b5695ff9ab8b9611569c5493bf1c84395e6f100c631e7af8a2ab7036de154db3",
+        "card_content_sha256": "cf2c9104faa070a4acfb1dbf14d877e3446aec07496de18f0b8980ef7d90e6fe",
         "runtime_obligations_batch_i": 20,
     },
     {
@@ -2062,7 +2062,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "9e0a741aa46fe36c6a2861cb2aa9311ab07982bf334e9469b4d69187775397a5",
+        "card_content_sha256": "c47415b7eb2b7a7ce191a70feba3e33e5b427d807d14fa57130fb02c5b6cb622",
         "runtime_obligations_batch_i": 10,
     },
     {
@@ -2074,7 +2074,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "49b213f69d52fe371722fdabedf434f4f99a746e9988b09a83dd5ebd21f7c57a",
+        "card_content_sha256": "b2a73a7fd09d2aa3fa82e515a4c7d0c69ad0552234c9f6a6668a6b796a3b40e6",
         "runtime_obligations_batch_i": 10,
     },
     {
@@ -2086,7 +2086,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "a9a7a22eddab66c5860cc91f08d9a41bc1f16d9ce2decd6f891d7633b7e11699",
+        "card_content_sha256": "8569da8141c356ff9e8f0c03d52638ea8374f0baab7f6ffe67ad4fdfc51d9005",
         "runtime_obligations_batch_i": 10,
     },
     {
@@ -2098,7 +2098,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "185d2f9dd6765cb2d099a1e4f84802558a45900b5e8987594d0953fdb1a34102",
+        "card_content_sha256": "a59a811b6574d64ccb6aa332268bc8861ab79dfbe9cfb3f8788280b89087cfa6",
         "runtime_obligations_batch_i": 10,
     },
     {
@@ -2110,7 +2110,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "ebe26d5eb7c296093aac66d8c6262a2ddbfe3f6f0463ae0a85d20c340f366c43",
+        "card_content_sha256": "9cc70f6881ae323980d29f5673baaef55a75e36656106e3bc0eec3cf86693ff9",
         "runtime_obligations_batch_i": 10,
     },
     {
@@ -2122,7 +2122,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "52614fda248f091dc3cd2df7bd99b434bdaf3385e000849c2d1c8533caca1adc",
+        "card_content_sha256": "7e2c4ccf4afd2e2d2e25b9a19cdfd67c1d83f79c900ce5b2154d395ced77934d",
         "runtime_obligations_batch_i": 10,
     },
     {
@@ -2158,7 +2158,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "b7518b66c103ba49861b2003a37de7020edeaa3da8c85954174b150d4373926f",
+        "card_content_sha256": "bfa7faf3570206ba4893a8d0e6716e1d87773b1fbc2fd42f287fb12d4d2d5d89",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2170,7 +2170,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "10a41c1d3a63e1930deabdfdebe922c2a663d4592739af23d68581e6d48f8f20",
+        "card_content_sha256": "11d6644368cc37b44bec1ea7a6850696b762357b8950a74d679fc98e0ee8e9e0",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2182,7 +2182,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "5134b293bdffbd3d514f45c789d7313b4893be86b34df39452b8483ac10c9fee",
+        "card_content_sha256": "a25de90ea0d51c31a4009dac3883c5450ff7d5a2ec63ba720b9c1abe16949ebb",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2194,7 +2194,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "a936690016e0c6dcbefaaeccb8e4f2e3630d9d411cee562c3f5764763a577180",
+        "card_content_sha256": "e593adb73e98176299ea2d739b76a0806e82830d397c65e2cc3f631f0c944057",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2206,7 +2206,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "f4110915e6fa43919de940bcbfc8043bf2d0a86761691929e76851adf850e901",
+        "card_content_sha256": "668c3130c3f89780a4fb30084e5471317960a05c427355c6d776fd5ac43b8e91",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2218,7 +2218,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "1333b0f7c37d4d64cf5ef28b82b46e20e9d43b531cad3258d96ba218531b380c",
+        "card_content_sha256": "2ee5c2fc259468b8051d868ac3047e4568639654dd51dc731d7a9d374cfdd8a0",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2230,7 +2230,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "ec01657c9f9b35dd80affbfc98e844574c909fc7037c855a61eac8d3e3f9d7ed",
+        "card_content_sha256": "545ff44112848e58c23b5c13f06ddaf6794f32bfdc920247f9d26ab757d12e95",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2242,7 +2242,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "b9c474ed93d7f19e30ba4fbbb94d7cfa8cf5bdfe2618d8fea8a3997afe4c9a69",
+        "card_content_sha256": "5f139cd0bcf2dad6ca70aa8f44c98ed19bb1680542cdfaf963ab5184084519bb",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2254,7 +2254,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "e53f8289eb727bb71fc61ba9495b4142f502a8ca3633742a23175d572f2e9a4d",
+        "card_content_sha256": "023fbbd95a362012336b31b9785936ec8f01e7a5810efd2c08501cd01eb6c46c",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2266,7 +2266,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "6a017fd9230500327ac6e0184c7d042ed7c8dcecae8ab6a1c257fbce7ae5ed23",
+        "card_content_sha256": "93c27651c19475f89cc81193ac7c7064e8f0f292d99b1140c8425d7463ed1ad3",
         "runtime_obligations_batch_i": 6,
     },
     {
@@ -2290,7 +2290,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "e88e4ad64439dfd539c7d5a3639579396ecd7e8a49c71886d055f38cf6dae2aa",
+        "card_content_sha256": "8d2b7a6c51e76517046d33833043edfe76c8317df85decc9d6a13ab868483f0c",
         "runtime_obligations_batch_i": 5,
     },
     {
@@ -2302,7 +2302,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "20361a73d327388de59198985edd95667748e12a54dbc9919bbb5d2c21a2b461",
+        "card_content_sha256": "1ddf21d84a64c83989b369cafe896203761165123f4f1d9708b8430ff0e674ee",
         "runtime_obligations_batch_i": 5,
     },
     {
@@ -2326,7 +2326,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "与本产物无关",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "cdd294a222e9933aa57675835e6c1c6b2120864401104f909f6e94075adbdb57",
+        "card_content_sha256": "09633f157080a8268dc334d65c041eee7983fa6e09b49f02654324bcb33853ce",
         "runtime_obligations_batch_i": 3,
     },
     {
@@ -2338,7 +2338,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "f72ddf35fc7a1aa21dbb292df040a7cd430ce48c082f8cd666e2df07dd1bb237",
+        "card_content_sha256": "c991efe07fa5443e1c65afde18ea19a1938c6bf83103c6e049c25eb051af4800",
         "runtime_obligations_batch_i": 3,
     },
     {
@@ -2350,7 +2350,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "行为须发生",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "f5aafa6b428cc05e2724a5704e86115cbecfcec0f56e5ba0a3a62bcea3ef5f2f",
+        "card_content_sha256": "9c0c794db0c046ad40410387c88ba5cfd1ea9fc0cc17c8b26579db55581aaf24",
         "runtime_obligations_batch_i": 3,
     },
     {
@@ -2362,7 +2362,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "a63e9196db49af1259b1a6ec0126cd469666f0e3b34bdc7cea7fb33152adee59",
+        "card_content_sha256": "b298794120ccda3e3658c0c762cbeef379d56263bb08ea9ddd5d405766d3fdff",
         "runtime_obligations_batch_i": 3,
     },
     {
@@ -2374,7 +2374,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "80fb4c5c4e92d02c6236863dbd8f6ae1f03ee1b69211a22a3038f1a73b60dd2b",
+        "card_content_sha256": "9c6b2d117e8a0f8a0f9c1c2b51cb399327effa1c7395622191989df20668fa42",
         "runtime_obligations_batch_i": 3,
     },
     {
@@ -2386,7 +2386,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "5bf1c8af90e6cd40871e9e17e8e96fa2a28a9b202d029a7cf858d4f0ebcf0b7d",
+        "card_content_sha256": "3dc294dea0ac935b89ea92dce75f703f8860fa64f6ad81c2464f1e54f548cdd1",
         "runtime_obligations_batch_i": 2,
     },
     {
@@ -2410,7 +2410,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "0bc176723b1c32cdf9e9564bee090241dbf6556ab0f5d9cc7498405f724bd601",
+        "card_content_sha256": "5fe2606dc8ba61de8f573fdb6ce131f32bc4f0600f29d947476c134348237d0e",
         "runtime_obligations_batch_i": 2,
     },
     {
@@ -2434,7 +2434,7 @@ BUCKET_BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple([
         "adjudication": "须呈交签署载明",
         "policy": "diagnostic_only",
         "verdict_permission": "none",
-        "card_content_sha256": "f5cf7d30d9270d40174ff70156458b4ebbedd05711f9d7df0889bc3563b839c8",
+        "card_content_sha256": "f1c72ef1692c1b333574fac2ba9c7a1059f1b65239c5afda334ea605ed9d8534",
         "runtime_obligations_batch_i": 1,
     },
     # ===== 残余 50 误评止血追加（2026-08-04，row 199-207）=====
@@ -2727,12 +2727,29 @@ def _c55_bucket_vc_views() -> Tuple[
     fail-closed：授权对连不上活行（行失效/卡号笔误/轴键不符）⇒ 入拒绝侧，
     命中即 blocked/schema_contract_violation——授权登记在案却哑火必须可见，
     不许静默退回拒判老路把「授权失效」伪装成「从未授权」。
+
+    🔴 **连接判据＝身份，不是政策**（2026-08-05 #33 保护闸落表时修正）。
+    原判据只接 `policy=="value_consumption"` 的行。#33 把 22 行翻成
+    `diagnostic_only` + 耦合未证出口后，若判据不改，四个授权对会**全部**连不上
+    活行 ⇒ 落进 `C55_BUCKET_VC_REJECTED` ⇒ 求值器出
+    `blocked/schema_contract_violation`＋文案「授权失效/缺失」。
+    **那是把一次有意的、经决策门裁定的收紧，在产物里伪装成系统故障**
+    ——正是本条 docstring 上一句要防的反面（方向反了：不许把「授权失效」
+    伪装成「从未授权」，同样不许把「有意拒判」伪装成「授权失效」）。
+    ⇒ 连接照旧按 (卡, artifact_key) 建立；**该行今天准不准判，由
+    `_bucket_axis_value_consumption` 里的共享判据
+    `coupling_unproven_exit_code` 决定**，不由能不能连上决定。
+    fail-closed 语义不变：真正的连不上（卡号笔误/轴键不符/行失效）仍入拒绝侧。
     """
     from evo_agent_baseline.closure import binding_contract_registry as _a
     by_pair: Dict[Tuple[str, str], Dict[str, Any]] = {}
     dup: List[Tuple[str, str]] = []
     for r in _a.ACTIVE_ROWS:
-        if r.get("policy") != "value_consumption" or r.get("row", 0) <= 37:
+        _governs_value = (
+            r.get("policy") == "value_consumption"
+            or _a.coupling_unproven_exit_code(r) is not None
+        )
+        if not _governs_value or r.get("row", 0) <= 37:
             continue
         axis = str(r.get("qualifier_axis") or "")
         ak = next((kv.split("=", 1)[1] for kv in axis.split(",")

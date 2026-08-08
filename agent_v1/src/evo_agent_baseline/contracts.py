@@ -114,6 +114,19 @@ OpenReasonCode = Literal[
     # 但该精确绑定未获裁定授权——不缺槽绑定也不缺事实，缺的是"消费这类读数
     # 产判定"的授权（丁组待裁保护；不 blocked、不借 schema_contract_violation）。
     "binding_requires_adjudication_authorization",
+    # 2026-08-05 #33 保护闸（决议_33处置_20260805.md §一.1）：世界记录到该产物的
+    # 呈交/送达/签署状态，但「产物存在 ⇒ 事件发生」这条耦合在世界侧尚未建立
+    # （四根 reporting 轴 `conditional_inputs=[]`、与程序闸零耦合、独立伯努利采样）
+    # ⇒ 该读数的证据力未证，不据其判定义务已履行。
+    # 🔴 与上面两个诊断码的分工——**时效性不同，别合并**：
+    #   · `artifact_state_not_valid_evidence` / `diagnostic_binding_not_valid_evidence`
+    #     ＝「**永久**不能确立」（已逐条对中文原文裁定该类读数与该义务不同质）；
+    #   · 本码 ＝「**耦合未证、根治后可解封**」（读数本身合法且同质，缺的是世界侧
+    #     条件依赖）。写成「永久不可核验」是**越界**。
+    # ⚠️ 本码同时覆盖真假两侧（诊断行两出口必须同码，见
+    # `binding_contract_registry._schema_violations` 丁④）：读数为真但耦合未证、
+    # 与读数为假，共用本码——故文案**绝不可**写成「文件不存在」（真值侧是事实错误）。
+    "evidence_event_coupling_unproven",
 ]
 
 
@@ -463,6 +476,9 @@ UnknownCauseCode = Literal[
     "observed_false_without_violation_basis",
     # 绑定未获裁定授权，程序拒绝据聚合/待裁读数下判定（S3，2026-08-02）。
     "binding_requires_adjudication_authorization",
+    # #33 保护闸：查到呈交/送达/签署读数，但「产物存在⇒事件发生」耦合未证，
+    # 不据其判满足（2026-08-05；根治后可解封，与两个「永久不能确立」码分立）。
+    "evidence_event_coupling_unproven",
 ]
 
 

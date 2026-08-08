@@ -1,0 +1,121 @@
+{
+  "schema_version": "component_class_scope_native_alias_v1",
+  "version": "2026-08-07",
+  "authority_note": "阅卷侧口径登记表，**不进判定权**：本表只被 agent_v1/scripts/score_clause_coverage.py 的片段标签计算消费，闭包验证器 / 义务派生器 / 大模型一律不读。判定权红线不变（合规判定只由 closure/validator.py 的 validate_building_closure 产出）。",
+  "problem_statement": "真值的 `scope_type == \"component_class\"` 行用的是**条款对象类**（懸臂式伸出構築物 / 欄杆類 / 外牆飾面），而阅卷器看到的片段标签只有两路来源：①归一后的 `component_type_key`（8 个粗值）②`component_class_scope_conjunction_v1.json` 的 (粗类 ∧ 物料) 合取。两路都**看不到世界原生的 `component_type`** —— `balcony_slab`（露台）与 `parapet_wall`（護牆）双双被归一成 `external_component`。于是「本栋有露台、有護牆」这件事，在阅卷器眼里等于「本栋没有懸臂式伸出構築物、没有欄杆類」，条目落 `supply_side_no_fragment_of_class`（＝世界没造题），而真相是世界造了题、系统还评过。",
+  "why_not_the_conjunction_table": "🔴 合取表结构上表达不了本表要表达的东西：`balcony_slab` 与 `parapet_wall` 在池 v2 里**粗类与物料完全相同**（`external_component` ∧ `reinforced_concrete`），合取表只能同时给它们两个标签，等于把露台判成護牆、護牆判成露台。唯一能区分两者的信息就是**世界原生 `component_type`**，故必须另立一张按原生类键的表。两表并行、标签取并集。",
+  "semantics": {
+    "match_rule": "片段 f 满足对齐标签 X ⟺ ∃ pair ∈ X.pairs 使得 f.native_component_type == pair.native_component_type **且**（pair.material_systems == \"any\" **或** f.material_system ∈ pair.material_systems）。",
+    "native_component_type_source": "两跳 join，与 `_fragment_material_map` 同一条权威身份通道：`w0_component_identity` 事实的 `qualifiers.fragment_id → qualifiers.component_id`，再取组件载体上 `slot_id == \"component_type\"` 的事实值。**不从片段 ID 尾段猜、不从 `canonical_component_type` 反推**（后者就是被归一吞掉的那一层）。",
+    "material_any_must_be_explicit": "🔴 `material_systems` 只接受两种写法：字符串字面量 `\"any\"`，或**非空**的字符串列表。空列表 / 缺字段一律 fail-loud。理由：本仓已有「空集被当成放行」的静默退化先例，「不限物料」必须是一次写下来的声明，不能是漏写的副产品。",
+    "labels_are_additive": "对齐标签是**追加**的：片段原有的粗类标签与合取细标签照旧成立，故 scope_id 落在粗值或合取标签上的真值行一格不动。"
+  },
+  "caliber_change_note": "🔴 本表落地即阅卷口径变更：`component_class` 行的匹配判据与 `supply_side_no_fragment_of_class` 判据（两者同源，都走片段标签集）同时放宽。改前后的召回与漏单**不可直接比较**，引数字必须点名「批次 + 口径日期 2026-08-07」。实测（批 `poolv2_llm_seed401_20260806` × 真值 v2 × 已恢复 `fragment_id is None` 放行的阅卷器）：全 10 栋逐项状态**只有 6 处翻转，且全部是裁定单点名的那 6 行**，供给侧缺口 11 → 5。",
+  "provenance": {
+    "decision": "裁定_11条供给侧_20260807.md §三.2（反事实实测）＋ §四.2 甲组终裁（6 条判「有故记录」，处置＝阅卷侧标签对齐，明确「不要补供给」）",
+    "regulation_source": "agent_v1/regulations/markdown/MBIS_CoP_2023.md（中文正文为唯一效力依据；卡的英文 source_quote 是译文、无效力证据力）",
+    "world_source": "批产物 fact_pack 的组件载体事实 `slot_id == \"component_type\"`（世界原生构件类），定义见 agent_v1/src/workflow_engine/worldgen/registry.py 的 component_type_registry",
+    "sibling_table": "agent_v1/src/evo_agent_baseline/eval/component_class_scope_conjunction_v1.json（粗类 ∧ 物料 的细标签合取；两表同一套举证标准，标签取并集）"
+  },
+  "entries": [
+    {
+      "scope_id": "cantilevered_canopy",
+      "truth_rows_in_anchor": 2,
+      "clause_ids": ["§3.4.2(B)(a)", "§3.4.2(B)(b)"],
+      "pairs": [
+        {
+          "native_component_type": "balcony_slab",
+          "material_systems": "any",
+          "material_rationale": "中文正文按**构筑物形态**（懸臂式伸出）列举對象，全句不提物料 ⇒ 加物料合取就是给正文没有的限定，属本仓记过的「卡侧凭空加限定」形状。",
+          "world_carrier": "component_type=balcony_slab（归一后 component_type_key=external_component，与 parapet_wall 撞车 ⇒ 合取表表达不了）",
+          "batch_observation": "池 v2 阅卷 10 栋里只有 0010 有该原生类，1 个片段"
+        },
+        {
+          "native_component_type": "canopy",
+          "material_systems": "any",
+          "material_rationale": "同上。",
+          "world_carrier": "component_type=canopy",
+          "batch_observation": "🔴 **本条在池 v2 上是恒等追加、当前一格不改**：`canopy` 已被 projection_runtime_mapping 的 `qualifier_value_aliases.component_type_key` 别名桥改写成 `cantilevered_canopy`，粗标签本来就等于本 scope_id（10 栋里 0020 一栋，标签已在场）。**仍然登记**的理由：正文把簷篷与露台并列为同一类對象，只登记露台而漏掉簷篷，等于让本表的语义依赖别名桥的一条实现细节——那条桥一旦改，簷篷会静默掉出去。"
+        }
+      ],
+      "excluded": [
+        {
+          "native_component_type": "external_appendage",
+          "reason": "§3.3.1(a)(vi) 的「附屬物」（金屬支架、遮篷、花槽、招牌…）是**外部構件**里另立的一项，与 §3.4.2(B) 的「懸臂式伸出構築物」不是同一个對象类：前者挂在外牆上、后者是樓宇結構的懸臂伸出。保守排除——假覆盖比漏更有害。"
+        },
+        {
+          "native_component_type": "signboard",
+          "reason": "同上，招牌在 §3.3.1(a)(vi) 的附屬物清单里逐字出现，不在 §3.4.2(B) 射程内。"
+        }
+      ],
+      "zh_evidence": [
+        {"clause": "§3.4.2(B)(a)", "line": 1128, "page": 27, "quote": "簷篷及露台等懸臂式伸出構築物均存在高風險，須予以檢驗。"},
+        {"clause": "§3.4.2(B)(b)", "line": 1130, "page": 27, "quote": "如註冊檢驗人員不能確定這些懸臂式伸出構築物的結構狀況及安全水平（例如在鑿開懸臂式平板簷篷檢查後，發現鋼筋嚴重銹蝕），則可考慮進行詳細調查。"}
+      ],
+      "evidence_kind": "regulation_text",
+      "status": "adjudicated",
+      "note": "「露台」在 §3.4.2(B)(a) 与「簷篷」**逐字并列**，是正文自己给出的同类枚举，不是工程近似。⚠️ 本条对 §3.4.2(B)(b)（真值 #2）的落点是 `correctly_inactive_by_trigger` 而非有故 unknown —— 裁定单 §七.2 已把它单列为待把关项（该项真值 `low_confidence=true`，且其第二层前件「註冊檢驗人員不能確定…」是世界侧无法表达的认知状态）。**本表不替它裁**：改 `correctly_inactive_by_trigger` 的可达性属阅卷判据变更，要另走决策门。"
+    },
+    {
+      "scope_id": "balustrade_railing",
+      "truth_rows_in_anchor": 1,
+      "clause_ids": ["§5.3.6(b)"],
+      "pairs": [
+        {
+          "native_component_type": "parapet_wall",
+          "material_systems": "any",
+          "material_rationale": "§5.3.6(b) 按**構件名**列举對象（防護欄障／扶欄／護牆／欄杆／圍欄），不提物料；§3.3.1(a)(iii) 同样只加位置限定（於外牆或屋頂邊緣）而不限物料。",
+          "world_carrier": "component_type=parapet_wall（归一后 component_type_key=external_component，与 balcony_slab 撞车）",
+          "batch_observation": "池 v2 阅卷 10 栋里只有 0010 有该原生类，1 个片段"
+        }
+      ],
+      "excluded": [],
+      "zh_evidence": [
+        {"clause": "§5.3.6(b)", "line": 1619, "page": 47, "quote": "於修葺防護欄障、扶欄、護牆、欄杆、圍欄及其嵌固件時，須更換所有欠妥的組成部分。"},
+        {"clause": "§3.3.1(a)(iii)", "line": 940, "page": 19, "quote": "於外牆或屋頂邊緣的防護欄障、扶欄、護牆及欄杆；"}
+      ],
+      "evidence_kind": "regulation_text",
+      "status": "adjudicated",
+      "note": "🔴 与合取表里那条 `balustrade_railing`（`external_component` ∧ `glass_balustrade_panel`）**并存不冲突**：那条走的是玻璃欄板物料轴、在池 v2 上 50 栋 0 片段（裁定单 §七.3 记的「登记了却结构上不可达」）；本条走原生构件类轴，把已经在场的護牆看见。两条同为 `balustrade_railing` 的充分条件，标签取并集。"
+    },
+    {
+      "scope_id": "external_wall_finish",
+      "truth_rows_in_anchor": 3,
+      "clause_ids": ["§5.3.1"],
+      "pairs": [
+        {
+          "native_component_type": "external_wall",
+          "material_systems": ["plaster_finish", "polymer_render", "masonry_plaster", "tile_finish"],
+          "material_rationale": "🔴 这一条**必须**带物料合取：`external_wall` 在池 v2 上还会掷到 `curtain_wall_aluminium_frame` / `metal_gate` / `metal_louver_fin` / `clay_brick` / `reinforced_concrete`，那些是幕牆 / 金屬閘 / 百葉 / 砌體 / 結構本體，**不是外牆飾面**，无物料合取就会把它们一并判成 §5.3.1 的對象。物料集恰取正文列举的两类：批盪（plaster_finish／polymer_render／masonry_plaster）与瓦片牆磚（tile_finish）。",
+          "world_carrier": "component_type=external_wall",
+          "batch_observation": "池 v2 阅卷 10 栋里命中 3 栋：0010(polymer_render) / 0017(plaster_finish) / 0020(tile_finish)"
+        },
+        {
+          "native_component_type": "wall_tile_finish",
+          "material_systems": ["plaster_finish", "polymer_render", "masonry_plaster", "tile_finish"],
+          "material_rationale": "同上口径；该原生类归一成粗值 `wall_tiles`，与真值用的 `external_wall_finish` 不在同一层。物料合取照写，不因为「名字看起来就是瓦片」而放松——判据要一致，不看名字。",
+          "world_carrier": "component_type=wall_tile_finish（归一后 component_type_key=wall_tiles）",
+          "batch_observation": "池 v2 阅卷 10 栋里 0020 一栋（tile_finish）；该栋另有 external_wall(tile_finish)，两条同时命中同一 scope_id，属并集去重"
+        }
+      ],
+      "excluded": [
+        {
+          "material_systems": ["stone_cladding", "aluminium_panel_cladding", "gfrc_panel", "curtain_wall_glazing", "curtain_wall_aluminium_frame"],
+          "reason": "🔴 覆蓋層与幕牆虽然也在 §3.3.1(a) 的外牆系统里，但守则给了它们**各自独立的修葺章节**：§5.3.2 覆蓋層、§5.3.4 幕牆，与 §5.3.1「批盪及瓦片」并列。把它们纳进 `external_wall_finish` 会让 §5.3.1 的「拆除及重裝批盪瓦片」义务落到幕牆嵌板上。且合取表已分别把它们登记给 `cladding` / `curtain_wall` 两个 scope_id ⇒ 纳进来还会造成两表重复授权。"
+        },
+        {
+          "native_component_type": "false_ceiling_common_area",
+          "reason": "假天花板属 §5.3.6(a) 公用走廊及大堂飾面，不是**外牆**飾面。"
+        }
+      ],
+      "zh_evidence": [
+        {"clause": "§3.3.1(a)(i)", "line": 936, "page": 19, "quote": "牆磚或瓦片、批盪及覆蓋層等外牆飾面；"},
+        {"clause": "§5.3.1", "line": 1577, "page": 45, "quote": "5.3.1 批盪及瓦片"},
+        {"clause": "§5.3.1", "line": 1579, "page": 45, "quote": "在一般情況下，最有效可靠用以修葺批盪及瓦片的法是將其拆除及重裝。"}
+      ],
+      "evidence_kind": "regulation_text",
+      "status": "adjudicated",
+      "note": "本条对齐后这 3 行**仍是漏**（落 `retrieved_no_evaluation`）——这是**诚实化不是修复**：归因从「世界没造题」改成「系统承接了却没评」，与另外那一族同类。裁定单 §六.2 已预告这会让 RNE 桶显形地变大。"
+    }
+  ]
+}

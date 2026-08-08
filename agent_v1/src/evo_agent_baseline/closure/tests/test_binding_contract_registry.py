@@ -49,9 +49,15 @@ def test_registry_shape_and_derived_views():
     assert len(keys) == 125                                  # 唯一键（无碰撞）
     assert len(reg.ACTIVE_ROWS) == 125 and not reg.STALE_ROWS
     assert reg.DISABLED_REASON is None
-    assert len(reg.VALUE_CONSUMPTION_BINDINGS) == 23         # 行 37 ＋ c55 批 22 行
+    # 🔴 2026-08-05 #33 保护闸：c55 的 22 行（105-126）翻成 `diagnostic_only`
+    # ＋耦合未证出口 ⇒ 值消费 23→**1**（只剩 row 37 先例）、诊断 102→**124**。
+    # 依据：`决议_33处置_20260805.md` §一.1 ＋ `重核准记录_33保护闸_20260805.md`。
+    # ⚠️ 这三个数是**冻结登记数**，改它必须是重核准的结果，不是把断言改成实测值。
+    assert len(reg.VALUE_CONSUMPTION_BINDINGS) == 1          # 仅 row 37 先例
     assert reg.VALUE_CONSUMPTION_BINDINGS & reg.DIAGNOSTIC_ONLY_BINDINGS == frozenset()
-    assert len(reg.DIAGNOSTIC_ONLY_BINDINGS) == 102   # 36+65+2 止血（诊断面不因 c55 变）；件四批 1 退役 row 21（诊断型）103→102
+    assert len(reg.DIAGNOSTIC_ONLY_BINDINGS) == 124   # 36+65+2 止血−退役 row 21 ＝102，＋#33 翻转 22
+    assert len(reg.COUPLING_UNPROVEN_BINDINGS) == 22  # #33 射程，全在诊断集内
+    assert reg.COUPLING_UNPROVEN_BINDINGS <= reg.DIAGNOSTIC_ONLY_BINDINGS
     # A 批 65 行把粗槽面从 4 扩到 21（2026-08-03）。这里**不逐一列举**，
     # 改锁两条不变量——列举一长串槽名只会让下次扩表时机械照抄，锁不住任何东西：
     #   ① 旧 4 个必须仍在（不许被新行挤掉）；
@@ -407,15 +413,32 @@ def test_every_production_diagnostic_row_declares_the_exit_its_facts_will_take()
     两类都由 `diagnostic_refusal_reason_code()` 在运行时按**事实分类器**分流，
     本测试锁的是**声明与那个分流一致**——不一致会被丁⑤ 在运行时 fail-closed，
     但那太晚了，应该在这里先炸。
+
+    🔴 2026-08-05 加**第三类**（#33 保护闸，`重核准记录_33保护闸_20260805.md`）。
+    翻转集 22 行（rows 105-126）也是 `diagnostic_only`，但它们的原因码
+    **不由事实分类器分流**——同一条呈交轴读数在闸下是「耦合未证」、根治后是
+    「耦合已证」，**事实类型一个字没变、变的是行的授权状态**，分类器结构上答不出。
+    故它们是**声明驱动**的，求值器读行级声明直出该码
+    （`_diagnostic_contract_terminal` 里的共享判据先行）。
+    ⇒ 本测试对这 22 行改锁**另一条不变量**：它们必须恰好等于闸的派生视图，
+    且两出口同为闸码。分类器那条断言对它们不适用（套上去必假）。
     """
     from evo_agent_baseline.closure.obligation_deriver import (
         DIAGNOSTIC_ONLY_AUTHORIZED_BINDINGS, W0_09_ARTIFACT_SLOTS,
         ARTIFACT_STATE_OPEN_REASON, DIAGNOSTIC_BINDING_OPEN_REASON,
     )
+    gate_exit = f"open/{reg.COUPLING_UNPROVEN_REASON_CODE}"
     rows = [reg.SCOPE_PRECISE_BINDINGS[k] for k in DIAGNOSTIC_ONLY_AUTHORIZED_BINDINGS]
     assert rows, "断言不能跑在空集合上"
     seen_artifact = seen_plain = 0
-    for r in rows:
+    gated_keys = set()
+    for k in DIAGNOSTIC_ONLY_AUTHORIZED_BINDINGS:
+        r = reg.SCOPE_PRECISE_BINDINGS[k]
+        if reg.coupling_unproven_exit_code(r) is not None:
+            # 第三类：声明驱动，分类器不参与。
+            assert r["true_exit"] == r["false_exit"] == gate_exit, r["row"]
+            gated_keys.add(k)
+            continue
         slot, src = r["slot_id"], r["aggregation_source"]
         is_artifact = (slot in W0_09_ARTIFACT_SLOTS
                        or src == "slot_target_fallback")
@@ -428,8 +451,12 @@ def test_every_production_diagnostic_row_declares_the_exit_its_facts_will_take()
             seen_artifact += 1
         else:
             seen_plain += 1
-    # 两类都要有样本，否则断言可能在空的一侧空过（本项目既有教训）。
+    # 三类都要有样本，否则断言可能在空的一侧空过（本项目既有教训）。
     assert seen_artifact > 0, "产物态行一个都没有？表构成变了，先查"
+    assert seen_plain > 0, "非产物行一个都没有？表构成变了，先查"
+    # 第三类必须恰等于闸的派生视图——不许出现「声明了闸码但没进视图」的漏网行。
+    assert gated_keys == set(reg.COUPLING_UNPROVEN_BINDINGS)
+    assert len(gated_keys) == 22
 
 
 

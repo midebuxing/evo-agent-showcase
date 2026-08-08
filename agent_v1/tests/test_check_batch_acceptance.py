@@ -132,7 +132,18 @@ def _complete_delivery_for_payload():
         "truth_building_count": 1,
         "truth_chapter_count": 1,
         "card_quantifier_meaning": "any=条款级",
-        "overall": {"covered_count": 1, "applicable_item_count": 1},
+        # 分母三件套必须齐（2026-08-06 P4 门限契约）：召回分母、召回本身、挂起量。
+        # 缺任一项都会被新的 fail-loud 判成证据未闭合——这正是它该做的事，
+        # 故这个「完整交付」造具也必须造完整（旧版只有 covered/applicable 两项）。
+        "truth_applicable_state_counts": {
+            "applicable": 1, "not_applicable": 0, "pending": 0,
+        },
+        "overall": {
+            "covered_count": 1,
+            "applicable_item_count": 1,
+            "applicable_item_recall": 1.0,
+            "pending_item_count": 0,
+        },
     }
     return {
         "A": {"eligible": False, "status": "not_applicable", "detail": None},
@@ -173,7 +184,7 @@ def test_missing_anchor_forces_citable_false(work_path, monkeypatch):
     (work_path / "batch_manifest.json").write_text("{}\n", encoding="utf-8")
     monkeypatch.setattr(
         acceptance_module, "_truth_anchor",
-        lambda: (None, ["truth_file"]),
+        lambda *_a, **_kw: (None, ["truth_file"]),
     )
     monkeypatch.setattr(
         acceptance_module, "_collect_citation_anchors",
@@ -295,3 +306,86 @@ def test_true_summary_mutation_is_caught_by_batch_tail_recomputation(
     assert by_id["summary_recomputed_from_buildings"]["detail"] == {
         "mismatched_fields": ["report_count"]
     }
+
+
+# ── run 目录唯一性结构闸 ────────────────────────────────────────────────
+# 案源：步 D 第一段地板批中断残留 run 目录被聚合算成「51/51 栋」并判 ✅。
+# 这一组测试的形态就是当日的复现：先造干净批（闸绿），再**只加一个多余
+# run 目录**（闸必红）——不加这一半，闸就只是「在批上碰巧是绿的」。
+
+
+def _fake_batch(root: Path, building_ids, runs_per_building):
+    for index, building_id in enumerate(building_ids):
+        # 栋目录无条件建——run 数为 0 的栋必须存在，否则「零 run 目录」那条
+        # 分支根本没有人群可判（判据必须在被筛人群上有意义）。
+        (root / "buildings" / building_id / "runs").mkdir(parents=True)
+        for run_index in range(runs_per_building[index]):
+            (root / "buildings" / building_id / "runs"
+             / f"RUN-{run_index:04d}").mkdir()
+    return root
+
+
+def test_run_dir_gate_passes_on_one_run_per_building(work_path):
+    _fake_batch(work_path, ["BLD-A", "BLD-B", "BLD-C"], [1, 1, 1])
+
+    got = acceptance_module.run_directory_uniqueness(work_path, 3)
+
+    assert got["ok"] is True
+    assert got["run_dir_total"] == 3
+    assert got["building_count"] == 3
+    assert got["multi_run_buildings"] == []
+    assert got["count_matches_completed"] is True
+    assert "每栋恰 1，且与完成栋数相等" in got["detail"]
+
+
+def test_run_dir_gate_reds_on_one_extra_stale_run_dir(work_path):
+    """变异对照：唯一改动＝给 BLD-B 加一个多余 run 目录。"""
+    _fake_batch(work_path, ["BLD-A", "BLD-B", "BLD-C"], [1, 1, 1])
+    assert acceptance_module.run_directory_uniqueness(work_path, 3)["ok"] is True
+
+    (work_path / "buildings" / "BLD-B" / "runs" / "RUN-STALE").mkdir()
+
+    got = acceptance_module.run_directory_uniqueness(work_path, 3)
+
+    assert got["ok"] is False
+    assert got["multi_run_buildings"] == ["BLD-B"]
+    # 当日现场的读数：栋数还是 3，run 目录却是 4——闸要抓的正是这个差。
+    assert got["run_dir_total"] == 4
+    assert got["building_count"] == 3
+    assert "多 run 目录栋 1" in got["detail"]
+    assert "BLD-B×2" in got["detail"]
+
+
+def test_run_dir_gate_reds_when_total_does_not_match_completed(work_path):
+    """反向：每栋恰 1，但完成清单说 4 栋——glob 射程与完成清单不同源。"""
+    _fake_batch(work_path, ["BLD-A", "BLD-B", "BLD-C"], [1, 1, 1])
+
+    got = acceptance_module.run_directory_uniqueness(work_path, 4)
+
+    assert got["ok"] is False
+    assert got["count_matches_completed"] is False
+    assert got["multi_run_buildings"] == []
+    assert "与完成栋数不等" in got["detail"]
+
+
+def test_run_dir_gate_does_not_red_on_missing_completed_count(work_path):
+    """老批 schema 缺 `completed_count`：只报不判，别拿缺字段当失败。"""
+    _fake_batch(work_path, ["BLD-A", "BLD-B"], [1, 1])
+
+    got = acceptance_module.run_directory_uniqueness(work_path, None)
+
+    assert got["ok"] is True
+    assert got["count_matches_completed"] is None
+    assert "未做反向对账" in got["detail"]
+
+
+def test_run_dir_gate_logs_zero_run_buildings_without_reding(work_path):
+    """零 run 目录的栋由「跑批完成度」承接，本闸只登记——避免同一故障红两处。"""
+    _fake_batch(work_path, ["BLD-A", "BLD-B"], [1, 0])
+
+    got = acceptance_module.run_directory_uniqueness(work_path, 1)
+
+    assert got["ok"] is True
+    assert got["zero_run_buildings"] == ["BLD-B"]
+    assert got["run_dir_total"] == 1
+    assert "无 run 目录" in got["detail"]

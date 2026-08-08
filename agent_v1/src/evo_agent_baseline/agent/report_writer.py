@@ -31,7 +31,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any, Dict, FrozenSet, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from evo_agent_baseline.contracts import (
     ClosureValidationResult,
@@ -824,6 +824,12 @@ _UNKNOWN_CAUSE_LABELS: Dict[str, str] = {
     "binding_requires_adjudication_authorization": (
         "读数在，但该义务绑定未获消费此类读数下判定的裁定授权，"
         "程序不给结论（待维护方逐绑定裁定）"),
+    # #33 保护闸（2026-08-05）。⚠️ 本码覆盖真假两侧，故文案不许提「文件不存在」，
+    # 也不许提「查到了文件」——那只对真值侧成立，会违反「文案声称的事实须对该码
+    # 全部义务为真」这条不变量（`test_cause_label_structural_truth_on_batch`）。
+    "evidence_event_coupling_unproven": (
+        "判定依据是「已呈交／送达／签署」状态读数，但系统尚未确立"
+        "「记录到该状态即代表事件确已发生」，故不据其判满足；须专业人员核实事件是否发生"),
     "missing_rule_edge": "规则边或引用缺失（非卡级触发器堵死）",
     "missing_satisfaction_binding": "缺满足通道绑定，无法沿事实槽核验",
     "artifact_not_modeled_upstream": "产物键未在上游世界模型建模",
@@ -843,6 +849,9 @@ _UNKNOWN_CAUSE_ORDER = (
     "missing_satisfaction_binding",
     "observed_false_without_violation_basis",
     "binding_requires_adjudication_authorization",
+    # #33 保护闸：排在两个「永久不能确立」码**之前**——它是可解封的，
+    # 对专业人员的行动含义更强（核实事件是否发生 ⇒ 能推动解封）。
+    "evidence_event_coupling_unproven",
     "no_slot_declared",
     "non_slot_handle",
     "artifact_state_not_valid_evidence",
@@ -860,6 +869,98 @@ _UNKNOWN_CAUSE_ORDER = (
 )
 
 _UNKNOWN_SECTION_TITLE = "## unknown 归因（这些项为什么还没有结论）"
+
+
+# ===================================================================== #
+# 乙11：共享读数的**分辨率限制披露**（2026-08-05，决议_33处置_20260805.md §一.2）
+# ===================================================================== #
+# 病与 #33 **不同**：#33 是「证据力为零的事实在解除义务」⇒ 判定无依据 ⇒ 必须闸掉；
+# 乙11 是「证据力成立但**分辨率不足**」⇒ 判定有依据 ⇒ 闸掉就是丢掉有依据的判定。
+# ⇒ 处置＝**保留判定 ＋ 结果层披露**，不是撤销判定。
+#
+# 🔴 为什么披露必须落在**这份文件**里：上游 `worldgen/registry.py` 的
+# `semantic_note` 已经把这条简化记了账，但那是世界侧台账——**消费者看不到**。
+# pro 审的质疑原话是「台账注记不能代替结果层保护」，正确的补法是披露，
+# 不是撤销判定。
+#
+# ⚠️ 层界说明（分层单向红线）：`workflow_engine` 与 `evo_agent_baseline` 互不 import，
+# 故上游 `semantic_note` 无法在此直接引用，本表是**受控重述**。
+# 两处必须同批改；同源性另有机器面守卫（两义务 `evidence_fact_ids` 必须相等的
+# 契约测试，见 `closure/tests/test_yi11_shared_reading_disclosure.py`）——
+# 那条守卫比文字更硬：它防的是将来有人把一条读数「修」成两条不同 fact，
+# 让同源性从机器可查变成不可查。
+_SHARED_READING_DISCLOSURES: Dict[str, Dict[str, str]] = {
+    # §2.1.3(p)：修葺建議修訂须于向建築事務監督呈交同日送交「該名由他人代為進行
+    # 訂明修葺的人」；§2.1.3(q)：同日送交註冊承建商。
+    # 两条的**起算事件是同一个**（向監督呈交之日），天数也相同（同日＝0 日），
+    # 世界侧由**一条量** `duration.delivery.repair_revision_proposal` 承载。
+    "rc.mbis.reporting.ri_procedural_notifications.ri.submit."
+    "s2_1_3_p_revised_proposal_to_person_same_day.c01": {
+        "group": "yi11_repair_revision_same_day",
+        "peer": "§2.1.3(q)（送交註冊承建商）",
+    },
+    "rc.mbis.repair.prescribed_repair_inputs.ri.deliver."
+    "s2_1_3_q_revised_proposal_to_rc_same_day.c01": {
+        "group": "yi11_repair_revision_same_day",
+        "peer": "§2.1.3(p)（送交該名由他人代為進行訂明修葺的人）",
+    },
+}
+
+_SHARED_READING_GROUP_TEXT: Dict[str, str] = {
+    "yi11_repair_revision_same_day": (
+        "本判定依据的是**同一条送交时长读数**，它同时覆盖 §2.1.3(p) 与 §2.1.3(q) "
+        "两个收件人。系统**无法区分**是否只送交了其中一方——"
+        "「交了承建商没交业主」这种情形当前建模不出来，两支必然同判。"
+        "⇒ 请**分别**核实两个收件人是否都已收到。"
+    ),
+}
+
+_SHARED_READING_SECTION_TITLE = "## 分辨率限制披露（两条义务由同一条读数支撑）"
+
+
+def shared_reading_disclosure_for(rule_card_id: str) -> Optional[Dict[str, str]]:
+    """该规则卡是否属于「共享读数、分辨率受限」披露面。返回登记项或 None。"""
+    return _SHARED_READING_DISCLOSURES.get(str(rule_card_id or ""))
+
+
+def render_shared_reading_disclosure_section(
+    obligations: Sequence[Any],
+    display_ref_map: Optional[Dict[str, str]] = None,
+) -> List[str]:
+    """渲染乙11 披露专节；本次运行没有命中的卡时返回空清单（不占版面）。
+
+    🔴 **不得**渲染成「该判定不可信」或「系统未能判定」——判定是有依据的，
+    受限的只是分辨率。措辞边界与 #33 的闸码文案是**两回事**，别互相抄。
+    """
+    hits: Dict[str, List[Any]] = {}
+    for ob in obligations or ():
+        reg = shared_reading_disclosure_for(getattr(ob, "source_rule_card_id", ""))
+        if reg is not None:
+            hits.setdefault(reg["group"], []).append(ob)
+    if not hits:
+        return []
+    refs = display_ref_map or {}
+    lines: List[str] = [_SHARED_READING_SECTION_TITLE, ""]
+    lines.append(
+        "> 下列义务的判定**有依据**（读数真实存在、程序据其判定），"
+        "但一条读数同时承载了两条义务，**分辨率不足以区分两者**。"
+        "这不是「系统没判」，而是「系统判了，但分不开」。"
+    )
+    lines.append("")
+    for group, obs in sorted(hits.items()):
+        lines.append(_SHARED_READING_GROUP_TEXT.get(group, ""))
+        lines.append("")
+        for ob in sorted(obs, key=lambda o: str(getattr(o, "obligation_id", ""))):
+            oid = str(getattr(ob, "obligation_id", ""))
+            reg = _SHARED_READING_DISCLOSURES[str(ob.source_rule_card_id)]
+            lines.append(
+                f"- [{refs.get(oid, '—')}] rule_card "
+                f"{_fmt_value(ob.source_rule_card_id)}"
+                f"（当前判定：{_fmt_value(getattr(ob, 'satisfaction_status', None))}）"
+                f"——与 {reg['peer']} 共用同一条读数，必然同判。"
+            )
+        lines.append("")
+    return lines
 
 
 def _unknown_attribution_missing_lines() -> List[str]:
@@ -2711,6 +2812,13 @@ def render_contract_v2_report(
     body = _swap_ids_for_display_refs(pre_swap, display_ref_map)
     lines.append(body if body else "（本节无内容）")
     lines.append("")
+
+    # --- 乙11 分辨率限制披露（2026-08-05，决议_33处置_20260805.md §一.2）---
+    # 位置在「人工复核提示」**之前**：它给的是复核时必须知道的前提
+    # （这两条必然同判、要分别核实），读者先看到前提再看到动作才成立。
+    # 本次运行未命中登记卡时返回空清单 ⇒ 不占版面。
+    lines.extend(render_shared_reading_disclosure_section(
+        list(result.obligation_set.obligations), display_ref_map))
 
     # --- 人工复核提示（spec §7.4.4 E-4.1:主视图聚合 + 前 N 复核动作 + 完整逐条折叠）---
     lines.append("## 人工复核提示")

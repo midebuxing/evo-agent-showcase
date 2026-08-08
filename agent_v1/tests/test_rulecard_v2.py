@@ -53,13 +53,34 @@ class RuleCardV2BundleTests(unittest.TestCase):
         #   （slot_id, 空限定符, roles=["trigger"]）桶。**卡数 469 与族 57 不变**
         #   （不增删卡、不动 `family_id`）；regime 41 / 量表 28 / 证物 25 / 时间锚 19
         #   同样不变——乙路不引入新量表、新证物、新时间锚、新阈值机制。
+        # 2026-08-06 #38 八槽裁定（决议_38裁定_20260806）：**语义槽 67 → 73（+6）**
+        #   ——override 前件槽补登记（P5 对账闸 A1 债清账）：5 个世界实采名
+        #   （ri_role.terminated / supervision_representative.planned /
+        #     supervision_team.changed / temp_ri_nomination.terminated /
+        #     repair_supervising_ri.appointment.completed，末者登记先行、采样随池 v2）
+        #   ＋ 1 个槽3 改绑目标世界名（procedure.repair.revision_required，
+        #     与卡登记名 repair.proposal.revision_required 经 slot_aliases 桥接、
+        #     是两个字符串）。certificate 槽只加 trigger 角色不增条目。
+        #   **卡 470 / 族 57 / 卡内槽引用 192 全部不变**——#38 不动任何卡
+        #   （override 表与登记表均不在卡指纹射程内）。
         self.assertEqual(summary["family_count"], 57)
-        self.assertEqual(summary["rule_card_count"], 469)
-        self.assertEqual(summary["semantic_slot_registry_count"], 67)
+        self.assertEqual(summary["rule_card_count"], 470)  # 2026-08-05 #23 补 §5.4.3(b) masonry 缺卡 469→470
+        self.assertEqual(summary["semantic_slot_registry_count"], 74)  # 2026-08-06 #38 67→73；换池批步 A1.3 槽2 主案（supervision.nonconformity.found）73→74
         self.assertEqual(summary["measure_registry_count"], 28)
         self.assertEqual(summary["artifact_registry_count"], 25)
         self.assertEqual(summary["time_anchor_registry_count"], 19)
-        self.assertEqual(summary["slot_count"], 191)
+        # 2026-08-05 #23 masonry 卡引用 defect.class.present（新限定符组合
+        # dampness×external_wall）⇒ slot_index 桶 191→192。
+        # 2026-08-07 卡包合流：95 卡删无授权 trigger（收走纯触发槽桶）＋8 卡删
+        # location 限定（桶按限定符组合分裂合并）＋7 卡加析取 ⇒ 192→187
+        # （`rulecard_v2 rebuild` 实测；出处 `重核准记录_卡包合流_20260807.md`）。
+        # 2026-08-07 DEBT-095 甲案：`s3_6_2_a_b_to_c…` 的 `location_class_key`
+        # `private_premises`→`common_pipe_duct` 三处同改，其 `sr01` 所在桶
+        # (scope.component.inspection_included, {drainage_component, private_premises})
+        # **并入同族先例卡 `s3_6_1_c` 早已存在的 common_pipe_duct 桶** ⇒ 187→186
+        # （净减一桶、无新增桶；实测差集只有那一个键；
+        #  出处 `重核准记录_debt095甲案_20260807.md`）。
+        self.assertEqual(summary["slot_count"], 186)
         self.assertEqual(summary["threshold_regime_count"], 41)
         self.assertEqual(summary["definition_count"], 1)
         self.assertEqual(summary["exception_count"], 0)
@@ -86,7 +107,13 @@ class RuleCardV2BundleTests(unittest.TestCase):
         self.assertEqual(bundle.manifest["schema_version"], "2.1.0")
 
     def test_collect_violations_lists_empty_slot_role_maps(self) -> None:
-        """一次列出全部契约违规——不得遇错即停只报第一条。"""
+        """一次列出全部契约违规——不得遇错即停只报第一条。
+
+        2026-08-07 卡包合流事务后基线 3 → **16**：13 张卡按裁定删除无正文授权的
+        trigger（其 slot_role_map 原本只有那一行触发器槽引 → 删后为空，属裁定的
+        机械后果；授权链 `重核准记录_卡包合流_20260807.md`）。豁免表与本数联动：
+        `run_baseline_batch.RULECARD_CONTRACT_EXEMPTIONS`。
+        """
         violations = collect_rulecard_bundle_violations(BUNDLE_DIR)
         empty_ids = [
             card["rule_card_id"]
@@ -94,9 +121,9 @@ class RuleCardV2BundleTests(unittest.TestCase):
             if not card.get("slot_role_map")
         ]
         expected = {f"{cid}.slot_role_map must not be empty" for cid in empty_ids}
-        self.assertEqual(len(empty_ids), 3)
+        self.assertEqual(len(empty_ids), 18)  # 2026-08-08 残差57A：+2（三卡删 trigger，其中 2 卡 map 转空）
         self.assertEqual(set(violations), expected)
-        self.assertEqual(len(violations), 3)
+        self.assertEqual(len(violations), 18)  # 2026-08-08 残差57A 同步
 
     def test_rebuilt_indexes_match_stored_indexes(self) -> None:
         bundle = load_rulecard_bundle(BUNDLE_DIR)

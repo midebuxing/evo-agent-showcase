@@ -274,8 +274,13 @@ def _sample_sidecar_facts_for_fragment(
             continue
         # 楼级粒度的数值槽不走逐片段路径（期限锚供给案 2026-08-05）：它们由
         # `_sample_building_deadline_anchor_facts` 独立追加步骤发射，逐（楼,槽）恰 1 行。
-        # 现存 6 个 duration 槽都没有 `granularity` 键 ⇒ 默认 "fragment" ⇒ 本判据对它们
-        # **逐字节无影响**（这是「新槽纯追加」的结构保证，不是靠约定）。
+        # 🔴 **本判据现在是「生效中」，不再是空条件（2026-08-05 换池捆绑批，kimi 审核 F4）**：
+        # 原注释写「现存 6 个 duration 槽都没有 `granularity` 键 ⇒ 本判据对它们逐字节无影响」
+        # ——那是期限锚供给案落地时的实况，**乙12 甲案之后已过时**：
+        # `duration.delivery.deadline.to_person` 与 `.to_ba` 两槽已带 `granularity="building"`，
+        # 本 `continue` 对它们**确实生效**（这正是设计意图：改楼级后碎片行根本不产出，
+        # 故不存在「楼级行＋碎片行双候选」，也就不会在一栋楼内判出既满足又违反）。
+        # 其余 duration 槽仍无 `granularity` 键 ⇒ 默认 "fragment" ⇒ 对它们逐字节无影响。
         if str(slot_record.get("granularity") or "fragment") == "building":
             continue
         carrier_domain = str(slot_record.get("carrier_domain") or "")
@@ -1462,12 +1467,27 @@ def _build_sidecar_runtime_bundle_for_buildings(
                 )
             )
         _bld = getattr(building_world, "building", None)
+        _bld_age = getattr(_bld, "age_years", None)
         building_context: Dict[str, float] = {
             "building.metadata.building_age_years": float(
                 getattr(_bld, "age_years", 0.0) or 0.0
             ),
             "building_total_severity_max": float(building_total_severity_max),
             "building_defect_count": float(building_defect_count),
+            # #37 恒等映射三键（决议_37修法_20260805 §一.2「甲的退化形」）：
+            # · H.age_old_score：与碎片级派生同函数同源字段（clip(age/50)，
+            #   `_build_round6_hidden_state_for_fragment` 同款含 None 回退），逐值恒等；
+            # · H.case_active：与碎片级同为无条件常量 1.0；
+            # · H.defect_severity_score：取楼级 severity 上确界＝碎片级派生的
+            #   既有兜底路径。显式裁定（决议采纳时注明）：腐蝕分量来自 mechanism、
+            #   不进 all_severities，故这是**语义对应**而非逐值恒等。
+            # 不发明任何聚合语义；其余 7 个 H.* 无楼级对应量，已从 13 条楼级公式删项。
+            "H.age_old_score": (
+                _clip01(float(_bld_age) / 50.0) if _bld_age is not None
+                else HIDDEN_STATE_PRIOR_MEANS["H.age_old_score"]
+            ),
+            "H.case_active": 1.0,
+            "H.defect_severity_score": _clip01(float(building_total_severity_max)),
         }
         bool_by_fragment, building_buckets = _sample_sidecar_bool_slots_for_building(
             building_world_id=building_world.world_id,

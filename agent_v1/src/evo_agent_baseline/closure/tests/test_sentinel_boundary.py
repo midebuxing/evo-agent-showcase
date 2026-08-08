@@ -429,3 +429,45 @@ def test_default_off_dual_track_unchanged() -> None:
     for o in obls:
         assert "non_adjudicative_sentinel" not in o.notes
         assert "dual_track_reuse_miss" not in o.notes
+
+
+# --------------------------------------------------------------------- #
+# 测试 7（#36 翻案钉形状，2026-08-06）：assessment_flags ＋ no_assessment
+# ——P2 重放（重放_P2_1b闭包位移_20260805.md §十）那 35 条 blocked 的精确形状。
+# 商议结果_deepseek_36修法_20260806.md §方向①裁定：分流机制从底层就覆盖该路径，
+# 生产链默认开且冻结进批清单；35 条系重放脚本直接调闭包未传开关的复现产物，
+# 不是生产缺陷。现有测试只盖 risk_flags+no_drainage / repair_flags+no_repair，
+# assessment_flags+no_assessment 此前是空档（本次落测前全仓 grep 复核过）。
+# --------------------------------------------------------------------- #
+SLOT_FSP = "assessment.fsp.below_required_safety"
+
+
+def _fsp_facts():
+    return [
+        _sentinel(slot=SLOT_FSP, group="assessment_flags"),
+        _companion("no_assessment", slot=SLOT_FSP),
+    ]
+
+
+def test_fsp_no_assessment_split_on_na_with_honest_reason() -> None:
+    """分流开（＝生产形态）：closed/not_applicable ＋ notes 带诚实原因
+    `reason=no_assessment`——正是消费者该看到的（该片段从未做过结构评估）。"""
+    obl = evaluate_trigger(
+        _card_with_trigger(SLOT_FSP), _trigger_item(SLOT_FSP),
+        _index_on(_fsp_facts()), META)
+    assert (obl.closure_status, obl.satisfaction_status) == (
+        "closed", "not_applicable")
+    assert "non_adjudicative_sentinel: reason=no_assessment" in obl.notes
+    assert obl.evidence_fact_ids == ["F-sen-01"]
+
+
+def test_fsp_no_assessment_split_off_locks_ambiguous() -> None:
+    """对照臂（分流关）＝P2 §十那 35 条的形状：blocked/ambiguous_fact_binding。
+    锁定现状作对照——此臂若变，说明 `validate_building_closure` 缺省被翻了，
+    属判定面默认变更，须重跑 DEBT-083 四门验收（商议结果 §方向① 明示不并入本案）。"""
+    obl = evaluate_trigger(
+        _card_with_trigger(SLOT_FSP), _trigger_item(SLOT_FSP),
+        FactIndex(make_fact_pack(_fsp_facts())), META)
+    assert (obl.closure_status, obl.blocked_reason_code) == (
+        "blocked", "ambiguous_fact_binding")
+    assert "non_adjudicative_sentinel" not in obl.notes

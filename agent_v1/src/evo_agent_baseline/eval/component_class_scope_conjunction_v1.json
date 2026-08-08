@@ -1,0 +1,207 @@
+{
+  "schema_version": "component_class_scope_conjunction_v1",
+  "version": "2026-08-05",
+  "authority_note": "阅卷侧口径登记表，**不进判定权**：本表只被 agent_v1/scripts/score_clause_coverage.py 的作用域匹配消费，闭包验证器 / 义务派生器 / 大模型一律不读。判定权红线不变（合规判定只由 closure/validator.py 的 validate_building_closure 产出）。",
+  "caliber_change_note": "🔴 本表落地即阅卷口径变更：真值 `scope_type == \"component_class\"` 行的匹配判据由「片段归一后 component_type_key **严格相等** scope_id」放宽为「严格相等 **或** 满足本表登记的真合取」。改前后的召回与漏单**不可直接比较**，引数字必须点名「批次 + 口径日期 2026-08-05」。",
+  "semantics": {
+    "match_rule": "片段 f 满足细标签 X ⟺ ∃ pair ∈ X.pairs 使得 f.component_type_key == pair.component_type_key **且** f.material_system ∈ pair.material_systems。",
+    "conjunction_is_mandatory": "🔴 **真合取**：两侧都必须非空。写成析取（只比物料、或只比构件类）会把钢筋混凝土樑判成結構鋼、把僭建物钢架判成 §5.4.2 结构钢，造假 violated——那正是决策门否决丙路的理由。加载器对任一侧为空的条目 fail-loud。",
+    "coarse_labels_unaffected": "细标签是**追加**的：片段原有的粗类标签（8 值之一）照旧成立，故 scope_id 落在 8 值内的真值行一格不动。"
+  },
+  "provenance": {
+    "decision": "决议_23路线_20260805.md §一.1 L1/L2（三层混合，按世界侧改动种类切）",
+    "regulation_source": "agent_v1/regulations/markdown/MBIS_CoP_2023.md（中文正文为唯一效力依据；卡的英文 source_quote 是译文、无效力证据力）",
+    "world_source": "agent_v1/src/workflow_engine/worldgen/registry.py 的 component_type_registry.material_compatibility 与 material_system_registry",
+    "alias_source": "agent_v1/regulations/rulecard_v2/mbis_cop_2023/projection_runtime_mapping_v1.json 的 qualifier_value_aliases.component_type_key（11 条，世界叶型 → 卡侧 8 个规范值）"
+  },
+  "entries": [
+    {
+      "scope_id": "structural_steel",
+      "layer": "L1",
+      "truth_rows_in_anchor": 60,
+      "clause_ids": ["§5.4.2(A)(a)", "§5.4.2(A)(b)", "§5.4.2(A)(d)", "§5.4.2(B)", "§5.4.2(C)"],
+      "pairs": [
+        {
+          "component_type_key": "structural_component",
+          "material_systems": ["structural_steel_section", "steel_transfer_beam"],
+          "world_carrier": "component_type=structural_member（material_compatibility 已含这两值，且有片段模板 FT）",
+          "reachability": "reachable_no_world_change"
+        }
+      ],
+      "excluded": [
+        {
+          "material_system": "cold_formed_steel",
+          "would_come_from": "component_type=unauthorized_structure → component_type_key=ubw",
+          "reason": "冷弯型钢在本世界只挂僭建物。§5.4.2 是「結構鋼」修葺链，對象是樓宇結構構件；把僭建物钢架算进来会让 §5.4.2(A)(a)「已銹蝕及鬆脫的結構鋼部分須…徹底去除」落到僭建物上，属跨轴假匹配。⚠️ 三者的 material_class 同为 structural_steel ⇒ **只比 material_class 会误纳**，这是「必须下沉到 material_system 粒度」的实证。"
+        },
+        {
+          "material_system": "intumescent_coating",
+          "would_come_from": "component_type=fire_resisting_wall → component_type_key=fire_safety_component",
+          "reason": "§5.4.2(C)「施加在結構鋼上的防火物料」语义上确对应 intumescent_coating，但世界侧唯一挂它的 fire_resisting_wall **没有片段模板** ⇒ 结构上永不产片段，登记它即制造第三种「改了等于没改」。本轮不登记；§5.4.2(C) 的 10 行改由 (structural_component ∧ 钢) 那一对承接——因为义务是按 (卡 × 片段) 叉积实例化的（实测见实施记录 A0-前置），§5.4.2(C) 的卡义务同样落在钢结构片段上，语义配对正确。"
+        }
+      ],
+      "zh_evidence": [
+        {"clause": "§5.4.2(A)(a)", "line": 1647, "page": 48, "quote": "已銹蝕及鬆脫的結構鋼部分須以適合的技術（如機刷、打磨或噴砂清理）徹底去除。"},
+        {"clause": "§5.4.2(C)", "line": 1661, "page": 48, "quote": "施加在結構鋼上的防火物料如有任何損壞，須將其修復至不遜於原有設計的耐火標準。"}
+      ],
+      "evidence_kind": "regulation_text",
+      "status": "adjudicated"
+    },
+    {
+      "scope_id": "cladding",
+      "layer": "L2",
+      "truth_rows_in_anchor": 20,
+      "clause_ids": ["§5.3.2(a)", "§5.3.2(c)"],
+      "pairs": [
+        {
+          "component_type_key": "external_wall",
+          "material_systems": ["stone_cladding", "aluminium_panel_cladding", "gfrc_panel"],
+          "world_carrier": "component_type=external_wall（material_compatibility 已含三值，有片段模板）",
+          "reachability": "needs_primary_materials_pin"
+        }
+      ],
+      "excluded": [
+        {
+          "material_system": "aluminium_panel_cladding",
+          "would_come_from": "component_type=signboard → component_type_key=external_component",
+          "reason": "招牌属 §3.3.1(a)(vi)「伸出物、招牌」，其鋁板覆面不是 §3.3.1(a)(i)／§5.3.2 意义上的**外牆覆蓋層**。保守排除：假覆盖比漏更有害。"
+        },
+        {
+          "material_system": "aluminium_panel_cladding",
+          "would_come_from": "component_type=smoke_vent",
+          "reason": "smoke_vent 无片段模板，结构上永不产片段；且语义为消防排烟口，非覆蓋層。"
+        }
+      ],
+      "zh_evidence": [
+        {"clause": "§3.3.1(a)(i)", "line": 936, "page": 19, "quote": "牆磚或瓦片、批盪及覆蓋層等外牆飾面；"},
+        {"clause": "§5.3.2(a)", "line": 1583, "page": 45, "quote": "所有欠妥之處都須妥為修葺，並須考慮樓層間的移位、滲水、密封劑老化及嵌固件銹蝕等因素。"},
+        {"clause": "§5.3.2(c)", "line": 1593, "page": 45, "quote": "新更換的覆蓋層嵌板須以不可燃物料製造，其厚度、強度及耐久性須不遜於原有的設計。"}
+      ],
+      "evidence_kind": "regulation_text",
+      "status": "adjudicated"
+    },
+    {
+      "scope_id": "curtain_wall",
+      "layer": "L2",
+      "truth_rows_in_anchor": 20,
+      "clause_ids": ["§5.3.4(a)", "§5.3.4(b)"],
+      "pairs": [
+        {
+          "component_type_key": "external_wall",
+          "material_systems": ["curtain_wall_glazing", "curtain_wall_aluminium_frame"],
+          "world_carrier": "component_type=external_wall（本轮 L2 给它的 material_compatibility 补这两值）",
+          "reachability": "needs_material_compatibility_extension"
+        }
+      ],
+      "excluded": [],
+      "zh_evidence": [
+        {"clause": "§3.3.1(a)(v)", "line": 944, "page": 19, "quote": "幕牆及其中的可開啟的窗戶；"},
+        {"clause": "§5.3.4(a)", "line": 1603, "page": 46, "quote": "所有欠妥的幕牆組成部分都須更換。幕牆修葺的標準須不遜於原本設計標準（包括物料的使用）。"}
+      ],
+      "evidence_kind": "regulation_text",
+      "status": "adjudicated",
+      "note": "幕牆在守则里被列进「外部構件」的外牆系统（§3.3.1(a)(v)），故挂 component_type=external_wall 是正文支持的，不属工程估计。两个 material_system 早在 material_system_registry 登记（notes 自述 §3.3.2(G)/§5.3.4），只是从未被任何 component_type 接受 ⇒ 属本仓库反复出现的「登记了但没人消费」形状。"
+    },
+    {
+      "scope_id": "fins_grilles_louvres",
+      "layer": "L2",
+      "truth_rows_in_anchor": 20,
+      "clause_ids": ["§5.3.3"],
+      "pairs": [
+        {
+          "component_type_key": "external_wall",
+          "material_systems": ["metal_louver_fin"],
+          "world_carrier": "component_type=external_wall（本轮 L2 补值）",
+          "reachability": "needs_material_compatibility_extension"
+        }
+      ],
+      "excluded": [],
+      "zh_evidence": [
+        {"clause": "§3.3.1(a)(ii)", "line": 938, "page": 19, "quote": "鰭狀飾件、柵檔及金屬百葉窗；"},
+        {"clause": "§5.3.3", "line": 1599, "page": 46, "quote": "欠妥的鰭狀飾件、柵檔及金屬百葉窗應進行修葺或更換。重新安裝的鰭狀飾件、柵檔及金屬百葉窗須耐用及妥為安裝。"}
+      ],
+      "evidence_kind": "engineering_estimate",
+      "status": "adjudicated",
+      "note": "🔴 工程估计档：守则把鰭狀飾件/柵檔/金屬百葉列为「外牆上的附屬物」（§3.3.1(a) 引出句 + (ii)），世界侧**没有**对应的 component_type，本轮按决议不新增组件类（那是 L3 的形），改由 external_wall 承载「该段外墙采用金属百叶系统」。语义近似，置信度低，已按 §四 成本账记为待升格项。"
+    },
+    {
+      "scope_id": "balustrade_railing",
+      "layer": "L2",
+      "truth_rows_in_anchor": 10,
+      "clause_ids": ["§5.3.6(b)"],
+      "pairs": [
+        {
+          "component_type_key": "external_component",
+          "material_systems": ["glass_balustrade_panel"],
+          "world_carrier": "component_type=parapet_wall（本轮 L2 补值；allowed_location_classes 已含 roof_edge / external_wall，与 §3.3.1(a)(iii)「於外牆或屋頂邊緣」逐字对上）",
+          "reachability": "needs_material_compatibility_extension_and_primary_materials_pin"
+        }
+      ],
+      "excluded": [
+        {
+          "material_system": "glass_balustrade_panel",
+          "would_come_from": "component_type=structural_member → component_type_key=structural_component",
+          "reason": "§3.4.1(b)(ix) 确把「防護欄障、扶欄、護牆及欄杆」列进結構構件檢驗項目，故挂 structural_member 也有正文依据；**本轮不选它**的理由是副作用：structural_member 是钢/RC 的载体，往它的 material_compatibility 加玻璃栏板会稀释 structural_steel 的可达性（L1 依赖它），把两层耦合起来。⚠️ 这是实施取舍不是语义否定，若日后 L1 不再依赖该载体可重议。"
+        }
+      ],
+      "zh_evidence": [
+        {"clause": "§3.3.1(a)(iii)", "line": 940, "page": 19, "quote": "於外牆或屋頂邊緣的防護欄障、扶欄、護牆及欄杆；"},
+        {"clause": "§3.4.1(b)(ix)", "line": 1096, "page": 25, "quote": "防護欄障、扶欄、護牆及欄杆；"},
+        {"clause": "§5.3.6(b)", "line": 1619, "page": 47, "quote": "於修葺防護欄障、扶欄、護牆、欄杆、圍欄及其嵌固件時，須更換所有欠妥的組成部分。"}
+      ],
+      "evidence_kind": "engineering_estimate",
+      "status": "adjudicated",
+      "note": "🔴 同一批物件在 §3.3.1(a)(iii) 与 §3.4.1(b)(ix) 逐字同列——这正是关系表把 external_component × structural_component 判为 undecidable_vocab_too_coarse 的反例锚本体。本表选 external_component 一侧，**不代表**裁定它不属结构构件。"
+    },
+    {
+      "scope_id": "masonry",
+      "layer": "L2",
+      "truth_rows_in_anchor": 10,
+      "clause_ids": ["§5.4.3(b)"],
+      "pairs": [
+        {
+          "component_type_key": "external_wall",
+          "material_systems": ["clay_brick", "concrete_block", "stone_masonry"],
+          "world_carrier": "component_type=external_wall（本轮 L2 补值；external_wall 原已含 masonry_plaster 砌体批盪，有片段模板）",
+          "reachability": "needs_material_compatibility_extension"
+        }
+      ],
+      "excluded": [
+        {
+          "material_system": "clay_brick",
+          "would_come_from": "component_type=fire_resisting_wall → component_type_key=fire_safety_component",
+          "reason": "fire_resisting_wall **没有片段模板** ⇒ 结构上永不产片段；且语义为防火分隔墙，非 §5.4.3 砌石砌磚構築物。"
+        }
+      ],
+      "zh_evidence": [
+        {"clause": "§5.4.3(a)", "line": 1667, "page": 49, "quote": "砌石構築物如含有可溶性硫酸鹽及暴露於潮濕環境，可能會出現硫酸鹽侵蝕，導致砂漿墊層膨脹。"},
+        {"clause": "§5.4.3(b)", "line": 1669, "page": 49, "quote": "如發現因硫酸鹽侵蝕造成的欠妥之處，則須消除潮濕的源頭。"}
+      ],
+      "evidence_kind": "engineering_estimate",
+      "status": "adjudicated",
+      "note": "🔴 masonry 在决议里被记为「缺卡硬堵、词表射程外」，但**只补卡不补可达性仍然是漏**——补卡只把 not_modeled 换成 supply_side_no_fragment_of_class，两者都在 MISSED_STATES 里。故本条与 §5.4.3(b) 补卡**必须同批**。载体选 external_wall 的实据：`BT_HK_TONG_LAU_MIXED_USE_MASONRY_V1`（唯一的砌体楼型）的 primary_materials 本来就声明了 clay_brick，只是没有任何 component_type 接受它 ⇒ 又一例「登记了但没人消费」，故不需动 primary_materials。"
+    },
+    {
+      "scope_id": "metal_gate",
+      "layer": "L2",
+      "truth_rows_in_anchor": 10,
+      "clause_ids": ["§5.3.6(c)"],
+      "pairs": [
+        {
+          "component_type_key": "external_wall",
+          "material_systems": ["metal_gate"],
+          "world_carrier": "component_type=external_wall（本轮 L2 补值；圍牆即外牆构件）",
+          "reachability": "needs_material_compatibility_extension"
+        }
+      ],
+      "excluded": [],
+      "zh_evidence": [
+        {"clause": "§3.3.1(c)(ii)", "line": 955, "page": 19, "quote": "豎設在樓宇圍牆或入口的手動或電動金屬閘。"},
+        {"clause": "§5.3.6(c)", "line": 1621, "page": 47, "quote": "就手動或電動操作的金屬閘而言，其組成部分（如門鉸）如有欠妥，須予以更換。"}
+      ],
+      "evidence_kind": "engineering_estimate",
+      "status": "adjudicated",
+      "note": "🔴 工程估计档：守则说金屬閘「豎設在樓宇圍牆或入口」，圍牆已在 §3.3.1(a) 引出句里被点名属外部構件檢驗範圍（「非結構外牆、非結構天井牆、圍牆…」）。世界侧无閘类 component_type，本轮以 external_wall 承载。4 个楼型的 primary_materials 早已声明 metal_gate，只是没有任何 component_type 接受它 ⇒ 又一例「登记了但没人消费」，故本条只需补 material_compatibility、不需动 primary_materials。"
+    }
+  ]
+}

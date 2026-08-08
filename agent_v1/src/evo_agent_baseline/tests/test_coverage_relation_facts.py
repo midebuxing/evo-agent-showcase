@@ -121,3 +121,51 @@ def test_enrich_skips_unmapped_and_existing():
     enrich_qualifiers_from_structure(atoms, raw, aliases)
     assert cov.qualifiers["component_type_key"] == "preset_value"  # 不覆盖
     assert "location_class_key" not in cov.qualifiers  # transfer_floor 无对照不写
+
+
+def test_authority_alias_table_maps_private_premises():
+    """2026-08-07 卡包合流乙随窗小修：权威别名表必须含 `private_premises` 键。
+
+    背景（`裁定_结构闸新8卡_20260807.md` §〇）：`qualifier_value_aliases.
+    location_class_key` 原 9 行无 `private_premises` 键，`enrich_qualifiers_from_
+    structure` 查不到别名就**不写限定符**（宁缺勿错的保守规则）——即便世界生成了
+    私人处所片段，`(×, private_premises)` 组合照样出不来；新 8 卡维持组（4/6/7/8）
+    的载体正确性依赖该键。本测吃**权威文件本体**，不吃合成表——防止表修了测试
+    还绿、或表被回退而测试不红。
+    """
+    import json
+    import pathlib
+
+    from evo_agent_baseline.retrieval.fact_retriever import (
+        enrich_qualifiers_from_structure,
+    )
+
+    reg_dir = (pathlib.Path(__file__).resolve().parents[3]
+               / "regulations" / "rulecard_v2" / "mbis_cop_2023")
+    mapping = json.loads((reg_dir / "projection_runtime_mapping_v1.json")
+                         .read_text(encoding="utf-8"))
+    aliases = mapping["qualifier_value_aliases"]
+    lc = aliases["location_class_key"]
+    assert lc.get("private_premises") == "private_premises"
+    vocab = json.loads((reg_dir / "controlled_vocabularies_v1.json")
+                       .read_text(encoding="utf-8"))
+    assert "private_premises" in vocab["vocabularies"]["location_class_key"], (
+        "规范值必须真在受控词表里——别名表不许指向词表外取值"
+    )
+
+    # 端到端：私人处所片段的事实经权威表真的被盖上限定符（生产者→消费者接口，
+    # 不止测表本身）。
+    raw = FactRetrievalRaw(
+        world={"world_id": "WB-T"},
+        building={"building_id": "BLD-T"},
+        fragments=[
+            {"fragment_id": "FRG-T-P", "component_id": "CMP-T-P", "location_id": "LOC-T-P"},
+        ],
+        components=[{"component_id": "CMP-T-P", "component_type": "floor_trap"}],
+        locations=[{"location_id": "LOC-T-P", "location_class": "private_premises"}],
+        coverage_relations=[dict(_cvr_node(), _fragment_id="FRG-T-P")],
+    )
+    atoms = facts_from_raw(raw)
+    enrich_qualifiers_from_structure(atoms, raw, aliases)
+    cov = [a for a in atoms if a.source_path == "coverage_relations.parquet"][0]
+    assert cov.qualifiers["location_class_key"] == "private_premises"

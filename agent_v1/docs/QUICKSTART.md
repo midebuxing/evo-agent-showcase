@@ -86,7 +86,7 @@ $env:EVO_AGENT_NEO4J_PASSWORD = "你的密码"
 
 > ⚠️⚠️ **`run_baseline_e2e_smoke.py` 是上面 2-3-4 的一键编排入口，但带 `--wipe` 灌库会污染 Neo4j——本项目明令谨慎/不要随意跑它**。默认源池是内置主线池；换池用 `--worldgen-run-dir <池路径>`（2026-07 新增），**换池必须同时配独立 `EVO_AGENT_NEO4J_DATABASE`**（同 seed 会产同号 world_id，直灌主库 = 覆写主线资产）。日常验证用 §2 的 mock 路径。
 >
-> ⚠️ **本机严禁调用 `python3` / `py`**：Windows 商店 stub 会弹商店窗口（stub 删过会随系统更新复活）。一律用 `python`（anaconda 已上 PATH）或绝对路径 `C:\Users\<用户名>\anaconda3\python.exe`，控制台中文输出配 `PYTHONUTF8=1`。
+> ⚠️ **本机严禁调用 `python3` / `py`**：Windows 商店 stub 会弹商店窗口（stub 删过会随系统更新复活）。一律用 `python`（anaconda 已上 PATH）或绝对路径 `C:\Users\Qtm51\anaconda3\python.exe`，控制台中文输出配 `PYTHONUTF8=1`。
 >
 > 🛡️ **本仓库有一整套工程护栏**（pre-commit / CI / 架构契约 / 编辑钩子 / 上下文工具）：完整索引（每道护栏的文件位置 + 红了怎么办）见 `团队文档/我的笔记/AI编码工程化_落地清单.md` 的"护栏索引"节；上下文经济工具（任务打包器 `pack_context.py` / ast-grep / testmon）用法见 [`../scripts/README_context_tools.md`](../scripts/README_context_tools.md)。总纪律：护栏红了修问题本身，禁 `--no-verify`。
 

@@ -21,10 +21,22 @@ from workflow_engine.worldgen.models import (
     SlotOwnershipEntry,
 )
 from workflow_engine.worldgen.round6_formulas import (
+    A16_ANNOTATED_ROUND7_SLOTS,
+    A16_MC_CALIBER_BOUNDARY_NOTE,
+    A16_ROUND7_DISTRIBUTION_SOURCE_SUFFIX,
     ANCHOR_SOURCES_ROUND7,
     DISTRIBUTION_SOURCE as DEBT020_ROUND7_DISTRIBUTION_SOURCE,
     MARGINAL_ANCHORS_ROUND7,
+    MC_CALIBER_FRAGMENTS_PER_BUILDING,
+    POOL_V2_REWIRED_DISTRIBUTION_SOURCE,
+    POOL_V2_REWIRED_OVERLAY_SLOTS,
+    POOL_V2_SUPPLY_DISTRIBUTION_SOURCE,
+    POOL_V2_SUPPLY_SAMPLING_ORDERS,
+    POST_CLAMP_REALIZED_MARGINALS,
+    PRECONDITION_COUPLING_DISTRIBUTION_SOURCE,
     SAMPLING_ORDER_ROUND7,
+    get_pool_v2_supply_slot_specs,
+    get_precondition_coupling_formulas,
     get_round6_round7_formulas,
 )
 
@@ -714,8 +726,24 @@ def _technical_measurement_records() -> List[Dict[str, Any]]:
         _measurement_record(
             "count.pull_test.failed_cumulative", "technical_validation", "integer", "count", [0, 6],
             "integer_count", ["pull_test"], ["pull_test_failed_cumulative_count"],
-            "Cumulative failed pull-test count used by additional-test formula thresholds. Round2 bounds 10→6；zero_inflated_discrete → normal 退化（zero mass 信息损失）。",
-            recommended_distribution="zero_inflated_discrete",  # → normal in normalize
+            "Cumulative failed pull-test count used by additional-test formula thresholds. Round2 bounds 10→6。"
+            "分布标签 2026-08-06 由 zero_inflated_discrete 撤为 rounded_truncated_normal（撤标签裁定见下方注释）："
+            "本条从未配 calib_zero_prob，零膨胀分支从未生效，实际一直按 normal(0.95,1.12) 采、clip[0,5]、round；"
+            "0 值占比是 clip 派生结果，不是被授权的 π0。",
+            # 🔴 标签修正（商议结果_glm_calib裁定_20260806 §三 候选②，零采样影响）：原写
+            # `zero_inflated_discrete`，但本条**没有** `calib_zero_prob`
+            # ⇒ `_sample_typical_distribution` 的零膨胀分支（generator.py:1577）根本不进，
+            # 实际就是按 `normal` 采的。按 `.to_person` 先例（决议_分布授权_20260805 §二.1，
+            # registry.py 同族条目）撤标签——留着标签会让下一个读者得出「本条有零膨胀」这个
+            # 错误结论（`.to_person` 已因此错过一次）。
+            # 两个名字都被 `_normalize_distribution_name` 映射到 `normal` ⇒ 采样值逐字节相同
+            # （2026-08-06 实测：同 seed 20000 次采样 repr 字节全等、rng 终态相同、无首处失配；
+            # 且本槽在 `technical_measurement_registry`，不走 sidecar 的 `distribution=<名字>`
+            # 发射串 ⇒ 连 notes 文本副作用都没有）。
+            # ⚠️ 撤标签**不预判「该不该补零膨胀」**：本槽物理上「合格楼 failed=0」是真质量点，
+            # 零膨胀在物理上有道理，但那属另裁（决议_A16裁定_20260806 §三「须入冻结窗口另裁」，
+            # 补值＝激活 generator.py:1577 分支＝世界分布实质变更）。撤标签只诚实标注「当前没有」。
+            recommended_distribution="rounded_truncated_normal",
             recommended_mean=0.95, recommended_sigma=1.12,
             typical_bounds=[0, 5],
             distribution_source="proagent_engineering_estimate_DEBT020_round2_2026_05_09",
@@ -1189,7 +1217,11 @@ def _defect_condition_records() -> List[Dict[str, Any]]:
             ["crack", "cracking", "surface_crack"],
             "linear_extent",
             ["crack_width_mm", "crack_length_m"],
-            ["external_wall", "structural_member", "parapet_wall", "balcony_slab", "wall_tile_finish"],
+            # #23 L3（2026-08-06）：+transfer_structure（§3.4 結構構件裂縫）、
+            # +external_appendage/false_ceiling_common_area（structural_crack 链主发射类：
+            # 錨栓/吊挂系统裂縫）、+external_wall_finish（§5.3.1 批盪裂縫，沿 wall_tile_finish 先例）。
+            ["external_wall", "structural_member", "parapet_wall", "balcony_slab", "wall_tile_finish",
+             "transfer_structure", "external_appendage", "false_ceiling_common_area", "external_wall_finish"],
             ["structural_crack"],
         ),
         _defect_condition_record(
@@ -1199,7 +1231,8 @@ def _defect_condition_records() -> List[Dict[str, Any]]:
             "corrosion_chain",
             ["spall_area_m2", "rebar_exposed_length_m", "ratio.rebar.section_loss"],
             # Round2 retire: generic ratio.chloride_content 已删；用 ratio.chloride_content.by_cement_weight
-            ["external_wall", "structural_member", "canopy"],
+            # #23 L3：+transfer_structure（RC 轉移板/樑剝落，§3.4.2 同鏈）。
+            ["external_wall", "structural_member", "canopy", "transfer_structure"],
             ["corrosion_spall"],
         ),
         # DEBT-049 A1（codex CoP 裁定 §3.4.2(A)(c)(iv)剥落 与 (vi)钢筋外露 分列）：
@@ -1245,7 +1278,10 @@ def _defect_condition_records() -> List[Dict[str, Any]]:
             ["hollowing", "hollow_sound", "delamination"],
             "composite_index",
             ["count.hammer_tapping.grid.minimum"],
-            ["external_wall", "structural_member", "balcony_slab", "parapet_wall", "wall_tile_finish"],
+            # #23 L3：+transfer_structure（FT_TRANSFER_BEAM_HOLLOWING 先例同鏈）、
+            # +external_wall_finish（批盪空鼓，沿 wall_tile_finish 先例）。
+            ["external_wall", "structural_member", "balcony_slab", "parapet_wall", "wall_tile_finish",
+             "transfer_structure", "external_wall_finish"],
             ["structural_crack", "assessment_origin"],
         ),
         _defect_condition_record(
@@ -1273,7 +1309,10 @@ def _defect_condition_records() -> List[Dict[str, Any]]:
             ["detachment", "loose_finish", "debonding", "delamination"],
             "linear_extent",
             ["spall_area_m2"],
-            ["external_wall", "balcony_slab", "parapet_wall", "signboard", "canopy", "wall_tile_finish"],
+            # #23 L3：+external_appendage/false_ceiling_common_area（鬆脫/脫落，§5.3.5-§5.3.6）、
+            # +external_wall_finish（批盪剝落，§5.3.1，沿 wall_tile_finish 先例）。
+            ["external_wall", "balcony_slab", "parapet_wall", "signboard", "canopy", "wall_tile_finish",
+             "external_appendage", "false_ceiling_common_area", "external_wall_finish"],
             ["structural_crack", "assessment_origin"],
             "T-06 合并 DC_MASONRY_SULFATE_ATTACK 候选（砌石砌砖因可溶性硫酸盐和潮湿导致砂浆层膨胀劣化）；MBIS §5.4.3。",
         ),
@@ -1283,7 +1322,9 @@ def _defect_condition_records() -> List[Dict[str, Any]]:
             ["loose_fixing", "loose_fastener", "missing_fastener", "defective_fastener"],
             "binary_present",
             [],
-            ["signboard", "canopy", "fire_door", "access_panel", "smoke_vent"],
+            # #23 L3：+external_appendage（§5.3.5(b) 錨栓）、+false_ceiling_common_area（吊挂件）。
+            ["signboard", "canopy", "fire_door", "access_panel", "smoke_vent",
+             "external_appendage", "false_ceiling_common_area"],
             ["structural_crack", "fire_safety_deficiency"],
             "T-06 合并 DC_FASTENER_MISSING_OR_DEFECTIVE 候选（螺丝、铆钉、门铰、窗铰、喉码、锚栓缺漏或规格不足）；MBIS §3.3.2(E)-(I), §5.3.7, §5.6.4, MWIS §11.1.4-§11.1.9。",
         ),
@@ -1357,7 +1398,9 @@ def _defect_condition_records() -> List[Dict[str, Any]]:
             "corrosion_chain",
             # Round2 retire: generic ratio.chloride_content 已删；用 by_cement_weight 版替代
             ["ratio.rebar.section_loss"],
-            ["structural_member", "drainage_stack", "signboard", "canopy", "fire_door", "access_panel"],
+            # #23 L3：+transfer_structure（鋼轉移樑鏽蝕，阶段闸①可达）。
+            ["structural_member", "drainage_stack", "signboard", "canopy", "fire_door", "access_panel",
+             "transfer_structure"],
             ["corrosion_spall"],
             "MBIS §3.3.2(C)-(I), §3.4.2(A), §4.3.1, §5.4.2, §3.6.2；金属构件、钢结构、螺栓、铸铁/镀锌管、窗五金锈蚀（T-06 新增）。",
         ),
@@ -1387,7 +1430,10 @@ def _defect_condition_records() -> List[Dict[str, Any]]:
             ["deformation", "displacement", "distortion", "misalignment"],
             "linear_extent",
             [],
-            ["structural_member", "access_panel", "drainage_stack", "drainage_branch"],
+            # #23 L3：+transfer_structure（結構位移）、+external_appendage（支架變形/移位，
+            # §5.3.5 拆除重裝的典型觸因）、+false_ceiling_common_area（下垂變形，§5.3.6(a)）。
+            ["structural_member", "access_panel", "drainage_stack", "drainage_branch",
+             "transfer_structure", "external_appendage", "false_ceiling_common_area"],
             ["structural_crack", "drainage_fault"],
             "MBIS §3.4.2(A), §3.6.2, MWIS §10.6；构件变形、移位、弯曲、难以开关或不能关妥（T-06 新增）。",
         ),
@@ -1741,6 +1787,74 @@ def _build_registry_bundle() -> RegistryBundle:
                     ],
                     "specialized_domains": [],
                 },
+                # ── #23 L3 四张新片段模板（无模板则新组件永不产片段＝加了等于没加）──
+                {
+                    # 轉移構築物（§3.4.2(C)(a)：可能被假天花等覆蓋板遮蓋，須檢驗
+                    # 至少 30% 被遮蓋的構件 ⇒ coverage_sampling 分支承重）。
+                    "fragment_template_id": "FT_TRANSFER_STRUCTURE_COVERED_V1",
+                    "building_template_id": "BT_HK_TRANSFER_PLATE_OFFICE_TOWER_V1",
+                    "component_type": "transfer_structure",
+                    "location_class": "transfer_floor",
+                    "area_range": [10.0, 120.0],
+                    "length_range": [3.0, 30.0],
+                    "allowed_driver_profiles": ["DRV_STRUCTURAL_DETERIORATION_V1"],
+                    "allowed_mechanisms": ["structural_crack", "corrosion_spall", "assessment_origin"],
+                    "measurement_branches": [
+                        "defect_geometry_measurement",
+                        "coverage_sampling_measurement",
+                        "technical_validation_measurement",
+                        "structural_assessment_measurement",
+                    ],
+                    "specialized_domains": [],
+                },
+                {
+                    # 外牆附屬物（§3.3.1(a)(vi)；§5.3.5 拆除重裝／錨栓安裝於結構構件）。
+                    "fragment_template_id": "FT_EXTERNAL_APPENDAGE_V1",
+                    "building_template_id": "BT_HK_PRIVATE_RESIDENTIAL_TOWER_RC_V1",
+                    "component_type": "external_appendage",
+                    "location_class": "external_wall",
+                    "area_range": [0.5, 12.0],
+                    "length_range": [0.5, 6.0],
+                    "allowed_driver_profiles": ["DRV_STRUCTURAL_DETERIORATION_V1"],
+                    "allowed_mechanisms": ["structural_crack"],
+                    "measurement_branches": [
+                        "defect_geometry_measurement",
+                        "coverage_sampling_measurement",
+                    ],
+                    "specialized_domains": [],
+                },
+                {
+                    # 公用走廊及大堂假天花（§3.3.1(c)(i)；§5.3.6(a) 拆除及／或更換）。
+                    "fragment_template_id": "FT_FALSE_CEILING_COMMON_V1",
+                    "building_template_id": "BT_HK_COMMERCIAL_ASSEMBLY_MARKET_PODIUM_V1",
+                    "component_type": "false_ceiling_common_area",
+                    "location_class": "common_part",
+                    "area_range": [5.0, 120.0],
+                    "length_range": [2.0, 25.0],
+                    "allowed_driver_profiles": ["DRV_STRUCTURAL_DETERIORATION_V1"],
+                    "allowed_mechanisms": ["structural_crack"],
+                    "measurement_branches": [
+                        "defect_geometry_measurement",
+                        "coverage_sampling_measurement",
+                    ],
+                    "specialized_domains": [],
+                },
+                {
+                    # 外牆飾面·批盪類（§3.3.1(a)(i)；§5.3.1 拆除重裝＋附錄四技术标准）。
+                    "fragment_template_id": "FT_EXTERNAL_WALL_FINISH_V1",
+                    "building_template_id": "BT_HK_TONG_LAU_MIXED_USE_MASONRY_V1",
+                    "component_type": "external_wall_finish",
+                    "location_class": "external_wall",
+                    "area_range": [2.0, 200.0],
+                    "length_range": None,
+                    "allowed_driver_profiles": ["DRV_STRUCTURAL_DETERIORATION_V1"],
+                    "allowed_mechanisms": ["structural_crack"],
+                    "measurement_branches": [
+                        "defect_geometry_measurement",
+                        "technical_validation_measurement",
+                    ],
+                    "specialized_domains": [],
+                },
             ],
         ),
         RegistryTable(
@@ -1866,7 +1980,7 @@ def _build_registry_bundle() -> RegistryBundle:
                     "building_use": "residential",
                     "structure_type": "rc_frame",
                     "storey_count_range": [5, 12],
-                    "primary_materials": ["reinforced_concrete", "plaster_finish", "tile_finish", "aluminium_window", "cast_iron"],
+                    "primary_materials": ["reinforced_concrete", "plaster_finish", "tile_finish", "aluminium_window", "cast_iron", "metal"],  # #23 L3：+metal（external_appendage 金屬支架供給）
                     "component_graph_template_ids": [],
                     "notes": "MBIS §3.3, §3.4, §3.5, §3.6; 1950-1970s walkup residential blocks.",
                 },
@@ -1875,7 +1989,7 @@ def _build_registry_bundle() -> RegistryBundle:
                     "building_use": "residential",
                     "structure_type": "rc_wall",
                     "storey_count_range": [8, 45],
-                    "primary_materials": ["reinforced_concrete", "precast_concrete", "plaster_finish", "upvc_drainage", "steel_fire_doors"],
+                    "primary_materials": ["reinforced_concrete", "precast_concrete", "plaster_finish", "upvc_drainage", "steel_fire_doors", "metal"],  # #23 L3：+metal（external_appendage 金屬支架供給）
                     "component_graph_template_ids": [],
                     "notes": "MBIS §3.1.2, §3.4, §3.5, §3.6; public housing / HOS / high-density residential slab or tower blocks.",
                 },
@@ -1884,7 +1998,7 @@ def _build_registry_bundle() -> RegistryBundle:
                     "building_use": "residential",
                     "structure_type": "rc_frame",
                     "storey_count_range": [20, 70],
-                    "primary_materials": ["reinforced_concrete", "plaster_finish", "aluminium_window", "upvc_drainage", "steel_fire_doors"],
+                    "primary_materials": ["reinforced_concrete", "plaster_finish", "aluminium_window", "upvc_drainage", "steel_fire_doors", "metal"],  # #23 L3：+metal（external_appendage 金屬支架供給）
                     "component_graph_template_ids": [],
                     "notes": "MBIS §1.3, §3.3, §3.4, §3.5, §3.6; modern private residential towers.",
                 },
@@ -1920,7 +2034,10 @@ def _build_registry_bundle() -> RegistryBundle:
                     "building_use": "composite",
                     "structure_type": "rc_frame",
                     "storey_count_range": [15, 50],
-                    "primary_materials": ["reinforced_concrete", "polymer_render", "aluminium_window", "curtain_wall_glazing", "stainless_steel_pipe"],
+                    # #23 L2：+stone_cladding / glass_balustrade_panel——两值此前无任何楼型声明
+                    # ⇒ 世界结构上永不产出；钉 COASTAL 因 parapet_wall 组件只在本楼型生成
+                    # （generator._ARCHETYPE_EXTRA_COMPONENTS 硬编码，钉别处=加了等于没加第四形态）。
+                    "primary_materials": ["reinforced_concrete", "polymer_render", "aluminium_window", "curtain_wall_glazing", "stainless_steel_pipe", "stone_cladding", "glass_balustrade_panel"],
                     "component_graph_template_ids": [],
                     "notes": "MBIS §3.3.2(B)-(G), §3.4.2(A), §5.3, §5.4; coastal / high-exposure composite towers (replaces mvp BT_COASTAL_COMPOSITE_TOWER_V1).",
                 },
@@ -1956,7 +2073,7 @@ def _build_registry_bundle() -> RegistryBundle:
                     "building_use": "commercial",
                     "structure_type": "rc_frame",
                     "storey_count_range": [2, 12],
-                    "primary_materials": ["reinforced_concrete", "fire_resistant_partition_wall", "steel_fire_doors", "fire_rated_glass", "metal_gate"],
+                    "primary_materials": ["reinforced_concrete", "fire_resistant_partition_wall", "steel_fire_doors", "fire_rated_glass", "metal_gate", "metal"],  # #23 L3：+metal（false_ceiling 金屬吊架供給）
                     "component_graph_template_ids": [],
                     "notes": "MBIS §3.5.1, §3.5.2(B)-(F), §5.5; commercial / assembly / market / cinema podium for fire-compartment scenarios.",
                 },
@@ -2001,7 +2118,12 @@ def _build_registry_bundle() -> RegistryBundle:
                 {
                     "component_type": "external_wall",
                     "component_class": "external_component",
-                    "material_compatibility": ["reinforced_concrete", "plain_concrete", "plaster_finish", "masonry_plaster", "polymer_render", "tile_finish", "stone_cladding", "aluminium_panel_cladding", "gfrc_panel", "paint_coating"],
+                    # #23 L2（决议_23路线_20260805 §一.1，配方固化在 canary_scope_conjunction_probe.py
+                    # 的 L2_MATERIAL_COMPATIBILITY_ADDITIONS）：+curtain_wall_glazing /
+                    # curtain_wall_aluminium_frame / metal_louver_fin / metal_gate ＋
+                    # 砌体本体三值 clay_brick / concrete_block / stone_masonry（§5.4.3；
+                    # 唯一砌体楼型 TONG_LAU 的 primary_materials 早已声明 clay_brick）。
+                    "material_compatibility": ["reinforced_concrete", "plain_concrete", "plaster_finish", "masonry_plaster", "polymer_render", "tile_finish", "stone_cladding", "aluminium_panel_cladding", "gfrc_panel", "paint_coating", "curtain_wall_glazing", "curtain_wall_aluminium_frame", "metal_louver_fin", "metal_gate", "clay_brick", "concrete_block", "stone_masonry"],
                     "default_structural_role": "secondary_load_bearing",
                     "geometry_proxy_ranges": {"length_m": [1.0, 50.0], "visible_area_m2": [1.0, 500.0], "thickness_mm": [100, 500]},
                     # RC-capable（外墙含 reinforced_concrete / plain_concrete）；外墙 RC 保护层一般 20-50mm（spec 04 §5 [10, 100] 范围内）
@@ -2060,7 +2182,9 @@ def _build_registry_bundle() -> RegistryBundle:
                 {
                     "component_type": "parapet_wall",
                     "component_class": "external_component",
-                    "material_compatibility": ["reinforced_concrete", "plain_concrete", "masonry_plaster", "tile_finish", "plaster_finish"],
+                    # #23 L2：+glass_balustrade_panel（§5.3.6(b) 栏板/栏杆承载；
+                    # parapet_wall 组件只在 COASTAL 楼型生成，来源钉在该楼型 primary_materials）。
+                    "material_compatibility": ["reinforced_concrete", "plain_concrete", "masonry_plaster", "tile_finish", "plaster_finish", "glass_balustrade_panel"],
                     "default_structural_role": "non_load_bearing",
                     "geometry_proxy_ranges": {"length_m": [1.0, 50.0], "visible_area_m2": [1.0, 100.0], "thickness_mm": [100, 300]},
                     # RC-capable（parapet 含 RC / 素混凝土）；20-50mm
@@ -2217,6 +2341,61 @@ def _build_registry_bundle() -> RegistryBundle:
                     "allowed_mechanisms": ["structural_crack"],
                     "notes": "engineering_estimate_DEBT049_20260708 低置信：几何范围沿 protective_render 先例。",
                 },
+                # ── #23 L3 四个新组件类（决议_23路线_20260805 §一.1，甲路纪律）──
+                {
+                    # 轉移構築物（§3.4.1(b)(vii)；§3.4.2(C)(a) 轉移板及轉移樑…須檢驗
+                    # 至少 30% 被遮蓋的構件，页 28）。真值 9 行的唯一纯建模缺口。
+                    "component_type": "transfer_structure",
+                    "component_class": "structural_component",
+                    "material_compatibility": ["reinforced_concrete", "prestressed_concrete", "precast_concrete", "steel_transfer_beam", "structural_steel_section"],
+                    "default_structural_role": "primary_load_bearing",
+                    "geometry_proxy_ranges": {"length_m": [3.0, 30.0], "visible_area_m2": [10.0, 150.0], "thickness_mm": [300, 2500]},
+                    # RC-capable（轉移板/樑）；沿 structural_member 先例 [20, 75]
+                    "cover_depth_mm_range": [20.0, 75.0],
+                    "allowed_location_classes": ["transfer_floor", "podium_soffit"],
+                    "allowed_mechanisms": ["structural_crack", "corrosion_spall", "assessment_origin"],
+                    "notes": "engineering_estimate_23L3_20260806 低置信：几何范围沿 structural_member 先例放大到转移层构件量级。",
+                },
+                {
+                    # 外牆附屬物（§3.3.1(a)(vi) 金屬支架、遮篷、花槽、支承屋宇裝備裝置
+                    # 的構築物、晾衣架等，页 19；§5.3.5 修葺，页 46）。
+                    "component_type": "external_appendage",
+                    "component_class": "external_component",
+                    "material_compatibility": ["metal", "timber", "composite_material"],
+                    "default_structural_role": "non_load_bearing",
+                    "geometry_proxy_ranges": {"length_m": [0.5, 6.0], "visible_area_m2": [0.5, 12.0], "thickness_mm": [3, 100]},
+                    "cover_depth_mm_range": None,  # 非 RC（金属/木/复合支架类），cover_depth_mm 必 null
+                    "allowed_location_classes": ["external_wall"],
+                    "allowed_mechanisms": ["structural_crack"],
+                    "notes": "engineering_estimate_23L3_20260806 低置信：附屬物以錨栓安裝於結構構件上（§5.3.5(b)），欠妥形态经 structural_crack 链发射（裂缝/變形位移）。",
+                },
+                {
+                    # 公用走廊及大堂假天花（§3.3.1(c)(i)，页 19；§5.3.6(a) 欠妥的假天花板
+                    # 須予以拆除及／或更換，页 47）。
+                    "component_type": "false_ceiling_common_area",
+                    "component_class": "external_component",
+                    "material_compatibility": ["plaster_finish", "metal", "composite_material", "timber"],
+                    "default_structural_role": "non_load_bearing",
+                    "geometry_proxy_ranges": {"length_m": [2.0, 30.0], "visible_area_m2": [5.0, 150.0], "thickness_mm": [5, 60]},
+                    "cover_depth_mm_range": None,  # 非 RC（吊挂板材），cover_depth_mm 必 null
+                    "allowed_location_classes": ["common_part"],
+                    "allowed_mechanisms": ["structural_crack"],
+                    "notes": "engineering_estimate_23L3_20260806 低置信：吊挂系统欠妥经 structural_crack 链发射（裂缝/變形下垂）。",
+                },
+                {
+                    # 外牆飾面·批盪類（§3.3.1(a)(i) 牆磚或瓦片、批盪及覆蓋層等外牆飾面，
+                    # 页 19；§5.3.1 批盪及瓦片修葺，页 45）。瓦片类已有 wall_tile_finish
+                    # 专项，本类承载批盪/油漆/聚合物批盪的非瓦片飾面半边。
+                    "component_type": "external_wall_finish",
+                    "component_class": "finish_system",
+                    "material_compatibility": ["plaster_finish", "polymer_render", "masonry_plaster", "paint_coating"],
+                    "default_structural_role": "finish_only",
+                    "geometry_proxy_ranges": {"length_m": [1.0, 50.0], "visible_area_m2": [1.0, 300.0], "thickness_mm": [5, 50]},
+                    "cover_depth_mm_range": None,  # 饰面层非 RC，cover_depth_mm 必 null
+                    "allowed_location_classes": ["external_wall", "common_part"],
+                    "allowed_mechanisms": ["structural_crack"],
+                    "notes": "engineering_estimate_23L3_20260806 低置信：几何范围沿 protective_render 先例；与 protective_render（W0 休眠、无组件计划）的区分＝本类进生成计划承载 §5.3.1 真值作用域。",
+                },
             ],
         ),
         RegistryTable(
@@ -2247,7 +2426,7 @@ def _build_registry_bundle() -> RegistryBundle:
             records=[
                 {"coverage_relation_id": "CR_IN_SCOPE", "relation_type": "scope.component.in_scope", "target_component_types": [], "obscuration_classes": ["none"], "ratio_slot_id": "", "default_inspection_ratio_range": [1.0, 1.0], "notes": ""},
                 {"coverage_relation_id": "CR_EXCLUDED", "relation_type": "scope.component.excluded_from_scope", "target_component_types": [], "obscuration_classes": ["access_blocked", "unsafe_access"], "ratio_slot_id": "", "default_inspection_ratio_range": [0.0, 0.0], "notes": ""},
-                {"coverage_relation_id": "CR_COVERED", "relation_type": "scope.component.covered", "target_component_types": ["signboard", "canopy", "external_wall", "parapet_wall", "balcony_slab", "structural_member", "wall_tile_finish"], "obscuration_classes": ["signboard"], "ratio_slot_id": "", "default_inspection_ratio_range": [0.0, 0.8], "notes": "DEBT-049 B1（codex CoP §3.3.2(J)(a) 被遮盖的外部及其他实体构件、§3.4.2(D) 其他被遮盖构件）：遮蔽范围广于 signboard/canopy，扩至外部/结构/实体构件；covered_by_large_signboard 保留 signboard 专项。"},
+                {"coverage_relation_id": "CR_COVERED", "relation_type": "scope.component.covered", "target_component_types": ["signboard", "canopy", "external_wall", "parapet_wall", "balcony_slab", "structural_member", "wall_tile_finish", "transfer_structure", "external_wall_finish"], "obscuration_classes": ["signboard"], "ratio_slot_id": "", "default_inspection_ratio_range": [0.0, 0.8], "notes": "DEBT-049 B1（codex CoP §3.3.2(J)(a) 被遮盖的外部及其他实体构件、§3.4.2(D) 其他被遮盖构件）：遮蔽范围广于 signboard/canopy，扩至外部/结构/实体构件；covered_by_large_signboard 保留 signboard 专项。#23 L3（2026-08-06）：+transfer_structure（§3.4.2(C)(a) 轉移板及轉移樑可能被假天花等覆蓋板遮蓋、須檢驗至少 30% 被遮蓋的構件——本类的 coverage 轴是其真值条款的承重面）＋external_wall_finish（沿 wall_tile_finish 先例）。"},
                 {"coverage_relation_id": "CR_COVERED_BY_SIGNBOARD", "relation_type": "scope.component.covered_by_large_signboard", "target_component_types": ["signboard"], "obscuration_classes": ["signboard"], "ratio_slot_id": "", "default_inspection_ratio_range": [0.0, 0.6], "notes": ""},
                 {
                     "coverage_relation_id": "CR_OBSCURED_BY_FINISH",
@@ -3021,6 +3200,20 @@ def _build_registry_bundle() -> RegistryBundle:
                 # `physical_bounds` **本次一律不动**（甲类 [0,60] ／ 乙11 [0,30]）：
                 # 采样先 clip 到 `typical_bounds` 再 clip 到 physical，typical 上界 20 < 30
                 # ⇒ 两种 physical 上界对采样值逐字节无差别。
+                # 🔴 **前提（官方审核门 2026-08-05 补，别删）**：上面这句「零采样影响」
+                # **只在本组八槽仍走 Clip 路径（Path A）时成立**，不是无条件的机制性质——
+                # 成立条件＝条目同时有 `recommended_distribution` ＋ mean ＋ **sigma**。
+                # 一旦谁删掉一个 `sigma`（或写成未知分布名），`generator.py:1647` 判假
+                # **改走 Path B**：`deterministic_value = (lo + hi) / 2.0`，而 lo/hi 就是
+                # **physical**（L1613 ／ L1636-1644）——**完全绕过 `typical_bounds` clip**。
+                # 官方线反事实实测（抽掉 sigma）：[0,60] 出 [32,33,30,29,…]、[0,30] 出
+                # [16,16,15,14,…] —— **两界结果完全不同**。且 30 日与 15 日同在 ≤7 日阈值的
+                # 违规侧 ⇒ **不报错、不改判定方向、但值分布已静默失真**（「关键配置静默退化」族）。
+                # 同形兜底还有 L1564-1566 的未知分布名分支。当前八槽三字段齐备 ⇒ Path B 不可达。
+                # ⚠️ 另：physical_bounds 还有个**非采样消费者**——静态闸
+                # `test_deadline_anchor_emission.py::test_emitted_values_are_within_physical_bounds`
+                # 直接拿它当断言上界，取 [0,60] 使该闸宽了一倍。当前恒过、不构成不一致，
+                # 但严格讲「零影响」只对**采样值**成立，对**闸的紧度**不成立。
                 # ⚠️ 决议 §一表的「typical / physical」列把 physical 写成 [0,30]，与同决议
                 # 委托的逐槽替换文本（官方线商议 §六「physical_bounds 全部不动」）不一致；
                 # 按委托条款取后者，差异对采样零影响（记于实施记录）。
@@ -3270,13 +3463,13 @@ def _build_registry_bundle() -> RegistryBundle:
                     # 🔴 决议 §一.3 吸收 qwen 洞：#11 **世界侧原本没有承载槽**。
                     # ⚠️ 措辞订正（official 审核 M3①，2026-08-05 实取核实）：先前这里写
                     # 「只有布尔门 `procedure.repair.revision_proposal.submitted_to_ba`」，
-                    # 那是**把一个不产出的东西陈述成存在的**——该槽只在
+                    # 那是**把一个不产出的东西陈述成存在的**——该槽当时只在
                     # `_build_sidecar_contract` 的 ownership_map 登记（`carrier_slot` FK
-                    # 完整性所需），**不在 `sidecar_bool_slot_registry`（52 条实采清单）里**
-                    # ⇒ 生成器从未产出过它，一行事实都没有。
-                    # （同形：#9 的 `procedure.repair_supervising_ri.appointment.completed`
-                    # 也是 ownership 有、bool registry 无。这正是 CLAUDE.md 记的
-                    # 「140 声明 vs 46 实采、两表之间没有任何东西在对账」那一族。）
+                    # 完整性所需），不在 `sidecar_bool_slot_registry` 实采清单里。
+                    # ✅ 2026-08-06 换池批步 A1.3（#38 槽 3/槽 4）已补实采：本槽与
+                    # #9 的 `procedure.repair_supervising_ri.appointment.completed` 均已
+                    # 进 bool registry（G 组记录，order 34.5 / 45.4），「声明了永不产出」
+                    # 自此关闭——首采随池 v2 生成（步 B），分布待 A1.6 授权门。
                     # `duration.delivery.deadline{,.to_person}` 承载的是 §2.1.3(r)
                     # 完工报告语义，**不能拿来判 (p)/(q) 的修訂建議書同日送交**——那是另一个行政事件。
                     #
@@ -3704,7 +3897,31 @@ def _build_registry_bundle() -> RegistryBundle:
                     "conditional_inputs": ["supervision.site_visit.performed", "supervision.record.completed", "supervision.record.retained"],
                     "conditional_formula": None, "carrier_domain": "supervision",
                     "source_attribution": "proagent_engineering_estimate_DEBT020_round4_2026_05_09",
-                    "aliases": [], "notes": "聚合 flag = completed (0.72) × retained_given_completed (0.85). QA: 不应大于单项.",
+                    "aliases": [],
+                    # 🔴 A1.6 补裁（2026-08-06，审核门必须修 A）：原 notes 写的
+                    # 「completed (0.72) × retained_given_completed (0.85)」正是本步
+                    # **明确否掉**的那条 0.62 推导。`prevalence` 已由
+                    # `POST_CLAMP_REALIZED_MARGINALS` 覆盖成 0.39，notes 不同步
+                    # ⇒ **注册表内部自相矛盾**：值是 0.39，而两个来源字段讲的是一条
+                    # 会得出 0.62 的推导。改它的正当性在两条：①文档准确性（读这条
+                    # 记录的人不该被一条已撤回的来历误导）；②`notes` 是 registry
+                    # 记录的一部分 ⇒ 进 `registry_bundle_hash` ⇒ 属被 A3 封存的
+                    # 权威内容，错的来历会被封进锚里。
+                    # ⚠️ **不是**因为它会进产物行（2026-08-06 双线终审实测纠正）：
+                    # `sidecar.py` 各发射点的 `notes=` 全是硬编码字面量，`_emit`
+                    # 不读 `slot_record["notes"]`，`parquet_io` 只写
+                    # `registry_bundle_hash` 不写 records。别再把「随 `_emit` 进
+                    # 产物行」当理由——那句是编的，已在此撤回。
+                    "notes": (
+                        "聚合 flag；声明值＝钳制后实现边际 0.39（A1.6 补裁 2026-08-06）。"
+                        "闭式四因子推导，输入全部是注册表已声明参数："
+                        "P(retained|completed)=0.723876 → P(both)=0.72×0.723876=0.521191 "
+                        "→ P(采样真|both)=0.742604 → 0.521191×0.742604=0.3870。"
+                        "旧「completed 0.72 × retained_given_completed 0.85 = 0.62」推导已撤回："
+                        "0.62 结构不可达（可达上界 P(both)=0.5212），且 0.85 是无出处工程比值。"
+                        "公式内部中心化基仍取 0.62（钳制前的中心），与本声明值按构造不相等。"
+                        "QA: 不应大于单项."
+                    ),
                 },
                 {
                     "slot_id": "supervision.record.completed",
@@ -3762,6 +3979,15 @@ def _build_registry_bundle() -> RegistryBundle:
                     "aliases": [], "notes": "MBI4 属 completion phase; 与 completion report 同量级.",
                 },
                 {
+                    # #38 改锚已落（换池批步 A1.4，2026-08-06；原「待修标记」清除）：
+                    # §2.1.3(s) 的 MBI5 锚在「监督 RI ≠ 检验 RI」（role split），旧锚
+                    # admin-churn 系语义错挂——真依赖已改为
+                    # `procedure.repair_supervising_ri.appointment.completed`（槽 4，
+                    # G 组记录 order 25.5 补实采），mbi5 sampling_order 6 → 25.7。
+                    # 本行 conditional_inputs 仍是**死文本**（`_apply_round6_round7_
+                    # overlays` 用公式 term 键集整体改写，#37 丙路同步行），活公式见
+                    # round6_formulas.py mbi5 条目；分布待授权门重估
+                    # （distribution_source 由 overlay 标 PLACEHOLDER）。
                     "slot_id": "artifact.form.mbi5",
                     "value_type": "bool", "enum_values": [],
                     "prevalence": 0.07,
@@ -4066,6 +4292,85 @@ def _build_registry_bundle() -> RegistryBundle:
                     "source_attribution": "proagent_engineering_estimate_DEBT020_round4_2026_05_09",
                     "aliases": [], "notes": "BD statutory fire-safety upgrade order 是否仍 open; spec 09 §1.1.2 B 类; round4 confidence=low.",
                 },
+                # ===== G. 池 v2 供给侧新槽（#38，换池批步 A1.3，2026-08-06）=====
+                # 授权：`决议_38裁定_20260806.md` §二「登记先行、采样随池 v2、分布授权
+                # 随批」＋`技术与研究债.md`「#38 换池批供给侧项」＋总工单 A1.3。
+                # 公式由 `_apply_pool_v2_supply_overlay` 从
+                # `round6_formulas.build_pool_v2_supply_slot_specs` 灌入（fail-closed，
+                # 死声明补公式同款纪律）。🔴 三槽 prevalence 与公式系数是结构占位的
+                # 工程推导值（同表比值法，46/47 号槽先例），**未经分布授权门**——
+                # distribution_source 由 overlay 标 PLACEHOLDER，A1.6 门检
+                # （分布来源表零 PLACEHOLDER）裁定后换实值。采样序取非整避让
+                # （32.5 / 34.5 / 25.5），不平移既有 1-45 与 46-51。
+                {
+                    # #38 槽 2 主案：附錄六第 6 段「发现不一致事项」事件——
+                    # sp2 记录（order 33）的真前件；发现是隐变量的历史至此结束。
+                    # granularity 缺省 fragment：发现发生在到场监督的具体部位，
+                    # 与 site_visit / sp2 家族同粒度；楼级读数经
+                    # BUILDING_READING_AGGREGATION["supervision.nonconformity.found"]
+                    # = any_true 聚合（任一部位发现即楼级成立，与 sp2 同语义）。
+                    "slot_id": "supervision.nonconformity.found",
+                    "value_type": "bool", "enum_values": [],
+                    # 0.22 = sp2 记录 0.20 ÷ 最保守事件→文书比值 0.9286（占位待授权）
+                    "prevalence": 0.22,
+                    "conditional_inputs": ["supervision.site_visit.performed", "artifact.record.test_or_material_witness", "H.nonconformity_risk", "H.defect_severity_score", "H.repair_complexity_score"],
+                    "conditional_formula": None, "carrier_domain": "supervision",
+                    "sampling_order": POOL_V2_SUPPLY_SAMPLING_ORDERS["supervision.nonconformity.found"],
+                    "source_attribution": "pool_v2_supply_structural_estimate_20260806_pending_authorization",
+                    "cop_section": "MBIS_CoP_2023 Appendix 6 para 6 + Attachment C",
+                    "aliases": [],
+                    "notes": (
+                        "監督期間發現不一致事項（附錄六第 6 段）；sp2 不符合記錄的真前件事件。"
+                        "override（sapp6_p6 卡）自過渡態 verification.test.failed 改綁本槽。"
+                    ),
+                },
+                {
+                    # #38 槽 3：修葺建議修訂已呈交建築事務監督。仅作乙#11 期限锚
+                    # `duration.delivery.repair_revision_proposal` 的 carrier /
+                    # time_anchor_key，**不登记 trigger 角色**（主案已把适用层移到
+                    # `procedure.repair.revision_required`）。行政一次性事件，楼级。
+                    "slot_id": "procedure.repair.revision_proposal.submitted_to_ba",
+                    "granularity": "building",
+                    "value_type": "bool", "enum_values": [],
+                    # 0.17 = revision_required 0.18 × 同表文书履行比值 0.9444（占位待授权；
+                    # glm 起点＝revision_required(0.1839) 子集）
+                    "prevalence": 0.17,
+                    "conditional_inputs": ["procedure.repair.revision_required"],
+                    "conditional_formula": None, "carrier_domain": "procedure",
+                    "sampling_order": POOL_V2_SUPPLY_SAMPLING_ORDERS["procedure.repair.revision_proposal.submitted_to_ba"],
+                    "source_attribution": "pool_v2_supply_structural_estimate_20260806_pending_authorization",
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(p)-(q)",
+                    "aliases": [],
+                    "notes": (
+                        "修葺建議修訂已呈交建築事務監督（§2.1.3(p)-(q) 同日限体）；"
+                        "仅乙#11 期限锚 carrier，不作 trigger——(p)/(q) 适用层锚在 revision_required。"
+                    ),
+                },
+                {
+                    # #38 槽 4：另聘（≠检验 RI 的）修葺监督 RI 委任完成——§2.1.3(s)/
+                    # §6.4.3。甲#9 期限锚 `duration.notification.appointment_supervising_ri
+                    # .to_ba` 以本槽为 carrier；mbi5 表单公式（order 25.7）依赖本槽。
+                    # 序 25.5＝修葺开工(25)后、监督活动(26+)前——委任先于该 RI 到场。
+                    # 「防同一 RI 情形误生成」：世界不建模 RI 身份，槽真值本身即
+                    # 「另一名」情形标记；正耦合只挂行政更替事件（同/异 RI 的世界内
+                    # 唯一判别量）＋修葺已开工，anchor 稀有档——非更替、非修葺楼
+                    # 几乎不出真值（§6.4.3 对照）。行政一次性事件，楼级。
+                    "slot_id": "procedure.repair_supervising_ri.appointment.completed",
+                    "granularity": "building",
+                    "value_type": "bool", "enum_values": [],
+                    # 0.075 = mbi5 0.07 ÷ 0.9286（MBI5 是本事件的法定文书；占位待授权）
+                    "prevalence": 0.075,
+                    "conditional_inputs": ["procedure.repair.prescribed.started", "procedure.ri_role.terminated", "procedure.temp_ri_nomination.terminated"],
+                    "conditional_formula": None, "carrier_domain": "procedure",
+                    "sampling_order": POOL_V2_SUPPLY_SAMPLING_ORDERS["procedure.repair_supervising_ri.appointment.completed"],
+                    "source_attribution": "pool_v2_supply_structural_estimate_20260806_pending_authorization",
+                    "cop_section": "MBIS_CoP_2023 §2.1.3(s) + §6.4.3-§6.4.4",
+                    "aliases": [],
+                    "notes": (
+                        "由另一名註冊檢驗人員監督訂明修葺的委任已完成（§2.1.3(s)）；"
+                        "甲#9 期限锚 carrier；mbi5 表单的正确依赖（#38 改锚）。"
+                    ),
+                },
                 # ===== F. 条款前件补槽（2026-07-31，缺省等价追加）=====
                 # 背景：33 张法规卡漏掉了条款自身的前件（「如…則須…」的「如」那半），
                 # 对每栋楼无条件开火。把前件映射回世界槽时发现两个前件世界侧无槽——
@@ -4156,14 +4461,40 @@ def _build_registry_bundle() -> RegistryBundle:
     # COP 章节引用 + alignment_check overlay 到 sidecar_bool_slot_registry 45 records.
     _apply_round6_round7_overlays(registries)
 
+    # 死声明补公式（2026-08-05，决议_33处置_20260805.md §一.1 零边际成本段）。
+    # 🔴 顺序必须在 Round6/7 overlay **之后**：那一轮按 slot_id 命中才 patch，
+    # 本轮的 3 个槽不在它的 45 条射程内，两轮零交集（有交集即违例，闸在
+    # `_apply_precondition_coupling_overlay` 里）。
+    _apply_precondition_coupling_overlay(registries)
+
+    # 池 v2 供给侧三新槽公式（#38，换池批步 A1.3，2026-08-06）——同款 fail-closed。
+    _apply_pool_v2_supply_overlay(registries)
+
+    # A1.6 乙路：楼级消费者读碎片级上游时中心化基改取聚合后期望
+    # （决议_A16裁定_20260806 §一.2）。🔴 顺序必须在**全部**公式 overlay 之后
+    # ——它按 slot_id 机械枚举现存公式，跑在前面就会漏掉后落的那批
+    # （#33 的 `.intended` 与 #38 的槽 4 都是本 overlay 的成员）。
+    _apply_a16_building_aggregation_centering(registries)
+
+    # 生成器自检（换池批步 A1.4 验收；spec 06 §11.6.7 DAG validity）：
+    # 此前该校验只存在于注释与测试（`conditional_eval.py:147` 的「build 时校验」
+    # 是不实陈述——2026-08-06 勘察坐实），DAG 重排批把它焊成构造期硬闸。
+    _validate_sidecar_sampling_dag(registries)
+
     return RegistryBundle(generated_at=_utc_now_iso(), source_documents=list(SOURCE_DOCUMENTS), registries=registries)
 
 
 # DEBT-020 Round 7 §3 alignment_check (10000 MC, seed=20260511) 实测 delta < 0.05.
 # 见 round6_formulas.py + DEBT-020 Round 7 §3 alignment_results.
-# 这里的 observed_marginal 是 Round 7 §3 的 reference value；W0 实跑 sidecar 派生层时
-# observed_marginal 会按 release batch 实际 fragment 群体 重新计算（通过
-# sidecar.py:_run_alignment_check_for_release_batch 校验）.
+# 这里的 observed_marginal 是 Round 7 §3 的 reference value。
+# ⚠️ 2026-08-06（#37）：原注释声称「W0 实跑时会按 release batch 重新计算（通过
+# sidecar.py:_run_alignment_check_for_release_batch 校验）」——**该函数全仓不存在**
+# （量化与两线商议独立复核，唯一命中即注释本身），没有任何运行时机制会把过期
+# 徽章报出来，已删。真复检器记债不实施（归分布授权流水线远期，
+# 决议_37修法_20260805 §一.5）。下表 observed 是 2026-05-11 MC 的历史参考值：
+# 2026-07-07 粒度两相分派（7a82118）后即过期，45 条徽章已整体降级
+# `stale_round7_mc_granularity_split`（见 `_apply_round6_round7_overlays`）；
+# MC 重跑归换池批（sidecar 重采样后、W2 投影前），通过后按新档位名重盖。
 _ROUND7_ALIGNMENT_REFERENCE: Dict[str, Dict[str, Any]] = {
     "procedure.ri.appointment.completed": {"observed": 0.8625, "delta": 0.0025},
     "artifact.form.mbi1": {"observed": 0.9460, "delta": -0.0040},
@@ -4213,6 +4544,95 @@ _ROUND7_ALIGNMENT_REFERENCE: Dict[str, Dict[str, Any]] = {
 }
 
 
+# ===================================================================== #
+# A1.6 分布授权门 MC 重跑徽章（2026-08-06）
+# ===================================================================== #
+#
+# 授权：`决议_A16裁定_20260806.md` §三「32 走 MC 后自动重盖（fail 者逐槽当场补裁）」
+# ＋ §四 MC 实跑规格；实测见 `实施记录_A16落地_20260806.md` §三。
+#
+# 与 `_ROUND7_ALIGNMENT_REFERENCE` 的**三点不同**（每点都是有意的）：
+# 1. **跑在生产两相分派编排器上**（`_sample_sidecar_bool_slots_for_building`），
+#    楼级槽只见楼级可得集、碎片上游按 `BUILDING_READING_AGGREGATION` 聚合——
+#    这正是 2026-05-11 那次 MC 缺的那一半，也是 45/45 徽章整体过期的原因；
+# 2. **口径显式登记**（下方 `_A16_MC_BADGE_HEADER`）：`seed_tag` 取代旧 `seed`
+#    整数（工具是键控子流，种子是字符串标签）；新增 `fragments_per_building`
+#    ——k 承重，聚合期望是 k 的函数，不记 k 的徽章无从复现；
+# 3. **状态名带池身份**：`passed_pool_v2_mc_20260806`，不复用
+#    `passed_round7_mc`——那是另一个上下文里的另一次实验，同名会让下一个人
+#    以为徽章没换过。
+#
+# 🔴 诚实边界（三条，别被「45/45 全绿」读成「分布真实」）：
+# ① 本徽章证明的是**实现一致性**（代码按 registry 的声明在采样），
+#    不是「真实池分布符合工程预期」——后者归换池批 D 步实测（决议 §一.1 分界句）；
+# ② `fragments_per_building=4` 是 MC 口径常数，生产池的每栋碎片数是**分布**；
+# ③ 三个 #33 死声明补公式槽与三个 #38 新槽**同批过了这次 MC 但不写徽章**
+#    ——沿用 `_apply_precondition_coupling_overlay` 的既有纪律（那两轮 overlay
+#    从设计上就不写 `alignment_check`）。属**少声明**、不属虚报；要给它们发徽章
+#    得先改那两轮 overlay 的纪律，超出 A1.6 射程，已入停下事项。
+_A16_MC_BADGE_HEADER: Dict[str, Any] = {
+    "monte_carlo_n": 10000,
+    "seed_tag": "mc_gate_poolv2_20260806",
+    "fragments_per_building": 4,
+    "pass_threshold": 0.05,
+    "status": "passed_pool_v2_mc_20260806",
+    "context_caliber": (
+        "hidden=prior_means; physical=absent(0.0, legacy-MC caliber); "
+        "building_context=neutral; dispatcher=production two-phase"
+    ),
+}
+
+# 逐槽 observed / delta：**由 `rerun_distribution_mc.py` 的门检跑报告机器生成**
+# （`杂物箱/备份_A16落地_20260806/mc产物/`），不是手抄。
+_A16_POOL_V2_MC_ALIGNMENT: Dict[str, Dict[str, Any]] = {
+    "artifact.certificate.material_or_product": {"observed": 0.4352, "delta": 0.0052},
+    "artifact.form.mbi1": {"observed": 0.9468, "delta": -0.0032},
+    "artifact.form.mbi2": {"observed": 0.0832, "delta": 0.0032},
+    "artifact.form.mbi3_or_mbi3a": {"observed": 0.7097, "delta": -0.0103},
+    "artifact.form.mbi4": {"observed": 0.3932, "delta": 0.0032},
+    "artifact.form.mbi5": {"observed": 0.073, "delta": 0.003},
+    "artifact.notice.investigation_intention": {"observed": 0.3173, "delta": 0.0173},
+    "artifact.photo.annotated": {"observed": 0.6947, "delta": -0.0053},
+    "artifact.plan.annotated": {"observed": 0.6399, "delta": -0.0001},
+    "artifact.proposal.detailed_investigation": {"observed": 0.315, "delta": 0.015},
+    "artifact.proposal.repair": {"observed": 0.5657, "delta": -0.0043},
+    "artifact.proposal.repair_revision": {"observed": 0.178, "delta": 0.008},
+    "artifact.record.inspection_log": {"observed": 0.7751, "delta": -0.0049},
+    "artifact.record.nonconformity_sp2": {"observed": 0.2084, "delta": 0.0084},
+    "artifact.record.supervision_log_sp1": {"observed": 0.6036, "delta": -0.0064},
+    "artifact.record.test_or_material_witness": {"observed": 0.4411, "delta": 0.0011},
+    "artifact.report.completion": {"observed": 0.3841, "delta": -0.0159},
+    "artifact.report.inspection": {"observed": 0.72, "delta": -0.01},
+    "artifact.statement.extra_works_separated": {"observed": 0.1951, "delta": 0.0051},
+    "artifact.statement.scope_and_order_coverage": {"observed": 0.5715, "delta": -0.0085},
+    "fire_safety.upgrade_outstanding": {"observed": 0.1598, "delta": -0.0002},
+    "procedure.completed_work.final_inspection_performed": {"observed": 0.3935, "delta": -0.0065},
+    "procedure.inspection.prescribed.completed": {"observed": 0.739, "delta": -0.001},
+    "procedure.investigation.intention_notified": {"observed": 0.3003, "delta": 0.0003},
+    "procedure.investigation.proposal.recognized": {"observed": 0.1906, "delta": 0.0106},
+    "procedure.investigation.proposal.submitted": {"observed": 0.3104, "delta": 0.0104},
+    "procedure.investigation.started": {"observed": 0.2168, "delta": 0.0168},
+    "procedure.rc.pre_notification_given": {"observed": 0.5022, "delta": 0.0022},
+    "procedure.repair.prescribed.completed": {"observed": 0.4039, "delta": -0.0161},
+    "procedure.repair.prescribed.started": {"observed": 0.5462, "delta": -0.0038},
+    "procedure.repair.revision_required": {"observed": 0.1896, "delta": 0.0096},
+    "procedure.ri.appointment.completed": {"observed": 0.8623, "delta": 0.0023},
+    "procedure.ri_role.terminated": {"observed": 0.0629, "delta": 0.0029},
+    "procedure.supervision_representative.planned": {"observed": 0.6538, "delta": -0.0062},
+    "procedure.supervision_team.changed": {"observed": 0.1203, "delta": 0.0003},
+    "procedure.supervision_team.submitted": {"observed": 0.5778, "delta": -0.0022},
+    "procedure.temp_ri_nomination.completed": {"observed": 0.0811, "delta": 0.0011},
+    "procedure.temp_ri_nomination.terminated": {"observed": 0.0308, "delta": 0.0008},
+    "qual.actor_role": {"observed": {"registered_inspector": 0.5767, "registered_contractor": 0.2243, "building_authority": 0.1019, "owner": 0.0971}, "max_class_delta": 0.0043},
+    "qual.artifact_field_group": {"observed": {"form_metadata": 0.2208, "repair_proposal": 0.1814, "supervision_record": 0.1985, "completion_report": 0.1223, "evidence_photo": 0.1572, "evidence_plan": 0.1199}, "max_class_delta": 0.0028},
+    "qual.method_class": {"observed": {"visual_inspection": 0.3335, "pull_test": 0.1258, "hammer_tapping": 0.2163, "drainage_cctv": 0.0971, "water_test": 0.0495, "smoke_test": 0.0301, "material_test": 0.0947, "self_closing_test": 0.0532}, "max_class_delta": 0.0066},
+    "supervision.record.completed": {"observed": 0.7108, "delta": -0.0092},
+    "supervision.record.completed_and_retained": {"observed": 0.382, "delta": -0.008},
+    "supervision.record.retained": {"observed": 0.6734, "delta": -0.0066},
+    "supervision.site_visit.performed": {"observed": 0.7923, "delta": -0.0077},
+}
+
+
 def _apply_round6_round7_overlays(registries: List[RegistryTable]) -> None:
     """DEBT-020 Round 6 + Round 7 落地 overlay：sidecar_bool_slot_registry 45 records 加 7 字段.
 
@@ -4242,16 +4662,64 @@ def _apply_round6_round7_overlays(registries: List[RegistryTable]) -> None:
             record["conditional_formula"] = spec["conditional_formula"]
             record["sampling_order"] = spec["sampling_order"]
             record["upstream_inputs"] = spec["upstream_inputs"]
+            # #37 丙路一行同步（决议_37修法_20260805 §一.1）：`conditional_inputs`
+            # 改写为公式真实 term 键集（sidecar ＋ hidden）。生产楼级采样只读
+            # `conditional_inputs` 决定解析哪些上游（sidecar.py:_sample_sidecar_
+            # bool_slots_for_building），`upstream_inputs` 全仓零运行时消费者；
+            # 两份清单对不上正是 #37 两个半（H.* 缺键 ＋ 11 条非 H 缺键）都能长期
+            # 潜伏的共同结构原因。#33 的 `_apply_precondition_coupling_overlay`
+            # 从一开始就同步（可行形反证），这里补齐。4 条未声明的楼级间依赖
+            # （ri_role.terminated×2 / supervision_representative.planned /
+            # supervision_team.submitted）也由本行一并声明。
+            record["conditional_inputs"] = (
+                list(spec["upstream_inputs"].get("sidecar", []))
+                + list(spec["upstream_inputs"].get("hidden", []))
+            )
             record["marginal_anchor"] = anchor_value
             record["anchor_source"] = ANCHOR_SOURCES_ROUND7[slot_id]
-            record["alignment_check"] = {
-                "monte_carlo_n": 10000,
-                "seed": 20260511,
-                "pass_threshold": 0.05,
-                **alignment,
-                "status": "passed_round7_mc",
-            }
-            record["distribution_source"] = DEBT020_ROUND7_DISTRIBUTION_SOURCE
+            # 徽章沿革（两段，别删前一段——它解释了为什么会有第二段）：
+            # ① #37（2026-08-06 上午，决议_37修法 §一.3）：45/45 整体降级
+            #    `stale_round7_mc_granularity_split`。2026-05-11 那次 MC 跑在全
+            #    fragment 粒度、全 term 可得的上下文；2026-07-07 粒度两相分派
+            #    （7a82118）把 13 槽搬到楼级（改的不止均值，还有「逐碎片各抽 →
+            #    一栋一抽广播」的楼内相关结构），传递闭包实测 45/45 带徽章槽全部
+            #    在受影响集内——徽章不是伪造，是**过期**。
+            # ② A1.6（2026-08-06，决议_A16裁定 §三＋§四）：MC 在生产两相编排器上
+            #    重跑（n=10000, k=4, seed_tag=mc_gate_poolv2_20260806），55 槽
+            #    54 判全 pass ⇒ 45 条按新档位名重盖，见 `_A16_POOL_V2_MC_ALIGNMENT`。
+            # 🔴 重盖是**逐槽有实测**才盖：`_A16_POOL_V2_MC_ALIGNMENT` 缺该槽即
+            # 落回 stale（fail-open 会把「没测」写成「测过了」，那是徽章装饰的
+            # 原始形态——`count.pull_test` 那条反装饰闸抓的就是同一个病）。
+            a16 = _A16_POOL_V2_MC_ALIGNMENT.get(slot_id)
+            if a16 is not None:
+                record["alignment_check"] = {**_A16_MC_BADGE_HEADER, **a16}
+            else:
+                record["alignment_check"] = {
+                    "monte_carlo_n": 10000,
+                    "seed": 20260511,
+                    "pass_threshold": 0.05,
+                    **alignment,
+                    "status": "stale_round7_mc_granularity_split",
+                    "stale_since": "2026-07-07",
+                    "stale_reason": "granularity_split_lost_terms",
+                }
+            # #38 改锚两槽（mbi5 / sp2，换池批步 A1.3/A1.4）：公式已改、分布失据，
+            # A1.6 前标 PLACEHOLDER 逼分布授权门重估（门检＝零 PLACEHOLDER），
+            # 不得冒充 Round 7 MC 档位；A1.6 MC 实测两槽在原锚上过阈后换实值。
+            # 其余槽：A1.6 授权集（决议 §一 13 槽 ＋ §三 补裁槽）在 Round 5 原串上
+            # **加注**（官方线 §一.4：乙路下来源保持原串＋加注，不换串——换串会把
+            # 「参数从哪来」这个来历抹掉）；未被 A1.6 触及的槽照旧。
+            if slot_id in POOL_V2_REWIRED_OVERLAY_SLOTS:
+                record["distribution_source"] = POOL_V2_REWIRED_DISTRIBUTION_SOURCE
+                record["semantic_note"] = A16_MC_CALIBER_BOUNDARY_NOTE
+            elif slot_id in A16_ANNOTATED_ROUND7_SLOTS:
+                record["distribution_source"] = (
+                    DEBT020_ROUND7_DISTRIBUTION_SOURCE
+                    + A16_ROUND7_DISTRIBUTION_SOURCE_SUFFIX
+                )
+                record["semantic_note"] = A16_MC_CALIBER_BOUNDARY_NOTE
+            else:
+                record["distribution_source"] = DEBT020_ROUND7_DISTRIBUTION_SOURCE
             record["cop_section"] = spec["cop_section"]
             # Round 7 §1 anchor 修订对应的 prevalence 同步——marginal path fallback 也用新值
             if isinstance(anchor_value, dict):
@@ -4263,11 +4731,303 @@ def _apply_round6_round7_overlays(registries: List[RegistryTable]) -> None:
                     ]
             else:
                 record["prevalence"] = float(anchor_value)
+            # A1.6 补裁（决议 §三）：被 `_apply_clamps` 钳制的槽，**声明的实现边际**
+            # 与公式内部的 centering anchor 按构造不相等——推导与裁定理由见
+            # `round6_formulas.POST_CLAMP_REALIZED_MARGINALS` 段。
+            # 只覆盖 `marginal_anchor` / `prevalence`（门检④ 与产物读这两个），
+            # `conditional_formula["anchor"]` 保持钳制前的中心不动。
+            realized = POST_CLAMP_REALIZED_MARGINALS.get(str(slot_id))
+            if realized is not None:
+                record["marginal_anchor"] = float(realized)
+                record["prevalence"] = float(realized)
             # marker source_attribution 升级到 Round 7
             record["source_attribution"] = (
                 f"{record.get('source_attribution', '')} | "
                 f"DEBT020_round7_centered_upstream_conditional_2026_05_11"
             ).strip(" |")
+
+
+class PreconditionCouplingOverlayError(RuntimeError):
+    """死声明补公式 overlay 的 fail-closed 违例（构造期即炸，不静默降级）。"""
+
+
+def _apply_precondition_coupling_overlay(registries: List[RegistryTable]) -> None:
+    """给 3 个「声明了条件依赖却无公式」的槽装上真公式（工程估计档）。
+
+    与 `_apply_round6_round7_overlays` 的**四点不同**（每点都是有意的）：
+    1. **不动 `sampling_order`**——改序会挪 DAG 拓扑，代价远大于本段要解决的问题；
+    2. **不动 `prevalence` / `marginal_anchor`**——本段建立的是条件依赖，不重新标定边际；
+    3. **不写 `alignment_check`**——这批没过 10,000 样本 MC 对齐闸，写了就是伪造档位。
+       档位由 `distribution_source` 如实声明为工程估计；边际漂移由测试实测看住；
+    4. **同批改写 `conditional_inputs` 成求值器认得的真名**——旧名字里有
+       `risk.building_safety.emergency` 这种**整个求值上下文里根本不存在**的键，
+       而 `_eval_centered_linear` 对缺失键**静默取 0.0**（不抛异常、不回退），
+       留着旧名字＝把「声明与执行不一致」这个坑原样埋回去。
+
+    fail-closed：三种情形直接抛（构造期炸，比运行期静默错好）——
+    ①与 Round6/7 射程有交集（说明该槽本该走那一轮）；②目标槽不在注册表；
+    ③目标槽已经有公式（说明上游改了而本表没跟）。
+    """
+    formulas = get_precondition_coupling_formulas()
+    r6_slots = set(get_round6_round7_formulas())
+    overlap = r6_slots & set(formulas)
+    if overlap:
+        raise PreconditionCouplingOverlayError(
+            f"死声明补公式与 Round6/7 射程重叠：{sorted(overlap)}"
+            "——重叠槽应走 Round6/7 那一轮，不该在此重复 patch")
+    patched: set = set()
+    for registry in registries:
+        if registry.registry_id != "sidecar_bool_slot_registry":
+            continue
+        for record in registry.records:
+            slot_id = record.get("slot_id")
+            spec = formulas.get(str(slot_id or ""))
+            if spec is None:
+                continue
+            if record.get("conditional_formula") is not None:
+                raise PreconditionCouplingOverlayError(
+                    f"{slot_id} 已带公式——上游变了而本表没跟，拒绝覆盖")
+            record["conditional_formula"] = spec["conditional_formula"]
+            # 声明与执行对齐：换成求值器真认得的键名（见 docstring 第 4 点）。
+            record["conditional_inputs"] = list(spec["conditional_inputs"])
+            record["upstream_inputs"] = spec["upstream_inputs"]
+            record["anchor_source"] = spec["anchor_source"]
+            record["distribution_source"] = PRECONDITION_COUPLING_DISTRIBUTION_SOURCE
+            record["source_attribution"] = (
+                f"{record.get('source_attribution', '')} | "
+                f"{PRECONDITION_COUPLING_DISTRIBUTION_SOURCE}"
+            ).strip(" |")
+            patched.add(str(slot_id))
+    missing = set(formulas) - patched
+    if missing:
+        raise PreconditionCouplingOverlayError(
+            f"死声明补公式的目标槽不在 sidecar_bool_slot_registry：{sorted(missing)}")
+
+
+class PoolV2SupplyOverlayError(RuntimeError):
+    """池 v2 供给侧公式 overlay 的 fail-closed 违例（构造期即炸，不静默降级）。"""
+
+
+def _apply_pool_v2_supply_overlay(registries: List[RegistryTable]) -> None:
+    """给 #38 三新槽（G 组记录）装上条件公式（换池批步 A1.3，2026-08-06）。
+
+    与死声明补公式同款纪律：**不动 `sampling_order` / `prevalence` /
+    `granularity`**（由 G 组记录本体持有）；fail-closed 三情形——
+    ①与 Round6/7 或死声明补公式射程有交集；②目标槽不在注册表；
+    ③目标槽已带公式（上游改了而本表没跟）。
+    分布纪律见 `round6_formulas.py` POOL_V2_SUPPLY_* 段：三槽参数已由
+    A1.6 分布授权门裁定（决议_A16裁定_20260806 §二），`distribution_source`
+    由 PLACEHOLDER 换实值并挂口径分界句。
+    """
+    formulas = get_pool_v2_supply_slot_specs()
+    prior_scopes = set(get_round6_round7_formulas()) | set(
+        get_precondition_coupling_formulas()
+    )
+    overlap = prior_scopes & set(formulas)
+    if overlap:
+        raise PoolV2SupplyOverlayError(
+            f"池 v2 供给侧公式与既有 overlay 射程重叠：{sorted(overlap)}"
+            "——重叠槽应走既有那一轮，不该在此重复 patch")
+    patched: set = set()
+    for registry in registries:
+        if registry.registry_id != "sidecar_bool_slot_registry":
+            continue
+        for record in registry.records:
+            slot_id = record.get("slot_id")
+            spec = formulas.get(str(slot_id or ""))
+            if spec is None:
+                continue
+            if record.get("conditional_formula") is not None:
+                raise PoolV2SupplyOverlayError(
+                    f"{slot_id} 已带公式——上游变了而本表没跟，拒绝覆盖")
+            record["conditional_formula"] = spec["conditional_formula"]
+            record["conditional_inputs"] = list(spec["conditional_inputs"])
+            record["upstream_inputs"] = spec["upstream_inputs"]
+            record["anchor_source"] = spec["anchor_source"]
+            record["distribution_source"] = POOL_V2_SUPPLY_DISTRIBUTION_SOURCE
+            record["semantic_note"] = A16_MC_CALIBER_BOUNDARY_NOTE
+            patched.add(str(slot_id))
+    missing = set(formulas) - patched
+    if missing:
+        raise PoolV2SupplyOverlayError(
+            f"池 v2 供给侧公式的目标槽不在 sidecar_bool_slot_registry：{sorted(missing)}")
+
+
+class BuildingAggregationCenteringError(RuntimeError):
+    """A1.6 楼级聚合中心化 overlay 的 fail-closed 违例（构造期即炸）。"""
+
+
+def _aggregated_reading_expectation(
+    fragment_marginal: float, aggregation: str, k: int
+) -> float:
+    """碎片级槽被楼级消费者读到时的**聚合读数期望**（独立近似，k 钉 MC 口径）。
+
+    `any_true`  ⇒ 1 − (1 − p)^k       （任一碎片为真即楼级为真）
+    `all_true`  ⇒ p^k                 （全部碎片为真才算楼级为真）
+    """
+    p = float(fragment_marginal)
+    if aggregation == "any_true":
+        return 1.0 - (1.0 - p) ** k
+    if aggregation == "all_true":
+        return p ** k
+    raise BuildingAggregationCenteringError(
+        f"未知聚合语义 {aggregation!r}——BUILDING_READING_AGGREGATION 只认 "
+        "any_true / all_true")
+
+
+def _apply_a16_building_aggregation_centering(
+    registries: List[RegistryTable],
+) -> Dict[str, Dict[str, float]]:
+    """A1.6 乙路：楼级消费者读碎片级上游时，中心化基改取**聚合后期望**。
+
+    （`决议_A16裁定_20260806.md` §一.2 ＋ 官方线 §1.3 乙路。）
+
+    🔴 病灶（不是标定偏差，是公式假设与运行时供给对不上）：
+    `round6_formulas._bool_formula` 把 `upstream_expected[slot]` 一律填成该上游的
+    **碎片级边际锚**。但楼级槽读到的不是碎片值，是
+    `sidecar._resolve_building_upstream` 按 `BUILDING_READING_AGGREGATION` 归约出的
+    **整栋读数**——`any_true` 下 k=4 会把 0.20 读成 0.59、`all_true` 下把 0.74 读成
+    0.30。中心化基取错 ⇒ 中心化项不再以 0 为中心 ⇒ 楼级槽的实现边际系统性偏离
+    自己的 anchor。这与 #37「公式引用楼级取不到的键、静默按 0.0 中心化」是同族
+    病，只是这一半从来没被登记过（#37 量化只登记了缺键那一半）。
+
+    🔴 成员**机械枚举**，不硬编码槽名单（官方线 §1.3 明令：不得假定恰好等于
+    决议点名的那 6 个接线槽）。判据逐条：
+      · 消费者 `granularity == "building"` 且带 `conditional_formula`；
+      · 上游键在本注册表内、`granularity != "building"`（即碎片级）；
+      · 该上游在 `BUILDING_READING_AGGREGATION` 里有声明的聚合语义
+        （没有声明的键 `_resolve_building_upstream` 直接返回 None ⇒ 是缺键问题，
+         归 #37，不归本 overlay）。
+    枚举实测结果（2026-08-06 落地时）：**9 个消费者 / 16 条上游边**——比决议点名的
+    6 个接线槽多 3 个：`procedure.rc.pre_notification_given`（量化按「H 缺键」分类算
+    纯 H 槽，但它读 `artifact.proposal.repair` 这个碎片级上游，同病）、
+    `procedure.investigation.detailed.intended`（#33 补的槽，根本不在那 13 个里）、
+    `procedure.repair_supervising_ri.appointment.completed`（#38 槽 4，官方线 §三
+    已单独点出 +0.24 logit）。⇒ 「纯 H / 接线」那条分界线量的是**缺键**，
+    与本偏差族的分界线**不是同一条轴**。
+
+    ⚠️ anchor 一个不动（决议 §一.2「禁任何槽取 MC 观测当锚」）：本 overlay 只改
+    中心化常数，不改任何 `marginal_anchor` / `prevalence` / `terms` 系数。
+
+    ⚠️ 独立近似的诚实边界：同栋碎片共享楼级上下文与 H.*，实际聚合读数带栋内相关，
+    与独立式有残差。落地时实测（探针 n=3000 栋）残差最大 0.022
+    （`artifact.proposal.detailed_investigation` 解析 0.7599 vs 实测 0.7377），
+    余项 <0.01；残差由门检 MC 的 0.05 阈吸收，未吸收掉的走决议 §三 逐槽补裁。
+
+    返回：{消费者槽: {上游键: 新 expected}}——供审计与测试断言取用。
+    """
+    granularity: Dict[str, str] = {}
+    anchors: Dict[str, float] = {}
+    for registry in registries:
+        if registry.registry_id != "sidecar_bool_slot_registry":
+            continue
+        for record in registry.records:
+            sid = str(record.get("slot_id") or "")
+            if not sid:
+                continue
+            granularity[sid] = str(record.get("granularity") or "fragment")
+            anchor = record.get("marginal_anchor")
+            if anchor is None:
+                anchor = record.get("prevalence")
+            if isinstance(anchor, (int, float)):
+                anchors[sid] = float(anchor)
+
+    k = MC_CALIBER_FRAGMENTS_PER_BUILDING
+    rewritten: Dict[str, Dict[str, float]] = {}
+
+    def _patch_block(consumer: str, block: Dict[str, Any]) -> None:
+        expected = block.get("upstream_expected")
+        if not isinstance(expected, dict):
+            return
+        for key in list(expected):
+            if key.startswith("H.") or key not in granularity:
+                continue  # 隐状态 / 楼级上下文键，不经聚合
+            if granularity[key] == "building":
+                continue  # 楼级上游直读，中心化基＝其自身 anchor，本就正确
+            aggregation = BUILDING_READING_AGGREGATION.get(key)
+            if aggregation is None:
+                continue  # 无聚合声明 ⇒ 解析不到，属 #37 缺键，不归本 overlay
+            if key not in anchors:
+                raise BuildingAggregationCenteringError(
+                    f"{consumer} 的碎片级上游 {key} 无数值 anchor，无法推导聚合期望")
+            new_value = _aggregated_reading_expectation(anchors[key], aggregation, k)
+            expected[key] = new_value
+            rewritten.setdefault(consumer, {})[key] = new_value
+
+    for registry in registries:
+        if registry.registry_id != "sidecar_bool_slot_registry":
+            continue
+        for record in registry.records:
+            sid = str(record.get("slot_id") or "")
+            if granularity.get(sid) != "building":
+                continue
+            formula = record.get("conditional_formula")
+            if not isinstance(formula, dict):
+                continue
+            classes = formula.get("classes")
+            if isinstance(classes, dict):  # centered_softmax_per_class
+                for block in classes.values():
+                    if isinstance(block, dict):
+                        _patch_block(sid, block)
+            else:
+                _patch_block(sid, formula)
+            # 被本 overlay 真改过中心化的槽**一律**挂口径分界句——判据是「有没有被改」
+            # 而不是「在不在某张名单里」。名单会漏（`_apply_round6_round7_overlays`
+            # 的 `A16_ANNOTATED_ROUND7_SLOTS` 就漏了 #33 的 `.intended`：它被 A1.6
+            # 改了中心化，却不在决议点名的 13 槽里）；这行让「改了 = 标了」按构造成立。
+            if sid in rewritten:
+                record["semantic_note"] = A16_MC_CALIBER_BOUNDARY_NOTE
+    return rewritten
+
+
+class SidecarSamplingDagError(RuntimeError):
+    """spec 06 §11.6.7 DAG validity 构造期违例（换池批步 A1.4 焊入）。"""
+
+
+def _validate_sidecar_sampling_dag(registries: List[RegistryTable]) -> None:
+    """构造期 DAG 硬闸：带公式槽的 sidecar 上游必须先于本槽采样。
+
+    判据（spec 06 §11.6.7）：对 `sidecar_bool_slot_registry` 中**带
+    `conditional_formula` 且带 `sampling_order`** 的每条记录，其
+    `conditional_inputs` 里凡是本注册表内的槽（即 sidecar 上游；物理键 /
+    H.* 不在表内、由各自上下文承载，不适用本判据），必须满足
+    `上游.sampling_order` 非空且 **严格小于** 本槽——否则采样时上游未采、
+    值缺席，`_eval_centered_linear` 会**静默按 0.0 中心化**（#37 病灶同形）。
+
+    历史：`_apply_round6_round7_overlays` docstring 与 `conditional_eval.py:147`
+    一直声称「build 时校验」，实际全仓只有测试级检查（2026-08-06 勘察坐实）；
+    换池批 DAG 重排（mbi5 6→25.7——45.7 是被本闸当场拦下的首版错值——
+    与三新槽插序）把它焊成生产 fail-fast。
+    """
+    order_by_slot: Dict[str, Any] = {}
+    formula_records: List[Dict[str, Any]] = []
+    for registry in registries:
+        if registry.registry_id != "sidecar_bool_slot_registry":
+            continue
+        for record in registry.records:
+            slot_id = str(record.get("slot_id") or "")
+            if not slot_id:
+                continue
+            order_by_slot[slot_id] = record.get("sampling_order")
+            if record.get("conditional_formula") is not None:
+                formula_records.append(record)
+    violations: List[str] = []
+    for record in formula_records:
+        my_order = record.get("sampling_order")
+        if my_order is None:
+            continue  # marginal 序兜底 9999，无上游先后约束可判
+        for up_id in record.get("conditional_inputs") or []:
+            if up_id not in order_by_slot:
+                continue  # 物理键 / H.* / 楼级上下文键：不在本表，判据不适用
+            up_order = order_by_slot[up_id]
+            if up_order is None or float(up_order) >= float(my_order):
+                violations.append(
+                    f"{record.get('slot_id')}({my_order}) ← {up_id}({up_order})"
+                )
+    if violations:
+        raise SidecarSamplingDagError(
+            "sidecar 采样 DAG 违例（上游未先于本槽采样）：" + "; ".join(violations)
+        )
 
 
 def _build_sidecar_contract() -> SidecarContract:
@@ -4451,6 +5211,9 @@ def _build_sidecar_contract() -> SidecarContract:
             "reporting.record.maintained",
             "reporting.record.submitted",
             "supervision.site_visit.performed",
+            # #38 槽 2（池 v2 供给侧，2026-08-06）：真采样（bool registry G 组），
+            # 非空头声明；sp2 记录与 sapp6_p6 override 的真前件事件槽。
+            "supervision.nonconformity.found",
             "supervision.record.completed",
             "supervision.record.retained",
             "supervision.record.completed_and_retained",
@@ -4738,6 +5501,16 @@ BUILDING_READING_AGGREGATION: dict = {
     "artifact.report.completion": "any_true",
     "artifact.report.inspection": "any_true",
     "artifact.proposal.detailed_investigation": "any_true",
+    # #37 丙路裁定三条（决议_37修法_20260805 §一.1，engineering_estimate 低置信，
+    # 与上方既有 artifact.* 五条同族同档）：文档存在态，任一部位记录带有＝楼级存在。
+    # 后两条 coef 为正（+0.75/+0.30，「有不符合记录 ⇒ 更可能要修订」），取 all_true
+    # 会读成「全部部位都有不符合记录才算有」，与 coef 正号语义相反——故排除 all_true。
+    "artifact.notice.investigation_intention": "any_true",
+    "artifact.record.nonconformity_sp2": "any_true",
+    "artifact.record.test_or_material_witness": "any_true",
+    # #38 槽 2（池 v2 供给侧，2026-08-06）：任一部位发现不一致事项＝楼级成立
+    # （与 sp2 同语义同档；正 coef 语义排除 all_true，5008-5011 行同理）。
+    "supervision.nonconformity.found": "any_true",
 }
 
 # 生成侧要落"楼级聚合行"的 fragment 槽——v8 批跑实证后扩到全聚合表的 bool 槽

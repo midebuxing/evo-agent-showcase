@@ -1345,8 +1345,10 @@ def build_applicability_blueprint(
 #   channel+SID 已足够区分）。scope 唯一编码在 identity.scope（SID parts 不重复放 scope）。
 #
 # 下列卡结构读取辅助（`_card_qualifier_values` / `_card_component_types` /
-# `_card_is_fragment_scoped`）**镜像 `validator.py` 主循环现网实现**（validator.py:932-959），
+# `_card_is_fragment_scoped`）**镜像 `validator.py` 主循环现网实现**，
 # 与判定读径逐字节同源，供 catalog scope 迭代 + 审计身份材料共用（spec §2.2 / §5.3.2）。
+# DEBT-096（2026-08-08 案甲）：角色感知同刀同改，双径一致性断言见
+# test_debt096_role_aware_qualifiers.py。
 # ===========================================================================
 
 # fragment 承载域（镜像 validator.py:806）：卡内任一 slot 的 semantic_domain 落这些域 → 该卡
@@ -1355,14 +1357,25 @@ _FRAGMENT_DOMAINS = {"defect", "repair", "risk", "scope", "verification"}
 
 
 def _card_qualifier_values(card: Any, qkey: str) -> set:
-    """卡引用的某限定符键并集（镜像 validator.py:939-956）。
+    """卡引用的某限定符键并集（镜像 validator.py 主循环现网实现）。
 
     = 全 slot_role_map qualifiers（覆盖 trigger 经 slot_ref_id 引用的）∪ 各 trigger item
     自带 qualifiers 的 qkey（字符串值）。**规则侧要求**——不读运行态事实（blind：审计身份
     只含规则要求集，不含实际楼况）。
+
+    🔧 **DEBT-096 角色感知（2026-08-08 案甲，两线全票）**：slot_role_map 中
+    roles ⊆ {evidence, prerequisite} 的槽其限定符**不参与整卡结构早退**（法理：
+    evidence/prerequisite 不收窄卡适用；trigger/definition_reference 参与）。
+    多角色（含 trigger 等）/未知角色（roles 空）缺省参与。trigger_conditions.items
+    自带 qualifiers 不受此过滤（本就是 trigger 角色）。与
+    `validator._card_qualifier_values` 逐字节同源（双径一致，见
+    test_debt096_role_aware_qualifiers.py）。
     """
     vals: set = set()
     for ref in card.slot_role_map or []:
+        roles = _safe(ref, "roles") or []
+        if roles and set(roles) <= {"evidence", "prerequisite"}:
+            continue
         q = _safe(ref, "qualifiers") or {}
         v = q.get(qkey) if isinstance(q, dict) else None
         if isinstance(v, str) and v:

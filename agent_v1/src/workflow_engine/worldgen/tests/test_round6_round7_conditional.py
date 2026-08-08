@@ -38,9 +38,15 @@ from workflow_engine.worldgen.registry import (
     _build_registry_bundle,
 )
 from workflow_engine.worldgen.round6_formulas import (
+    A16_ANNOTATED_ROUND7_SLOTS,
+    A16_ROUND7_DISTRIBUTION_SOURCE_SUFFIX,
     ANCHOR_SOURCES_ROUND7,
     DISTRIBUTION_SOURCE,
     MARGINAL_ANCHORS_ROUND7,
+    POOL_V2_REWIRED_DISTRIBUTION_SOURCE,
+    POOL_V2_REWIRED_OVERLAY_SLOTS,
+    POOL_V2_SUPPLY_DISTRIBUTION_SOURCE,
+    POOL_V2_SUPPLY_SAMPLING_ORDERS,
     SAMPLING_ORDER_ROUND7,
     get_round6_round7_formulas,
 )
@@ -78,13 +84,50 @@ class ConditionalFormulaIntegrationTests(unittest.TestCase):
                                      f"{slot_id} missing conditional_formula")
 
     def test_all_45_slots_have_round7_distribution_source(self) -> None:
+        """来源串**精确三分账**（A1.6 落地改锚，2026-08-06）：
+
+        · 改锚两槽（mbi5/sp2）→ `POOL_V2_REWIRED_DISTRIBUTION_SOURCE`
+          （A1.6 前是 PLACEHOLDER；MC 实测两槽在原锚上过阈后换实值）；
+        · A1.6 授权集（决议 §一 13 槽 ＋ §三 补裁槽，共 14）→ Round 5 原串
+          ＋ `A16_ROUND7_DISTRIBUTION_SOURCE_SUFFIX`（官方线 §一.4：保留来历，
+          只加注口径分界，不换串）；
+        · 其余 29 槽 → Round 5 原串不动。
+
+        既防改锚/被裁槽冒充未动过的 Round 7 档，也防无关槽被错标。
+        """
         records = _all_45_slot_records()
+        annotated = 0
         for slot_id, rec in records.items():
             with self.subTest(slot_id=slot_id):
-                self.assertEqual(
-                    rec["distribution_source"],
-                    DEBT020_ROUND7_DISTRIBUTION_SOURCE,
-                )
+                if slot_id in POOL_V2_REWIRED_OVERLAY_SLOTS:
+                    self.assertEqual(
+                        rec["distribution_source"],
+                        POOL_V2_REWIRED_DISTRIBUTION_SOURCE,
+                    )
+                elif slot_id in A16_ANNOTATED_ROUND7_SLOTS:
+                    self.assertEqual(
+                        rec["distribution_source"],
+                        DEBT020_ROUND7_DISTRIBUTION_SOURCE
+                        + A16_ROUND7_DISTRIBUTION_SOURCE_SUFFIX,
+                    )
+                    self.assertIn(
+                        "不是真实分布声明", rec.get("semantic_note") or "",
+                        "被 A1.6 授权的槽必须带口径分界句——门④ pass 不等于分布真实")
+                    annotated += 1
+                else:
+                    self.assertEqual(
+                        rec["distribution_source"],
+                        DEBT020_ROUND7_DISTRIBUTION_SOURCE,
+                    )
+        self.assertEqual(annotated, 14, "A1.6 授权集应恰 14 槽（13 ＋ 补裁 1）")
+        self.assertNotIn(
+            "PLACEHOLDER",
+            " ".join(str(r["distribution_source"]) for r in records.values()),
+            "45 槽里仍有占位来源——占位参数不得进池")
+        self.assertEqual(
+            POOL_V2_REWIRED_OVERLAY_SLOTS,
+            {"artifact.form.mbi5", "artifact.record.nonconformity_sp2"},
+        )
 
     def test_all_45_slots_have_seven_round6_round7_fields(self) -> None:
         required = {
@@ -224,71 +267,122 @@ class ConditionalFormulaIntegrationTests(unittest.TestCase):
 
 
 class MarginalAlignmentTests(unittest.TestCase):
-    """spec 06 §11.6.5: 45 slot 10000 MC alignment 必须 < 0.05."""
+    """spec 06 §11.6.5: MC alignment 必须 < 0.05——**跑在生产两相分派编排器上**。
+
+    🔴 口径改锚（A1.6 落地，2026-08-06，`实施记录_A16落地_20260806.md` §五.2）。
+    本类原来自带一个**平铺 MC**：45 槽按 `sampling_order` 顺序各抽一次、上游直读
+    上一次的抽样值、没有粒度概念、没有聚合。那正是 2026-05-11 那次 MC 的口径，
+    也正是 2026-07-07 粒度两相分派（7a82118）之后**不再存在**的那个世界——
+    45/45 徽章被 #37 判为「过期」说的就是它。
+
+    留着那个平铺 MC 有两重害处：①它测的东西运行时不发生；②A1.6 把楼级消费者的
+    中心化基改成**聚合后期望**（`any_true: 1−(1−p)^k` / `all_true: p^k`，k=4）之后，
+    拿碎片边际去喂楼级消费者必然出现镜像偏差——**那个红是口径错，不是公式错**。
+    ⇒ 换成真采样路径 `_sample_sidecar_bool_slots_for_building`（楼级槽一栋一抽、
+    碎片上游按 `BUILDING_READING_AGGREGATION` 聚合、钳制在环），与
+    `agent_v1/scripts/rerun_distribution_mc.py` 同口径、规模缩小到单测量级。
+
+    ⚠️ anchor 取**注册表运行时值**（`marginal_anchor`），不取
+    `MARGINAL_ANCHORS_ROUND7`：被钳制的槽（`supervision.record.completed_and_retained`）
+    两者按构造不相等——公式内部中心 0.62 是钳制前的，声明的实现边际是 0.39。
+    """
+
+    N_BUILDINGS = 1200
+    FRAGMENTS_PER_BUILDING = 4  # 与 MC 口径同一个 k（聚合期望是 k 的函数）
+    SEED_TAG = "unit_align_a16_20260806"  # 键控子流 ⇒ 本测确定可复现
 
     @classmethod
     def setUpClass(cls) -> None:
-        # Run 10000 MC against centered formulas with H.* at prior means + sequential sidecar sampling
-        formulas = get_round6_round7_formulas()
-        ordered = sorted(formulas.items(), key=lambda x: x[1]["sampling_order"])
-        N = 10000
-        rng = random.Random(20260511)
-        samples_per_slot: Dict[str, List[Any]] = {sid: [] for sid, _ in ordered}
-        hidden = dict(HIDDEN_STATE_PRIOR_MEANS)
-        for _ in range(N):
-            sidecar_state: Dict[str, Any] = {}
-            for slot_id, spec in ordered:
-                formula = spec["conditional_formula"]
-                ctx: Dict[str, float] = dict(hidden)
-                for up_id in spec["upstream_inputs"].get("sidecar", []):
-                    up_val = sidecar_state.get(up_id)
-                    if isinstance(up_val, bool):
-                        ctx[up_id] = 1.0 if up_val else 0.0
-                    elif isinstance(up_val, str):
-                        ctx[up_id] = 1.0 if up_val else 0.0
-                    elif up_val is None:
-                        ctx[up_id] = 0.0
-                    else:
-                        ctx[up_id] = float(up_val)
-                ftype = formula.get("type")
-                if ftype == "centered_sigmoid_linear":
-                    val = evaluate_bool_conditional(formula, ctx, rng)
-                    sidecar_state[slot_id] = bool(val)
-                    samples_per_slot[slot_id].append(1 if val else 0)
-                elif ftype == "centered_softmax_per_class":
-                    val = evaluate_enum_conditional(formula, ctx, rng)
-                    sidecar_state[slot_id] = val
-                    samples_per_slot[slot_id].append(val)
-        cls.samples = samples_per_slot
-        cls.formulas = formulas
+        from workflow_engine.worldgen.sidecar import (
+            _sample_sidecar_bool_slots_for_building,
+        )
+
+        bundle = _build_registry_bundle()
+        records: List[Dict[str, Any]] = []
+        for registry in bundle.registries:
+            if registry.registry_id == "sidecar_bool_slot_registry":
+                records = list(registry.records)
+        cls.records_by_slot = {str(r.get("slot_id")): r for r in records}
+
+        frag_ctx = {k: float(v) for k, v in HIDDEN_STATE_PRIOR_MEANS.items()}
+        frag_ctx["building_total_severity_max"] = 0.45
+        frag_ctx["building_defect_count_norm"] = 0.15
+        bld_ctx = {
+            "building.metadata.building_age_years": 35.0,
+            "building_total_severity_max": 0.45,
+            "building_defect_count": 3.0,
+            "H.age_old_score": float(HIDDEN_STATE_PRIOR_MEANS["H.age_old_score"]),
+            "H.case_active": 1.0,
+            "H.defect_severity_score": 0.45,
+        }
+
+        tally: Dict[str, Counter] = {}
+        for i in range(cls.N_BUILDINGS):
+            world_id = f"WB-UNIT-ALIGN-{i:05d}-{cls.SEED_TAG}"
+            fragment_ids = [
+                f"{world_id}-FRG-{j:02d}"
+                for j in range(cls.FRAGMENTS_PER_BUILDING)
+            ]
+            buckets_by_fragment, building_buckets = (
+                _sample_sidecar_bool_slots_for_building(
+                    building_world_id=world_id,
+                    fragment_ids=fragment_ids,
+                    sidecar_bool_slot_records=records,
+                    per_fragment_contexts={
+                        fid: dict(frag_ctx) for fid in fragment_ids
+                    },
+                    building_context=dict(bld_ctx),
+                )
+            )
+            for bucket_map in [building_buckets] + [
+                buckets_by_fragment[fid] for fid in fragment_ids
+            ]:
+                for rows in bucket_map.values():
+                    for row in rows:
+                        quals = getattr(row, "qualifiers", None) or {}
+                        if str(quals.get("aggregation") or "") == "building":
+                            continue  # 聚合派生行是读数不是采样，不计边际
+                        slot = getattr(row, "slot_id", None)
+                        val = getattr(row, "value", None)
+                        if slot is None or not isinstance(val, (bool, str)):
+                            continue
+                        tally.setdefault(str(slot), Counter())[val] += 1
+        cls.tally = tally
+        cls.formulas = get_round6_round7_formulas()
+
+    @classmethod
+    def _anchor_of(cls, slot_id: str) -> Any:
+        rec = cls.records_by_slot[slot_id]
+        anchor = rec.get("marginal_anchor")
+        return rec.get("prevalence") if anchor is None else anchor
 
     def test_45_bool_slot_alignment_under_threshold(self) -> None:
         for slot_id, spec in self.formulas.items():
-            formula = spec["conditional_formula"]
-            if formula["type"] != "centered_sigmoid_linear":
+            if spec["conditional_formula"]["type"] != "centered_sigmoid_linear":
                 continue
-            anchor = MARGINAL_ANCHORS_ROUND7[slot_id]
-            obs = self.samples[slot_id]
-            observed = sum(obs) / len(obs)
+            anchor = float(self._anchor_of(slot_id))
+            counts = self.tally[slot_id]
+            total = sum(counts.values())
+            observed = counts.get(True, 0) / total
             delta = abs(observed - anchor)
             with self.subTest(slot_id=slot_id):
                 self.assertLess(
                     delta, 0.05,
-                    f"{slot_id}: anchor={anchor}, observed={observed:.4f}, delta={delta:.4f}",
+                    f"{slot_id}: anchor={anchor}, observed={observed:.4f}, "
+                    f"delta={delta:.4f}, n={total}",
                 )
 
     def test_3_enum_slot_alignment_under_threshold(self) -> None:
         for slot_id, spec in self.formulas.items():
-            formula = spec["conditional_formula"]
-            if formula["type"] != "centered_softmax_per_class":
+            if spec["conditional_formula"]["type"] != "centered_softmax_per_class":
                 continue
-            anchor = MARGINAL_ANCHORS_ROUND7[slot_id]
-            obs = self.samples[slot_id]
-            cnt = Counter(obs)
-            max_delta = 0.0
-            for cls, exp_p in anchor.items():
-                obs_p = cnt.get(cls, 0) / len(obs)
-                max_delta = max(max_delta, abs(obs_p - exp_p))
+            anchor = self._anchor_of(slot_id)
+            counts = self.tally[slot_id]
+            total = sum(counts.values())
+            max_delta = max(
+                abs(counts.get(cls_name, 0) / total - float(exp_p))
+                for cls_name, exp_p in anchor.items()
+            )
             with self.subTest(slot_id=slot_id):
                 self.assertLess(
                     max_delta, 0.05,
@@ -298,38 +392,210 @@ class MarginalAlignmentTests(unittest.TestCase):
     def test_round7_anchor_delta_summary(self) -> None:
         """Aggregate delta across 45 slot. max delta must remain under 0.05."""
         max_delta = 0.0
+        worst = ""
         for slot_id, spec in self.formulas.items():
-            formula = spec["conditional_formula"]
-            anchor = MARGINAL_ANCHORS_ROUND7[slot_id]
-            obs = self.samples[slot_id]
-            if formula["type"] == "centered_sigmoid_linear":
-                observed = sum(obs) / len(obs)
-                max_delta = max(max_delta, abs(observed - anchor))
+            anchor = self._anchor_of(slot_id)
+            counts = self.tally[slot_id]
+            total = sum(counts.values())
+            if spec["conditional_formula"]["type"] == "centered_sigmoid_linear":
+                d = abs(counts.get(True, 0) / total - float(anchor))
             else:
-                cnt = Counter(obs)
-                for cls, exp_p in anchor.items():
-                    max_delta = max(max_delta, abs(cnt.get(cls, 0) / len(obs) - exp_p))
-        self.assertLess(max_delta, 0.05)
+                d = max(
+                    abs(counts.get(c, 0) / total - float(p))
+                    for c, p in anchor.items()
+                )
+            if d > max_delta:
+                max_delta, worst = d, slot_id
+        self.assertLess(max_delta, 0.05, f"最差槽 {worst}: {max_delta:.4f}")
+
+    def test_building_consumers_center_on_aggregated_reading(self) -> None:
+        """A1.6 乙路的**结构断言**：楼级消费者的碎片级上游中心化基＝聚合后期望。
+
+        这条不测统计量，测的是「中心化基取哪个数」——统计对齐可以靠噪声侥幸过，
+        中心化基取错则是确定性的（`rc.pre_notification_given` 读
+        `artifact.proposal.repair` 的 0.57 而不是 1−0.43⁴=0.9658，就是 A1.6 之前
+        那个从没被登记过的偏差）。
+        """
+        from workflow_engine.worldgen.registry import BUILDING_READING_AGGREGATION
+
+        checked = 0
+        for slot_id, rec in self.records_by_slot.items():
+            if str(rec.get("granularity") or "fragment") != "building":
+                continue
+            formula = rec.get("conditional_formula") or {}
+            blocks = list((formula.get("classes") or {}).values()) or [formula]
+            for block in blocks:
+                for key, expected in (block.get("upstream_expected") or {}).items():
+                    up = self.records_by_slot.get(key)
+                    if up is None or str(up.get("granularity") or "fragment") == "building":
+                        continue
+                    aggregation = BUILDING_READING_AGGREGATION.get(key)
+                    if aggregation is None:
+                        continue
+                    p = float(up.get("marginal_anchor") or up.get("prevalence"))
+                    k = self.FRAGMENTS_PER_BUILDING
+                    want = 1.0 - (1.0 - p) ** k if aggregation == "any_true" else p ** k
+                    self.assertAlmostEqual(
+                        float(expected), want, places=6,
+                        msg=f"{slot_id} 读 {key}（{aggregation}）的中心化基是 "
+                            f"{expected}，应为聚合后期望 {want:.6f}（碎片锚 {p}）")
+                    checked += 1
+        self.assertGreaterEqual(
+            checked, 16,
+            f"只核到 {checked} 条边——偏差族成员少于落地实测的 16 条，"
+            "说明公式表或聚合表被改动而本闸没跟")
+
+
+class FormulaSingletonProcessStateTests(unittest.TestCase):
+    """🔴 模块级公式单例被 overlay **原地改** ⇒ 读它得到什么取决于本进程建没建过 bundle。
+
+    （A1.6 落地审核 §二.3「必须记 C」的配套闸，2026-08-06。）
+
+    机制：`_apply_round6_round7_overlays` 把 `spec["conditional_formula"]`
+    **同一个 dict 对象**挂到注册表记录上（`record[...] = spec[...]`，不是拷贝），
+    随后 `_apply_a16_building_aggregation_centering` 用 `expected[key] = new_value`
+    **原地改**它 ⇒ `get_round6_round7_formulas()` 返回的那份模块缓存**跟着被改**。
+    后果：同一次调用的返回值取决于**本进程建没建过 registry bundle**。
+    实测（`procedure.rc.pre_notification_given` 读 `artifact.proposal.repair`
+    的中心化基）：未建 bundle **0.57**（碎片边际）／建过之后 **0.96581199**
+    （聚合后期望 1−(1−0.57)⁴）。
+
+    **生产链无暴露**：`get_round6_round7_formulas()` 的非测试消费者只有
+    `registry._build_registry_bundle()` 内部三处，生产采样器读的是**注册表记录**、
+    不是模块缓存。但**测试层有 6 处直接读该函数**，取值随测试执行顺序漂移；
+    今天它们只读 `sampling_order` / `upstream_inputs`（A1.6 不改的字段）所以没炸
+    ——**那是运气不是设计**。
+
+    本类把这条进程态依赖钉成显式不变量，并且**自带前置**（测内先显式建一次 bundle，
+    不依赖任何兄弟测试的副作用），故它**必然红在该红的地方**：
+      · A1.6 的中心化没落到模块缓存上（overlay 被删 / 改成写深拷贝而没同步）⇒ 红；
+      · 有人删掉这里的建 bundle 前置 ⇒ 读到 0.57 ≠ 0.9658 ⇒ 红。
+    变异验证（不建 bundle 的路径）已实跑，见 `实施记录_A16审核处置_20260806.md`。
+    """
+
+    CONSUMER = "procedure.rc.pre_notification_given"
+    UPSTREAM = "artifact.proposal.repair"
+
+    @staticmethod
+    def _centering_base(table: Dict[str, Any], consumer: str, upstream: str) -> float:
+        return float(
+            table[consumer]["conditional_formula"]["upstream_expected"][upstream]
+        )
+
+    def test_module_cache_is_the_post_overlay_form(self) -> None:
+        from workflow_engine.worldgen.round6_formulas import (
+            MC_CALIBER_FRAGMENTS_PER_BUILDING,
+            build_round6_round7_formulas,
+        )
+
+        # 🔴 前置：本测内显式建一次 bundle。删掉这一行本测必红——这就是「必然红在
+        #    该红的地方」的那个「必然」，不是靠某个兄弟测试碰巧先跑过。
+        _build_registry_bundle()
+
+        cached_value = self._centering_base(
+            get_round6_round7_formulas(), self.CONSUMER, self.UPSTREAM)
+        # 对照组：`build_...` 每次新造 dict，故它永远是**未经 overlay** 的形态。
+        pristine_value = self._centering_base(
+            build_round6_round7_formulas(), self.CONSUMER, self.UPSTREAM)
+
+        p = float(MARGINAL_ANCHORS_ROUND7[self.UPSTREAM])
+        k = MC_CALIBER_FRAGMENTS_PER_BUILDING
+        want = 1.0 - (1.0 - p) ** k
+
+        self.assertAlmostEqual(
+            pristine_value, p, places=9,
+            msg="未经 overlay 的形态应是碎片边际——若不是，说明中心化被搬进了"
+                "`build_round6_round7_formulas` 本体，本闸的对照组失效")
+        self.assertAlmostEqual(
+            cached_value, want, places=6,
+            msg=f"模块缓存读到 {cached_value}，应为聚合后期望 {want:.8f}——"
+                "要么 A1.6 的中心化没落到模块缓存上，要么本测的建 bundle 前置被删了")
+        self.assertNotAlmostEqual(
+            cached_value, pristine_value, places=3,
+            msg="模块缓存与未经 overlay 的形态相同 ⇒ 原地改没发生")
+
+    def test_module_cache_equals_registry_record_for_every_building_consumer(self) -> None:
+        """恒等闸：模块缓存与注册表记录的 `upstream_expected` 必须逐键相等。
+
+        两者今天是同一个 dict 对象（原地改的直接后果）。若日后照审核建议改成
+        「写 record 的深拷贝」，本闸会把「改了 record 没同步模块缓存」这半边
+        当场抓出来——那正是进程态依赖真正会伤人的形态。
+        """
+        bundle = _build_registry_bundle()
+        cached = get_round6_round7_formulas()
+        checked = 0
+        for registry in bundle.registries:
+            if registry.registry_id != "sidecar_bool_slot_registry":
+                continue
+            for record in registry.records:
+                slot_id = str(record.get("slot_id") or "")
+                if slot_id not in cached:
+                    continue
+                if str(record.get("granularity") or "fragment") != "building":
+                    continue
+                rec_formula = record.get("conditional_formula")
+                cached_formula = cached[slot_id]["conditional_formula"]
+                if not isinstance(rec_formula, dict):
+                    continue
+                rec_blocks = list((rec_formula.get("classes") or {}).values()) or [rec_formula]
+                cached_blocks = (
+                    list((cached_formula.get("classes") or {}).values())
+                    or [cached_formula]
+                )
+                for rec_block, cached_block in zip(rec_blocks, cached_blocks):
+                    rec_exp = rec_block.get("upstream_expected") or {}
+                    cached_exp = cached_block.get("upstream_expected") or {}
+                    with self.subTest(slot_id=slot_id):
+                        self.assertEqual(rec_exp, cached_exp)
+                    checked += 1
+        self.assertGreaterEqual(
+            checked, 9,
+            f"只核到 {checked} 个楼级消费者——少于 A1.6 落地实测的 9 个，"
+            "说明公式表或粒度声明被改动而本闸没跟")
 
 
 class DAGConsistencyTests(unittest.TestCase):
     """spec 06 §11.6.7 DAG validity: 没有 sidecar slot 引用 sampling_order 在自己之后的 slot."""
 
     def test_sampling_order_unique_1_to_45(self) -> None:
+        """45 键唯一；#38 改锚（换池批步 A1.4，2026-08-06）后 mbi5 移 25.7。
+
+        旧不变量「恰 1..45 连续」随 DAG 重排改锚：mbi5 的正确依赖是槽 4
+        修葺监督委任事件（order 25.5，池 v2 供给侧），原 6 号位空出不回填。
+        新不变量＝{1..45}∖{6} ∪ {25.7}，仍逐值钉死。
+        """
         orders = sorted(SAMPLING_ORDER_ROUND7.values())
-        self.assertEqual(orders, list(range(1, 46)))
+        expected = sorted(set(range(1, 46)) - {6} | {25.7})
+        self.assertEqual(orders, expected)
+        self.assertEqual(SAMPLING_ORDER_ROUND7["artifact.form.mbi5"], 25.7)
 
     def test_no_future_sidecar_reference(self) -> None:
-        """每条 sidecar upstream 的 sampling_order 必须 < 当前 slot."""
+        """每条 sidecar upstream 的 sampling_order 必须 < 当前 slot.
+
+        序表＝Round7 45 槽 ∪ 池 v2 供给侧三新槽（mbi5 的上游槽 4 在后者内）。
+        """
         formulas = get_round6_round7_formulas()
+        order_table = {**SAMPLING_ORDER_ROUND7, **POOL_V2_SUPPLY_SAMPLING_ORDERS}
         violations = []
         for slot_id, spec in formulas.items():
             my_order = spec["sampling_order"]
             for up_id in spec["upstream_inputs"].get("sidecar", []):
-                up_order = SAMPLING_ORDER_ROUND7[up_id]
+                up_order = order_table[up_id]
                 if up_order >= my_order:
                     violations.append(f"{slot_id}({my_order}) → {up_id}({up_order})")
         self.assertEqual(violations, [], f"DAG violations: {violations}")
+
+    def test_pool_v2_supply_orders_respect_dag(self) -> None:
+        """池 v2 三新槽自身的 DAG 边（含 sp2←槽2、mbi5←槽4 两条改锚边）。"""
+        from workflow_engine.worldgen.round6_formulas import (
+            get_pool_v2_supply_slot_specs,
+        )
+        order_table = {**SAMPLING_ORDER_ROUND7, **POOL_V2_SUPPLY_SAMPLING_ORDERS}
+        for slot_id, spec in get_pool_v2_supply_slot_specs().items():
+            my_order = POOL_V2_SUPPLY_SAMPLING_ORDERS[slot_id]
+            for up_id in spec["upstream_inputs"].get("sidecar", []):
+                with self.subTest(slot_id=slot_id, up=up_id):
+                    self.assertLess(order_table[up_id], my_order)
 
     def test_artifact_downstream_of_procedure(self) -> None:
         """artifact.report.inspection (sampling_order 11) 必须晚于 procedure.inspection.prescribed.completed (8)."""
@@ -367,10 +633,14 @@ class DAGConsistencyTests(unittest.TestCase):
             ALLOWED_INPUTS,
             ALLOWED_PHYSICAL_INPUTS | ALLOWED_HIDDEN_INPUTS | ALLOWED_SIDECAR_INPUTS,
         )
-        # 19 H.* + 22 physical + 45 sidecar = 86
+        # 19 H.* + 22 physical + 47 sidecar = 88
+        # （sidecar 45 → 47：#38 池 v2 供给侧新增两条可作上游的槽——
+        #  supervision.nonconformity.found（sp2 上游）与
+        #  procedure.repair_supervising_ri.appointment.completed（mbi5 上游），
+        #  换池批步 A1.3，2026-08-06；槽 3 呈交事件无公式消费者，刻意不入白名单）
         self.assertEqual(len(ALLOWED_HIDDEN_INPUTS), 19)
         self.assertEqual(len(ALLOWED_PHYSICAL_INPUTS), 22)
-        self.assertEqual(len(ALLOWED_SIDECAR_INPUTS), 45)
+        self.assertEqual(len(ALLOWED_SIDECAR_INPUTS), 47)
 
 
 class EnumProbabilityTests(unittest.TestCase):
@@ -485,6 +755,70 @@ class CompletedAndRetainedConsistencyTests(unittest.TestCase):
         # but at least the channel is wired.
         # Stronger test: completed_and_retained probability across 500 fragment ≤ min(c,r) prevalence
         _ = clamp_observed  # keep for visibility
+
+    def test_centering_base_stays_062_while_declared_marginal_is_039(self) -> None:
+        """🔴 公式中心化基与分布声明值**本轮起分家**——这条闸钉住「不许合并」。
+
+        （A1.6 落地审核 §一「必须记 B」的配套闸，2026-08-06。）
+
+        **这里钉住的 0.62 是 `MARGINAL_ANCHORS_ROUND7` 里的「公式中心化基」，
+        不是这个槽的分布声明值。** 声明值已由 `POST_CLAMP_REALIZED_MARGINALS`
+        改成**钳制后实现边际 0.39**（A1.6 补裁）。两者按构造不相等：0.62 是
+        `_apply_clamps` **之前**的中心，0.39 是钳制**之后**的实现边际。
+
+        为什么要专门加一条闸而不是听之任之：审核实测**两个碎片级下游消费者**
+        （`procedure.repair.prescribed.completed` 系数 0.35 /
+        `artifact.report.completion` 系数 0.30）**仍以 0.62 为中心化基**——
+        它们是碎片级，结构上落在 A1.6 那个只扫楼级消费者的 overlay 射程之外。
+        残差：闭式预测 −0.0199 / −0.0168，门检 MC 实测 −0.0161 / −0.0159，同号同量级。
+
+        看见这个残差的人很容易「顺手」把本表里的 0.62 改成 0.39 去消它。
+        **那一改是行为变更，不是文档修正**（变异实测：改完本槽自己的
+        `conditional_formula["anchor"]` 也从 0.62 变成 0.39，两个下游的
+        `upstream_expected` 一并变成 0.39）。消这条残差的正确做法是把 A1.6
+        「中心化基＝实际读到的期望」这条原则**扩到碎片级这条边上**（已登记待裁），
+        不是动这张表。
+        """
+        from workflow_engine.worldgen.round6_formulas import (
+            POST_CLAMP_REALIZED_MARGINALS,
+        )
+
+        slot = "supervision.record.completed_and_retained"
+        self.assertEqual(
+            MARGINAL_ANCHORS_ROUND7[slot], 0.62,
+            "公式中心化基被改动——它同时是本槽 conditional_formula['anchor'] 与两个"
+            "碎片级下游 upstream_expected 的来源，改它是行为变更而非文档修正",
+        )
+        self.assertEqual(POST_CLAMP_REALIZED_MARGINALS[slot], 0.39)
+
+        records = _all_45_slot_records()
+        rec = records[slot]
+        self.assertEqual(float(rec["marginal_anchor"]), 0.39)
+        self.assertEqual(float(rec["prevalence"]), 0.39)
+        self.assertEqual(
+            float(rec["conditional_formula"]["anchor"]), 0.62,
+            "钳制槽的公式内部中心必须保持钳制前的 0.62（A1.6 §2.3 明令不动）",
+        )
+
+        # 两个碎片级下游消费者的中心化基——**现状登记，不是应然**。
+        # 与上面的 0.39 并列摆出来，免得下次有人以为 0.62 只剩公式内部一处。
+        for consumer, coefficient in (
+            ("procedure.repair.prescribed.completed", 0.35),
+            ("artifact.report.completion", 0.30),
+        ):
+            with self.subTest(consumer=consumer):
+                block = records[consumer]["conditional_formula"]
+                self.assertNotEqual(
+                    str(records[consumer].get("granularity") or "fragment"),
+                    "building",
+                    f"{consumer} 变成楼级了——它会落进 A1.6 overlay 射程，本条现状登记须重估",
+                )
+                self.assertEqual(float(block["terms"][slot]), coefficient)
+                self.assertEqual(
+                    float(block["upstream_expected"][slot]), 0.62,
+                    f"{consumer} 的中心化基变了：若是有意扩 A1.6 原则到碎片级边，"
+                    "请连同本闸与实施记录一起改；若是「顺手改表」，那是行为变更",
+                )
 
 
 class MBI2DAGPatchTests(unittest.TestCase):

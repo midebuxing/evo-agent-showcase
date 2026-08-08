@@ -82,9 +82,18 @@ def test_new_slots_registered_in_bool_registry() -> None:
         rec = by_slot[slot]
         assert rec["value_type"] == "bool"
         assert isinstance(rec["prevalence"], float)
-        # marginal 路径：Round6/7 overlay 只 patch MARGINAL_ANCHORS_ROUND7 键集内的 45 条，
-        # 本组不在其中，故 conditional_formula 必须保持 None（否则说明被误挂了公式）。
-        assert rec["conditional_formula"] is None
+        # 🔴 2026-08-05 更新（决议_33处置_20260805.md §一.1「零边际成本段」）：
+        # 原断言是 `conditional_formula is None`，用意是「Round6/7 overlay 只 patch
+        # 它那 45 条，本组不在其中，被挂上公式说明误命中」。
+        # 现在本组**有意**被第二道 overlay（`_apply_precondition_coupling_overlay`）
+        # 装上真公式——它们原先是「声明了 `conditional_inputs` 却没有公式」的**死声明**，
+        # 实际是独立伯努利，而 `.intended` 正是乙路 §2.1.3(n) 要接的前件槽。
+        # 断言据此改成「必须**有**公式，且不是被 Round6/7 误命中的」。
+        assert rec["conditional_formula"] is not None, (
+            f"{slot} 又变回死声明了——声明了条件依赖却没有可执行公式")
+        assert rec["distribution_source"] == (
+            "proagent_engineering_estimate_precondition_coupling_20260805"), (
+            f"{slot} 的公式来源不是死声明补公式那一批——查是不是被 Round6/7 误命中")
 
 
 def test_new_slots_registered_in_ownership_map() -> None:

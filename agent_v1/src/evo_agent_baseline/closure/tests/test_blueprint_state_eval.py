@@ -487,7 +487,7 @@ def _real_corpus_pairs() -> List[S.PairedObligationV2]:
 def test_real_corpus_per_obligation_state_equivalence_empty_list():
     """全 397 真语料逐覆盖义务（含 edge channel）：v2 状态 vs v1 verdict **逐条一致**（不一致清单应空）。"""
     fcards = _load_cards_float()
-    assert len(fcards) == 469, f"真语料卡数应精确 469（2026-07-28 补 64 张缺卡后重锚：398→462→470；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469）: {len(fcards)}"  # 2026-07-28 补 64 张缺卡后重锚（398→462）
+    assert len(fcards) == 470, f"真语料卡数应精确 470（2026-07-28 补 64 张缺卡后重锚：398→462→470；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469）: {len(fcards)}"  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-05 #23 补 §5.4.3(b) masonry 缺卡 469→470
     pairs = _real_corpus_pairs()
     # v4 精确 2552（2026-07-28 补 64 张缺卡后重锚；原 2310 = 1884 旧覆盖 + 400 普通/升级
     # node-main + 25 workflow_deadline + 1 edge，本次 +238 全部来自新卡的 node/deadline/edge）
@@ -499,12 +499,12 @@ def test_real_corpus_per_obligation_state_equivalence_empty_list():
     # 🔴 2026-08-05 换池捆绑批·乙路 #30 重锚 2564→2566（先量后冻）：意向卡接真前件槽
     # ⇒ 新增 sr02（slot_role 通道 +1）＋卡级触发项 trg01（trigger 通道 +1），
     # 恰好两条配对；其余通道逐位不变（与 test_blueprint_deriver 的逐通道分账同源）。
-    assert len(pairs) == 2566, (  # 2026-08-04 s6_1_3 术式 2570→2569（sr03 required=false ⇒
+    assert len(pairs) == 2386, (  # 2026-08-08 残差57A 2392→2386（-6）  # 2026-08-07 s423 删 e02（恰 -1，实测；重核准记录_s423_20260807.md）  # 2026-08-07 卡包合流 2569→2393（-176）  # 2026-08-04 s6_1_3 术式 2570→2569（sr03 required=false ⇒
         # slot_role 通道少一条；术前/术后配对差集实测：只在术前 1 条、只在术后 0 条，消失项即该条）
         # 件四批 1 再 2569→2564：退役 §3.2.6 重复卡，配对差集实测「只在术前 5 条 / 只在术后 0 条」，
         # 5 条全部属该退役卡（slot_role ×2 ＋ trigger ＋ obligation_graph ＋ workflow_artifact；
         # applicability 通道不产配对）。脚本：杂物箱/jian4b1_step4_diff_pairs.py
-        f"真派生配对数应精确 2564（v4：全 node + deadline + edge）: {len(pairs)}"
+        f"真派生配对数应精确 2386（v4：全 node + deadline + edge）: {len(pairs)}"
     )
     mismatches: List[str] = []
     for p in pairs:
@@ -531,7 +531,7 @@ def test_real_corpus_per_obligation_state_equivalence_empty_list():
                 pk_count.get(p.blueprint.identity.predicate_kind, 0) + 1
             )
     assert pk_count.get("prohibition") == 1, f"prohibition node 配对应精确 1: {pk_count}"
-    assert pk_count.get("obligation") == 482, f"普通 node 配对应精确 482（同上重锚；件四批 1 退役卡 1 个 obligation node 483→482）: {pk_count}"  # 2026-07-28 补 64 张缺卡后重锚（卡 398→462 / 节点 402→480）
+    assert pk_count.get("obligation") == 483, f"普通 node 配对应精确 483（同上重锚；件四批 1 退役卡 1 个 obligation node 483→482）: {pk_count}"  # 2026-07-28 补 64 张缺卡后重锚（卡 398→462 / 节点 402→480）
     assert pk_count.get("escalation") == 4, f"升级 node 配对应精确 4: {pk_count}"
     assert pk_count.get("obligation_edge") == 1, f"edge 义务配对应精确 1: {pk_count}"
     # workflow_deadline：25 卡各 1 独立 deadline 义务（node 携带 deadline 子不单独配对，§5.1）。
@@ -729,17 +729,21 @@ def test_merge_reason_selection_diverges_in_general_not_two_pairs():
 
     spec = S.PHASE_TWO_REASON_DRIFT
     # ① 一般发散：总数与登记一致（活代码核对，防回退 overclaim）。
-    assert len(reason_drift) == spec["measured_directional_divergences"] == 156, (
+    # 2026-08-05 #33 保护闸新增 open 码 `evidence_event_coupling_unproven`：
+    # 156→169（78→91 open，blocked 78 第五轮仍不动）。实测重算，非外推——
+    # 91 = C(14,2)，与前四轮 C(n,2) 序列吻合，佐证增长纯来自枚举面变大。
+    assert len(reason_drift) == spec["measured_directional_divergences"] == 169, (
         f"reason 方向发散实测={len(reason_drift)} 登记={spec['measured_directional_divergences']}"
     )
-    assert open_cnt == spec["measured_open_divergences"] == 78
+    assert open_cnt == spec["measured_open_divergences"] == 91
     assert blocked_cnt == spec["measured_blocked_divergences"] == 78
     # ② 旧「2 对」是真子集（⊊）——直接证「恰 2 对」失真（远非全部）。
     legacy = set(spec["legacy_overclaim_pairs"])
     assert legacy < reason_drift, "旧 2 对应是发散的真子集（⊊），证『恰 2 对』overclaim 失真"
     assert len(reason_drift) > 2
-    # ③ 「保守」亦失真：29 处 advisory tier 非保守（含 medium→low 反例）。
-    assert len(nonconservative) == spec["measured_nonconservative_tier"] == 45
+    # ③ 「保守」亦失真：**49** 处 advisory tier 非保守（含 medium→low 反例）。
+    # 沿革 25→29→33→37→41→45→49；每新增一个 open 码固定 +4（与四个 medium 档旧码配对）。
+    assert len(nonconservative) == spec["measured_nonconservative_tier"] == 49
     assert ("open", "missing_required_field_group", "depends_on_open_trigger") in set(
         nonconservative
     ), "应含 medium→low 非保守反例"
@@ -769,7 +773,7 @@ def test_real_corpus_finalize_groups_all_singleton_does_not_prove_unreachability
     # 事实快照：当前语料全 singleton（不演真实 merge），**不**作不可达证明。
     assert max_size == 1, f"当前语料应全 singleton（事实快照）: max_group_size={max_size}"
     assert multi == 0
-    assert len(members) == len(pairs) == 2566  # 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
+    assert len(members) == len(pairs) == 2386  # 2026-08-08 残差57A 2392→2386。旧沿革：# 2026-08-07 s423 删 e02（-1）。旧沿革：# 2026-08-07 卡包合流 2569→2393。旧沿革：# 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
     # 诚实登记与活代码一致：漂移**可达**、仅落 advisory 层（非旧「生产不可达」）。
     assert S.PHASE_TWO_REASON_DRIFT["reachability"] == "reachable_advisory_only"
     assert S.PHASE_TWO_REASON_DRIFT["nature"] == "general_divergence_reachable_advisory_only"
@@ -1135,13 +1139,13 @@ def test_phase_two_unified_entry_all_397_no_serialization_or_rejection():
     if p is None:
         pytest.fail("生产 rule_cards.json 未找到——证据闸不得 skip（skip=空转）")
     fcards = _load_cards_float()
-    assert len(fcards) == 469  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
+    assert len(fcards) == 470  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469；2026-08-05 #23 补 §5.4.3(b) masonry 缺卡 469→470
     pairs = S.evaluate_covered_run_obligations_v2(p, fcards, _index([]), _META)
-    assert len(pairs) == 2566  # 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
+    assert len(pairs) == 2386  # 2026-08-08 残差57A 2392→2386。旧沿革：# 2026-08-07 s423 删 e02（-1）。旧沿革：# 2026-08-07 卡包合流 2569→2393。旧沿革：# 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
     assert all(isinstance(pr.obligation_v2, I.ObligationV2) for pr in pairs)
     # Decimal identity 与 float judgement 混——全 assemble 无序列化异常（源自 identity bytes 计算）。
     finals = S.finalize_obligations_v2([pr.obligation_v2 for pr in pairs])
-    assert len(finals) == 2566  # 跨卡身份唯一，无 dedupe 逃逸；2026-08-04 s6_1_3 术式 -1；件四批 1 退役卡 -5
+    assert len(finals) == 2386  # 2026-08-08 残差57A。旧沿革：# 2026-08-07 s423 删 e02（-1）。旧沿革：# 2026-08-07 卡包合流。旧沿革：# 跨卡身份唯一，无 dedupe 逃逸；2026-08-04 s6_1_3 术式 -1；件四批 1 退役卡 -5
     I.run_collision_postcheck(finals)
 
 
@@ -1316,7 +1320,7 @@ def test_dual_read_path_normal_397_still_exact_2310():
     """正常 397 卡双向校验通过、仍精确 2310 pair（v4；双向校验不误伤真语料）。"""
     raw = _load_raw_cards()
     pairs = _run_dual(_mk_float(raw))
-    assert len(pairs) == 2566  # 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
+    assert len(pairs) == 2386  # 2026-08-08 残差57A 2392→2386。旧沿革：# 2026-08-07 s423 删 e02（-1）。旧沿革：# 2026-08-07 卡包合流 2569→2393。旧沿革：# 2026-08-04 s6_1_3 术式 2570→2569；件四批 1 退役 §3.2.6 重复卡 2569→2564（sr03 required=false ⇒ slot_role 通道少一条；术前/术后配对差集实测唯一消失项即该条，零新增）
 
 
 def test_card_level_entry_multiset_gate_duplicate_source_item_hard_fails():
@@ -1467,7 +1471,7 @@ def test_entry_unification_v1_net_equals_v2_net_per_card_all_397():
 
     本门槛的**实质**（v1 净 ↔ v2 配对净逐卡零差）在修复前后都成立；总数只是防漂锚。"""
     fcards = _load_cards_float()
-    assert len(fcards) == 469  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469
+    assert len(fcards) == 470  # 2026-07-28 补 64 张缺卡后重锚（398→462）；2026-08-04 件四批 1 退役 §3.2.6 重复卡 470→469；2026-08-05 #23 补 §5.4.3(b) masonry 缺卡 469→470
     fi = _index([])
     pairs = _real_corpus_pairs()
     v2_by_card: Dict[str, set] = {}
@@ -1491,7 +1495,7 @@ def test_entry_unification_v1_net_equals_v2_net_per_card_all_397():
     assert not mismatch, (
         f"入口合一门槛逐卡零差被破（{len(mismatch)} 卡有差，应 0）:\n" + "\n".join(mismatch[:10])
     )
-    assert total_v1 == total_v2 == 2139, (  # 2026-08-04 s6_1_3 术式 2143→2142（同上 -1）；
+    assert total_v1 == total_v2 == 2051, (  # 2026-08-08 残差57A 2054→2051（逐卡差集实测：恰三卡有差）  # 2026-08-07 s423 删 e02（恰 -1，实测；重核准记录_s423_20260807.md）  # 2026-08-07 卡包合流 2141→2055（逐卡差集实测 diff_net_keys.py：102 卡全在射程内）  # 2026-08-04 s6_1_3 术式 2143→2142（同上 -1）；
         # 件四批 1 退役 §3.2.6 重复卡 2142→2138：术前/术后逐卡净 key 差集实测**只有 1 张卡有差**
         # ——即该退役卡（术前 v1=4/v2=4，术后不存在），其余 469 张逐卡净 key 逐位不变。
         # 🔴 2026-08-05 乙路 #30 再 2138→2139（**只 +1，不是 +2**）：意向卡新增

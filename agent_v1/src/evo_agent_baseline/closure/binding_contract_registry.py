@@ -123,7 +123,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "00e516c321f729764051747b62b8adefe99b73d22d6c118eb152596403dc906d",
+        "card_content_sha256": "d9a26c6ef2e723d0fde3515c2c48b71c2305c8aaf98c17621be3c2c8723ebfbd",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -142,7 +142,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "d711fb96218199c65294016566fdec227602bddfd0a14157dde3fa8402e26a66",
+        "card_content_sha256": "350b975062d4e83ae32b1ae164ced4c9f22dc79a6f37e47b75f78a3c3cf7e8a5",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -161,7 +161,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "71ec765b329a665ea3ba148d46715cf875080af9194d250551e93f364f62d32d",
+        "card_content_sha256": "2cc8f6d831a0b0ee1e0eac773519463f369d1cbf33b5ce3a0c393e0f6dd1ca9f",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -180,7 +180,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "a84825a59ae6301c74172b0c88dc5358731c03d65796f96d541130f0e6f0083d",
+        "card_content_sha256": "cf3afeb4e24f725fb9f5405d233b45c65e1cd178847648fec8cc6a113da28ec1",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -199,7 +199,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "54b229dfe0618a45c6f8f679fc183b38a2d8bfa71bd113683831d740c01eee57",
+        "card_content_sha256": "0413bbed963b4d5dec88896a2beadb1c307c035729a806fc21f02cc01192e71c",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -218,7 +218,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "f12edf2dec401813444e051069d318d41648b948ef73e8a802c2c9cd1a1ad179",
+        "card_content_sha256": "2e9f7088467c6b4abb075a36d64175d665aa5af6d2da43045fbb8b6a292d709e",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -237,7 +237,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "d9ba1f643d9988a285efa8dfb43840f7f5775bbd52a9424cc7791a2f0f2a1e98",
+        "card_content_sha256": "7f6fc630da333d94b517856d90590d0aa58c4d1c8e61f83f3c1d2999a7cabe60",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -256,7 +256,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "8f4d005a04a94baadec1e288b031ce0938af99ad6137c2c94676bb35229e58a4",
+        "card_content_sha256": "a8f5e4a521767f9d45862ff710bc807e52d1bf7b3f4608abb9b0c7a04e282369",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -275,7 +275,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "b5695ff9ab8b9611569c5493bf1c84395e6f100c631e7af8a2ab7036de154db3",
+        "card_content_sha256": "cf2c9104faa070a4acfb1dbf14d877e3446aec07496de18f0b8980ef7d90e6fe",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -294,7 +294,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "e393e367cb85a15b8a5b76992b29aa220b3cafdb7e1c0e092b87bc41910b64e8",
+        "card_content_sha256": "f7d56bc1e59214efb068071087617fb1c4c648eda17f42be0dfe3e7eea9c9910",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -313,7 +313,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "f014981ebf3d95413948f825587031e0126158c3ea94d28098d059585a40126c",
+        "card_content_sha256": "798bf60aa63020bef1032a8655852ec05e5aa8458493ad61e39af2b58144c29c",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -332,7 +332,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "bf645a4f91e3e3d62acab42fab1896cd4190ade2f72f714b3182b63bfe2f5639",
+        "card_content_sha256": "2ac6e5c4a1bd7f1ef76433c462903017b5556f5033faa89ee13427432f5b82ca",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -351,7 +351,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "9dcd9c428e1ebd38fee16ac835baebfd508cbaa6d1841175b2742f86494b4a30",
+        "card_content_sha256": "984ffafeed3f36585b4567ca90022aa27ef255e9d16c0531047e55fc42873791",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -370,7 +370,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "9e2b8a095bc9f045ead68e6c9e18efeae63ae15b841f7bdb184e5eff787c96ee",
+        "card_content_sha256": "72533d0c08386a6530b70dba8aa9841d1e1418d78b93d1217860f5a646a1683a",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -389,7 +389,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "a91e7c714045683e7ec40bbef3ca847258e3be7c5654264776672a7a8b652ba0",
+        "card_content_sha256": "56611f969773810605379f669ef2891f06e8e0d708347945edcb4032cf07c6ea",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -408,7 +408,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "87c270fb33646e9b08d8b671f5d6863d1c558ae41917101137758eef160784c8",
+        "card_content_sha256": "6cd7085dd96b7536617fd0e0068a13f96f8c98b3e029dde36df1209ed5d5214b",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -426,7 +426,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "6a62bc4e6e29272cdb96ba871345d6f9eeb41134ac302c00902c1ac942effac1",
+        "card_content_sha256": "0bbfd82e03c634b4bb0586f550873542759d43d64b863d96e53af88e91a200d8",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -445,7 +445,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "cdd294a222e9933aa57675835e6c1c6b2120864401104f909f6e94075adbdb57",
+        "card_content_sha256": "09633f157080a8268dc334d65c041eee7983fa6e09b49f02654324bcb33853ce",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -464,7 +464,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "fbd4d5f4cad631dfae939d5227f4171d1a2fb22a8ece4234a51fadfe2265ee54",
+        "card_content_sha256": "152906f1b13fa639a760b35996eae26daaaa5b8b28521744e696fad5850385b4",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -483,7 +483,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "f72ddf35fc7a1aa21dbb292df040a7cd430ce48c082f8cd666e2df07dd1bb237",
+        "card_content_sha256": "c991efe07fa5443e1c65afde18ea19a1938c6bf83103c6e049c25eb051af4800",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -502,7 +502,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "f5aafa6b428cc05e2724a5704e86115cbecfcec0f56e5ba0a3a62bcea3ef5f2f",
+        "card_content_sha256": "9c0c794db0c046ad40410387c88ba5cfd1ea9fc0cc17c8b26579db55581aaf24",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -521,7 +521,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "5134b293bdffbd3d514f45c789d7313b4893be86b34df39452b8483ac10c9fee",
+        "card_content_sha256": "a25de90ea0d51c31a4009dac3883c5450ff7d5a2ec63ba720b9c1abe16949ebb",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -540,7 +540,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "a936690016e0c6dcbefaaeccb8e4f2e3630d9d411cee562c3f5764763a577180",
+        "card_content_sha256": "e593adb73e98176299ea2d739b76a0806e82830d397c65e2cc3f631f0c944057",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -559,7 +559,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "f4110915e6fa43919de940bcbfc8043bf2d0a86761691929e76851adf850e901",
+        "card_content_sha256": "668c3130c3f89780a4fb30084e5471317960a05c427355c6d776fd5ac43b8e91",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -578,7 +578,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "1333b0f7c37d4d64cf5ef28b82b46e20e9d43b531cad3258d96ba218531b380c",
+        "card_content_sha256": "2ee5c2fc259468b8051d868ac3047e4568639654dd51dc731d7a9d374cfdd8a0",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -597,7 +597,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "ec01657c9f9b35dd80affbfc98e844574c909fc7037c855a61eac8d3e3f9d7ed",
+        "card_content_sha256": "545ff44112848e58c23b5c13f06ddaf6794f32bfdc920247f9d26ab757d12e95",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -616,7 +616,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "a63e9196db49af1259b1a6ec0126cd469666f0e3b34bdc7cea7fb33152adee59",
+        "card_content_sha256": "b298794120ccda3e3658c0c762cbeef379d56263bb08ea9ddd5d405766d3fdff",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -635,7 +635,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "20361a73d327388de59198985edd95667748e12a54dbc9919bbb5d2c21a2b461",
+        "card_content_sha256": "1ddf21d84a64c83989b369cafe896203761165123f4f1d9708b8430ff0e674ee",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -653,7 +653,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "10a41c1d3a63e1930deabdfdebe922c2a663d4592739af23d68581e6d48f8f20",
+        "card_content_sha256": "11d6644368cc37b44bec1ea7a6850696b762357b8950a74d679fc98e0ee8e9e0",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -671,7 +671,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "84f997552e76f6909bbe89bb5abec9e8809f07d7c83192d11a51866e1bb4fdf7",
+        "card_content_sha256": "0f49ef71118569945ac96523facfbb3a10e7556e1cff5a85f396cf87828ee850",
         "slot_id": "reporting.artifact.prepared",
         "aggregation_source": "slot_target_fallback",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -690,7 +690,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "e88e4ad64439dfd539c7d5a3639579396ecd7e8a49c71886d055f38cf6dae2aa",
+        "card_content_sha256": "8d2b7a6c51e76517046d33833043edfe76c8317df85decc9d6a13ab868483f0c",
         "slot_id": "artifact.proposal.detailed_investigation",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -708,7 +708,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "slot_role"
         ],
         "policy": "diagnostic_only",
-        "card_content_sha256": "80fb4c5c4e92d02c6236863dbd8f6ae1f03ee1b69211a22a3038f1a73b60dd2b",
+        "card_content_sha256": "9c6b2d117e8a0f8a0f9c1c2b51cb399327effa1c7395622191989df20668fa42",
         "slot_id": "artifact.report.inspection",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -726,7 +726,11 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
             "node_slot",
             "slot_role"
         ],
-        "policy": "value_consumption",
+        # 🔴 2026-08-05 #33 保护闸落表后，**本行是全表唯一的 `value_consumption` 行**
+        # （c55 的 22 行 105-126 已翻成耦合未证拒判）。本行不在 #33 射程：槽是
+        # `procedure.inspection.prescribed.completed`，不是 reporting 轴；且
+        # `true_exit_mode="caller_path"`，契约本就不直判 satisfied。
+        "policy": "value_consumption",  # ← #33 射程外，有意保留
         "card_content_sha256": "bc54086cbf1c45a33fb80be6cfe401e6fc95992558e56e0d14130644ec63da0a",
         "slot_id": "procedure.inspection.prescribed.completed",
         "aggregation_source": "building_reading_aggregation",
@@ -790,7 +794,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "aggregator": "any_true",
         "allowed_paths": ["node_slot", "slot_role"],
         "policy": "diagnostic_only",
-        "card_content_sha256": "0bc176723b1c32cdf9e9564bee090241dbf6556ab0f5d9cc7498405f724bd601",
+        "card_content_sha256": "5fe2606dc8ba61de8f573fdb6ce131f32bc4f0600f29d947476c134348237d0e",
         "slot_id": "artifact.record.inspection_log",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -1302,7 +1306,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "aggregator": "any_true",
         "allowed_paths": ["node_slot", "slot_role"],
         "policy": "diagnostic_only",
-        "card_content_sha256": "af9550faa82a71c27558f9b0481d532e0d2ebed6b77dbea2819f81c3b530f6c1",
+        "card_content_sha256": "c8a8f250b17542835098d937cdc8f03e581e2a63b76df543913d70bad2738177",
         "slot_id": "artifact.report.inspection",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -1334,7 +1338,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "aggregator": "any_true",
         "allowed_paths": ["node_slot", "slot_role"],
         "policy": "diagnostic_only",
-        "card_content_sha256": "86e678a09e9a90c46441197a00c365844551c0e87942f99f6ecfaaa0790cd4a8",
+        "card_content_sha256": "1ff99f99753468e53b6978168e8bef036904094e90e3ead82a398c178a16f7f4",
         "slot_id": "artifact.report.completion",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -1350,7 +1354,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "aggregator": "any_true",
         "allowed_paths": ["node_slot", "slot_role"],
         "policy": "diagnostic_only",
-        "card_content_sha256": "86e678a09e9a90c46441197a00c365844551c0e87942f99f6ecfaaa0790cd4a8",
+        "card_content_sha256": "1ff99f99753468e53b6978168e8bef036904094e90e3ead82a398c178a16f7f4",
         "slot_id": "artifact.certificate.material_or_product",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -1462,7 +1466,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "aggregator": "any_true",
         "allowed_paths": ["node_slot", "slot_role"],
         "policy": "diagnostic_only",
-        "card_content_sha256": "80fb4c5c4e92d02c6236863dbd8f6ae1f03ee1b69211a22a3038f1a73b60dd2b",
+        "card_content_sha256": "9c6b2d117e8a0f8a0f9c1c2b51cb399327effa1c7395622191989df20668fa42",
         "slot_id": "artifact.form.mbi3_or_mbi3a",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "n/a——诊断型不产判定，无完整性判据消费",
@@ -1879,14 +1883,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=form.mbi3_or_mbi3a",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "f9b1ced837b227692e47acc1cc9ce90eb5e224f4013bee41ab1a3152871ccbcb",
         "slot_id": "reporting.artifact.delivered",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -1898,14 +1906,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=person_for_whom_prescribed_repair_is_carried_out,artifact_key=report.completion",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "cf71b83b46f6720e2f7e9fb9960c700bfd8cbf9c74691d3b7a2924529dbe70e2",
         "slot_id": "reporting.artifact.delivered",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -1917,14 +1929,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=person_for_whom_prescribed_repair_is_carried_out,artifact_key=form.mbi4",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "3c1b8a1e20d73f88fdbc6554536fba314bd880c3b55e53df8cfd63ae788e7c91",
         "slot_id": "reporting.artifact.delivered",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -1936,14 +1952,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=report.inspection",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "b7518b66c103ba49861b2003a37de7020edeaa3da8c85954174b150d4373926f",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "bfa7faf3570206ba4893a8d0e6716e1d87773b1fbc2fd42f287fb12d4d2d5d89",
         "slot_id": "reporting.artifact.signed",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -1955,14 +1975,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=ba,artifact_key=form.mbi3_or_mbi3a",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "b9c474ed93d7f19e30ba4fbbb94d7cfa8cf5bdfe2618d8fea8a3997afe4c9a69",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "5f139cd0bcf2dad6ca70aa8f44c98ed19bb1680542cdfaf963ab5184084519bb",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -1974,14 +1998,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=ba,artifact_key=report.inspection",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "b9c474ed93d7f19e30ba4fbbb94d7cfa8cf5bdfe2618d8fea8a3997afe4c9a69",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "5f139cd0bcf2dad6ca70aa8f44c98ed19bb1680542cdfaf963ab5184084519bb",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -1993,14 +2021,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=ba,artifact_key=notice.ri_appointment",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "b0f50adce16f79c9144398fa80cbcc8c1ee24b09651280173d5120571ad5f519",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "a977545c813ac2594f165310314609fb5b04430f0b451fc98e11e73cc642c7f8",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2012,14 +2044,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=ba,artifact_key=notice.ri_temporary_nomination",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "fb4333de4ea8de37335aa1c7a9e39358a39ee38d47f574dc41f31f703fee1ffb",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2031,14 +2067,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=notice.temporary_ri_nomination_cessation",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "00774aed1ee498313c97f7d01f989d4ff228d03b6c02dc083368737af0611b40",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2050,14 +2090,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=notice.ri_cessation",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "43637f77cd54e70431e93fdf64554ddb73b7ed2f35a8853453556b4c475a05ee",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2069,14 +2113,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=notice.representative_appointment_intended",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "86130fd93ebda8d6173e3c3d7d1ab77c673c05d14028f8bd2997fa440ed75ec6",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2088,7 +2136,7 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=notice.detailed_investigation_intention",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         # sha 更新（换池捆绑批 2026-08-05，乙路 #30）：卡新增 sr02（真前件槽
         # `procedure.investigation.detailed.intended`，roles=["trigger"]）＋一条卡级触发项。
         # 本行钉的仍是 **sr01**（证据通道逐字节未动）⇒ 八要素里只有卡指纹变，
@@ -2097,9 +2145,13 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2111,14 +2163,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=form.mbi3_or_mbi3a",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "f4ba5595abae00996b3304409e75cc797b2acbdd8c0b8f5385624597f4cb1642",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "f39f933105180f606d44f1214a51e924fe87469c509a293186211d8356bdfa0c",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2130,14 +2186,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=report.inspection",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "6a017fd9230500327ac6e0184c7d042ed7c8dcecae8ab6a1c257fbce7ae5ed23",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "93c27651c19475f89cc81193ac7c7064e8f0f292d99b1140c8425d7463ed1ad3",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2149,14 +2209,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=ba,artifact_key=proposal.repair_revision",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "27e0992e7862e9040cbe4b28a9a8479ffcced6b51db58ec7484ba938a2abfaa6",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2168,14 +2232,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=ba,artifact_key=form.mbi4",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "2bdf17551c8c12025702d042b160811729cc0c550c269b820e45a9ea61fe8af3",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2187,14 +2255,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=ba,artifact_key=report.completion",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "2bdf17551c8c12025702d042b160811729cc0c550c269b820e45a9ea61fe8af3",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2206,14 +2278,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "artifact_key=form.mbi5",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
+        "policy": "diagnostic_only",
         "card_content_sha256": "87e3e1c9cea04efb21892dab6f8d7b15773086a370b26ebd000ba2414cf60716",
         "slot_id": "reporting.artifact.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2225,14 +2301,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=bd,artifact_key=record.inspection_log",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "a038f4e71cbbe1a669502dd6b948a7ffbd5f425cf254feb81e91770435b8be5f",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "9c250a8f95eea7f09c307f40a562cbbaeb581ae33ae72891235ec75192ada09d",
         "slot_id": "reporting.record.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2244,14 +2324,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=bd,artifact_key=record.inspection_log",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "5bf1c8af90e6cd40871e9e17e8e96fa2a28a9b202d029a7cf858d4f0ebcf0b7d",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "3dc294dea0ac935b89ea92dce75f703f8860fa64f6ad81c2464f1e54f548cdd1",
         "slot_id": "reporting.record.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2263,14 +2347,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=bd,artifact_key=record.inspection_log",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "f5cf7d30d9270d40174ff70156458b4ebbedd05711f9d7df0889bc3563b839c8",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "f1c72ef1692c1b333574fac2ba9c7a1059f1b65239c5afda334ea605ed9d8534",
         "slot_id": "reporting.record.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2282,14 +2370,18 @@ BINDING_CONTRACTS: Tuple[Dict[str, Any], ...] = tuple(
         "qualifier_axis": "actor_role_key=bd,artifact_key=record.inspection_log",
         "aggregator": "all_true",
         "allowed_paths": ["node_slot", "slot_role"],
-        "policy": "value_consumption",
-        "card_content_sha256": "d304e05d51d2f42be80480f4bc2e9c23f7d6a0c71d1b46b14de7803e3e60876f",
+        "policy": "diagnostic_only",
+        "card_content_sha256": "a7a10dcc38910b661927ac02f7da2accc2eae63f1c53d84713f1be154151f772",
         "slot_id": "reporting.record.submitted",
         "aggregation_source": "building_reading_aggregation",
         "completeness_precondition": "全真才真：判 true 须非空完整输入；任一假即假；输入缺失或适用范围未定不生成聚合事实保持未知（已审规格冻结边界）",
-        "true_exit": "closed/satisfied（契约直接返回——row 37 的「沿用现状路径」对证据通道是拒判死路，Q2 裁定字段化分叉）",
-        "false_exit": "open/observed_false_without_violation_basis",
-        "verdict_permission": "value_consumption_aprime",
+        "true_exit": "open/evidence_event_coupling_unproven",
+        "false_exit": "open/evidence_event_coupling_unproven",
+        "verdict_permission": "none",
+        # 沿革留痕（#33 保护闸 2026-08-05 翻转前的真值出口）：解封时翻回
+        # policy=value_consumption + verdict_permission=value_consumption_aprime
+        # + true_exit=closed/satisfied… + false_exit=open/observed_false_…。
+        # 本字段在诊断行上零运行时读者，由 `_schema_violations` 的僵尸字段闸看住。
         "true_exit_mode": "contract_satisfied",
         "granularity_declaration": "building",
     },
@@ -2380,13 +2472,56 @@ def _current_license_sha() -> Optional[str]:
         return None
 
 
-# 丁②：诊断行出口原因码的**窄枚举**——产物态用前者，非产物读数用后者。
-# 真正的分流在 `obligation_deriver.diagnostic_refusal_reason_code`（看事实分类器），
-# 本集合只保证表里写不出第三种码。
+# #33 保护闸原因码（2026-08-05，`决议_33处置_20260805.md` §一.1 ／
+# `重核准记录_33保护闸_20260805.md`）。
+#
+# 语义＝「耦合未证、根治后可解封」：世界记录到该产物的呈交/送达/签署状态为真，
+# 但四根 reporting 轴（`reporting.artifact.{submitted,delivered,signed}` ＋
+# `reporting.record.submitted`）在世界侧 `conditional_inputs=[]`、与程序闸零耦合、
+# 独立伯努利采样 ⇒ 「产物存在 ⇒ 事件发生」这条推论世界不保证。
+#
+# 🔴 与上面两码**时效性不同，绝不合并**：那两码是逐条对中文原文裁定过的
+# 「**永久**不能确立」；本码是「**暂时**未证」，补上世界侧条件依赖即可解封。
+COUPLING_UNPROVEN_REASON_CODE = "evidence_event_coupling_unproven"
+
+# 丁②：诊断行出口原因码的**窄枚举**——产物态用第一个，非产物读数用第二个，
+# #33 耦合未证用第三个。
+# 前两码的分流在 `obligation_deriver.diagnostic_refusal_reason_code`（看事实分类器）；
+# 第三码**不由事实分类器分流**——同一条呈交轴读数在闸下是「耦合未证」、根治后是
+# 「耦合已证」，**事实类型没变、变的是行的授权状态** ⇒ 只能由行级声明决定
+# （见 `coupling_unproven_exit_code`）。本集合只保证表里写不出第四种码。
 _DIAGNOSTIC_EXIT_REASON_CODES = frozenset({
     "artifact_state_not_valid_evidence",
     "diagnostic_binding_not_valid_evidence",
+    COUPLING_UNPROVEN_REASON_CODE,
 })
+
+
+def coupling_unproven_exit_code(row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """#33 保护闸的**唯一共享判据**：该授权行是否处于「耦合未证」拒判态。
+
+    🔴 **两条通道必须同调这一个函数**（官方线商议 §2.3 的承重约束）：
+    - A′/诊断通道 `obligation_deriver._diagnostic_contract_terminal`；
+    - c55 桶通道 `obligation_deriver._bucket_axis_value_consumption`
+      （它**不读** `true_exit_mode`、True 时曾硬编码 satisfied ⇒
+      只闸 A′ 一侧＝把闸建在两个出口之一，桶开关打开当天即被绕过）。
+
+    判据落在**行级声明**（`true_exit`/`false_exit` 同码为本码），不落在
+    `verdict_permission`——那是本仓典型的「登记了没人消费」字段（判定路径零读者），
+    挂上去会得到一个看起来生效、实际不生效的闸。
+
+    返回原因码字符串＝该行被闸住；返回 None＝该行不在 #33 射程。
+    形状不完整（只有一侧声明本码）时返回 None 并**不**在此报错——
+    `_schema_violations` 已强制诊断行两出口必须相同，那里是唯一的报错口。
+    """
+    if not row:
+        return None
+    want = f"open/{COUPLING_UNPROVEN_REASON_CODE}"
+    if str(row.get("true_exit") or "") != want:
+        return None
+    if str(row.get("false_exit") or "") != want:
+        return None
+    return COUPLING_UNPROVEN_REASON_CODE
 
 
 def _schema_violations() -> List[str]:
@@ -2449,7 +2584,17 @@ def _schema_violations() -> List[str]:
         # c55 批强制项（2026-08-04 工单）：row>37 的值消费行必须带 artifact_key
         # 限定轴——模式①实证：无限定读数横跨 7 个不相干条款，缺轴即过宽授权。
         # row 37 先例（procedure 槽、非 reporting 轴）不受此约束。
-        if (r.get("policy") == "value_consumption"
+        #
+        # 🔴 2026-08-05 #33 保护闸：判据必须**同时覆盖被闸住的行**。
+        # 翻转后那 22 行的 policy 变成 diagnostic_only，若判据只认 value_consumption，
+        # 本条强制项的**适用人群会变成空集**——一条筛不到任何人的判据等于没有
+        # （本仓记过的形状：判据必须在被筛人群上有意义）。而它们解封时要翻回值消费，
+        # 那时缺轴就是过宽授权。故闸内行照样强制。
+        _row_governs_value = (
+            r.get("policy") == "value_consumption"
+            or coupling_unproven_exit_code(r) is not None
+        )
+        if (_row_governs_value
                 and isinstance(r.get("row"), int) and r["row"] > 37
                 and "artifact_key=" not in str(r.get("qualifier_axis") or "")):
             bad.append(f"row{r.get('row')}: 值消费行缺 artifact_key 限定轴"
@@ -2461,6 +2606,34 @@ def _schema_violations() -> List[str]:
                                                    "contract_satisfied")):
             bad.append(f"row{r.get('row')}: 值消费行 true_exit_mode 缺失或越界"
                        f"（得 {r.get('true_exit_mode')!r}）")
+        # #33 保护闸（2026-08-05）：两条僵尸字段闸，防「登记了没人消费」复活。
+        #
+        # ①`true_exit_mode` 在诊断行上**零运行时读者**（`_value_consumption_contract`
+        #   只对值消费集合内的行读它）。翻转集保留该字段是**有意的沿革留痕**
+        #   （解封时照它翻回 `contract_satisfied`），但必须**只在被闸住时**允许存在
+        #   ——否则任何一行手滑写成 diagnostic_only 而忘了改出口，就会留下一个
+        #   看起来还在生效、实际早已断线的字段。
+        # ②反向：带耦合未证出口的行**必须**是 diagnostic_only + verdict_permission=none。
+        #   （前者由上面的 `_DIAGNOSTIC_EXIT_REASON_CODES` 闸兜住 value_consumption
+        #   侧——值消费行的 false_exit 必须含 observed_false_…，写本码即违例；
+        #   这里补的是显式判据，不依赖那条间接推理。）
+        _cu = coupling_unproven_exit_code(r)
+        if r.get("policy") == "diagnostic_only" and r.get("true_exit_mode") is not None:
+            if _cu is None:
+                bad.append(
+                    f"row{r.get('row')}: 诊断行带 true_exit_mode 却未处于 #33 耦合"
+                    f"未证态——该字段在诊断行上零读者，留着即僵尸字段"
+                    f"（得 {r.get('true_exit_mode')!r}）")
+            elif r.get("true_exit_mode") != "contract_satisfied":
+                bad.append(
+                    f"row{r.get('row')}: #33 闸住行的沿革 true_exit_mode 必须是"
+                    f"解封时要翻回的 'contract_satisfied'（得 "
+                    f"{r.get('true_exit_mode')!r}）")
+        if _cu is not None and r.get("policy") != "diagnostic_only":
+            bad.append(f"row{r.get('row')}: 耦合未证出口只许配 diagnostic_only"
+                       f"（得 policy={r.get('policy')!r}）")
+        if _cu is not None and r.get("verdict_permission") != "none":
+            bad.append(f"row{r.get('row')}: 耦合未证行 verdict_permission 必须为 none")
     # DEBT-085 件二·声明期：粒度声明枚举 ＋ 同卡同质（决策门 Q1，冲突整表拒载）。
     bad.extend(granularity_declaration_violations(BINDING_CONTRACTS, "A表"))
     return bad
@@ -2517,6 +2690,11 @@ VALUE_CONSUMPTION_BINDINGS: FrozenSet[Tuple[str, str]] = frozenset(
 DIAGNOSTIC_ONLY_BINDINGS: FrozenSet[Tuple[str, str]] = frozenset(
     k for k, r in SCOPE_PRECISE_BINDINGS.items()
     if r["policy"] == "diagnostic_only")
+# #33 保护闸射程（2026-08-05）：耦合未证 ⇒ 结构上不产 satisfied。
+# **只从活行派生**，与其它视图同规矩：消费方不得绕过表自建集合。
+COUPLING_UNPROVEN_BINDINGS: FrozenSet[Tuple[str, str]] = frozenset(
+    k for k, r in SCOPE_PRECISE_BINDINGS.items()
+    if coupling_unproven_exit_code(r) is not None)
 # 运行态拒绝视图（S1 实施审二轮欠项②）：失效行不许"消失后回退通用求值"——
 # 求值路径命中本视图 ⇒ blocked/schema_contract_violation 拒绝判定。
 # 全表禁用（模式违例/卡包不可读）时全部绑定入拒绝视图。

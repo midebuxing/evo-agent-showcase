@@ -484,9 +484,10 @@ def test_production_value_registry_shape():
     """生产登记形状冻结（先量后冻）。
 
     沿革：A′ 首批恰 row 37 一键（「授权过宽不通过」裁决）；2026-08-04 c55 批
-    +22 键（55 单元逐条裁定，`裁定_消费55_*`）→ 现 23。row 37 必须仍在
-    （c55 落表不许挤掉先例），且 22 新键全在 reporting 轴（qwen 审核发现②
-    修正——本测试当时只冻 row 37，落表后套红被审出漏改）。"""
+    +22 键（55 单元逐条裁定，`裁定_消费55_*`）→ 23；**2026-08-05 #33 保护闸把
+    那 22 键全部翻成耦合未证拒判 → 回到 1**（`决议_33处置_20260805.md` §一.1）。
+    row 37 必须仍在（它不在 #33 射程：槽非 reporting 轴、`true_exit_mode=caller_path`
+    契约本就不直判）。22 个 reporting 键改由闸的派生视图冻结。"""
     import evo_agent_baseline.closure.obligation_deriver as od
     row37 = (
         "rc.mbis.inspection.personal_conduct.ri.duty."
@@ -496,7 +497,9 @@ def test_production_value_registry_shape():
     )
     keys = od.VALUE_CONSUMPTION_AUTHORIZED_BINDINGS
     assert row37 in keys
-    assert len(keys) == 23
+    assert len(keys) == 1
     from evo_agent_baseline.closure import binding_contract_registry as reg
-    for k in keys - {row37}:
+    # 22 个 reporting 键去了哪儿：全在 #33 闸内，且全部仍是 reporting 轴。
+    assert len(reg.COUPLING_UNPROVEN_BINDINGS) == 22
+    for k in reg.COUPLING_UNPROVEN_BINDINGS:
         assert reg.SCOPE_PRECISE_BINDINGS[k]["slot_id"].startswith("reporting.")
